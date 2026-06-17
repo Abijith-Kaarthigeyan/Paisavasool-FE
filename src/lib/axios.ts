@@ -87,6 +87,25 @@ const setupResponseInterceptor = (instance: typeof authApi) => {
           // Trigger token refresh via the Auth Service endpoint
           await authApi.post("/auth/refresh");
           
+          // Re-fetch current user profile to update Redux store with new expiration timestamp
+          try {
+            const meResponse = await authApi.get("/auth/me");
+            const freshUser = meResponse.data;
+            const { store } = await import("@/app/store");
+            const { setCredentials } = await import("@/features/auth/slices/authSlice");
+            store.dispatch(
+              setCredentials({
+                sub: freshUser.id,
+                email: freshUser.email,
+                role: freshUser.role.role_name,
+                is_active: freshUser.is_active,
+                exp: Math.floor(Date.now() / 1000) + 900, // standard 15 mins
+              })
+            );
+          } catch (meError) {
+            console.error("Failed to update credentials after refresh:", meError);
+          }
+
           processQueue(null);
           isRefreshing = false;
           

@@ -8,6 +8,7 @@ import { authService } from "@/features/auth/services/authService"
 import { setCredentials, clearCredentials } from "@/features/auth/slices/authSlice"
 import { RootState } from "@/app/store"
 import { ROLES, RoleType } from "@/config/constants"
+import { CreditCard, Mail, Lock, Eye, EyeOff, Loader2, KeyRound, AlertCircle, Info, ChevronDown, ChevronUp } from "lucide-react"
 
 export const LoginPage: React.FC = () => {
   const dispatch = useDispatch();
@@ -17,12 +18,15 @@ export const LoginPage: React.FC = () => {
   
   const [apiError, setApiError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showTestAccounts, setShowTestAccounts] = useState(false);
 
   const isSessionExpired = searchParams.get("session_expired") === "true";
 
   const {
     register,
     handleSubmit,
+    setValue,
     formState: { errors },
   } = useForm<LoginRequest>({
     resolver: zodResolver(loginSchema),
@@ -89,84 +93,162 @@ export const LoginPage: React.FC = () => {
     }
   };
 
+  const handleFillCredentials = (email: string, pass: string) => {
+    setValue("email", email);
+    setValue("password", pass);
+  };
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4 py-12 dark:bg-gray-950 sm:px-6 lg:px-8">
-      <div className="w-full max-w-md space-y-8 rounded-2xl border border-border bg-card p-8 shadow-lg">
-        <div>
-          <h2 className="mt-6 text-center text-3xl font-extrabold tracking-tight text-foreground">
-            Paisa Vasool Auth
+    <div className="relative flex min-h-screen items-center justify-center bg-slate-900 px-4 py-12 sm:px-6 lg:px-8 overflow-hidden font-sans">
+      {/* Decorative Blur Blobs */}
+      <div className="absolute top-[-10%] left-[-10%] h-[400px] w-[400px] rounded-full bg-primary/20 blur-[100px] pointer-events-none" />
+      <div className="absolute bottom-[-10%] right-[-10%] h-[400px] w-[400px] rounded-full bg-indigo-500/10 blur-[100px] pointer-events-none" />
+
+      {/* Main Glassmorphic Card */}
+      <div className="relative w-full max-w-md space-y-6 rounded-2xl border border-slate-800/80 bg-slate-950/70 p-8 shadow-2xl backdrop-blur-md">
+        
+        {/* Logo and Header */}
+        <div className="flex flex-col items-center justify-center text-center">
+          <div className="flex items-center justify-center h-12 w-12 rounded-xl bg-primary/10 border border-primary/20 shadow-inner mb-4">
+            <CreditCard className="h-6 w-6 text-primary" />
+          </div>
+          <h2 className="text-3xl font-extrabold tracking-tight text-white">
+            Paisa Vasool
           </h2>
-          <p className="mt-2 text-center text-sm text-muted-foreground">
-            Microservice Auth Test Client
+          <p className="mt-1 text-xs font-semibold text-slate-400 uppercase tracking-widest">
+            Accounts Receivable Assistant
           </p>
         </div>
 
+        {/* Info Banners */}
         {isSessionExpired && (
-          <div className="rounded-md bg-amber-50 p-3 text-sm text-amber-700 dark:bg-amber-950/20 dark:text-amber-400">
-            Your session has expired. Please log in again.
+          <div className="flex items-start gap-3 rounded-lg border border-amber-500/20 bg-amber-500/10 p-3.5 text-xs text-amber-300">
+            <Info className="h-4 w-4 shrink-0 mt-0.5" />
+            <span>Your session has expired. Please log in again to continue.</span>
           </div>
         )}
 
         {apiError && (
-          <div className="rounded-md bg-rose-50 p-3 text-sm text-rose-700 dark:bg-rose-950/20 dark:text-rose-400">
-            {apiError}
+          <div className="flex items-start gap-3 rounded-lg border border-rose-500/20 bg-rose-500/10 p-3.5 text-xs text-rose-300">
+            <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+            <span>{apiError}</span>
           </div>
         )}
 
-        <form className="mt-8 space-y-6" onSubmit={handleSubmit(onSubmit)}>
-          <div className="space-y-4 rounded-md shadow-sm">
+        {/* Login Form */}
+        <form className="space-y-5" onSubmit={handleSubmit(onSubmit)}>
+          <div className="space-y-4">
+            {/* Email Field */}
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-foreground">
+              <label htmlFor="email" className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">
                 Email Address
               </label>
-              <input
-                id="email"
-                type="email"
-                disabled={isLoading}
-                {...register("register" in errors ? "email" : "email")}
-                className="mt-1 block w-full rounded-md border border-input bg-background px-3 py-2 text-foreground placeholder-muted-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary sm:text-sm"
-                placeholder="admin@paisavasool.com"
-              />
+              <div className="relative rounded-lg shadow-sm group">
+                <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-slate-500 group-focus-within:text-primary transition-colors">
+                  <Mail className="h-4 w-4" />
+                </div>
+                <input
+                  id="email"
+                  type="email"
+                  disabled={isLoading}
+                  {...register("email")}
+                  className="block w-full rounded-lg border border-slate-800 bg-slate-900/50 pl-10 pr-4 py-2.5 text-sm text-slate-100 placeholder-slate-500 transition-all focus:border-primary focus:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:opacity-50"
+                  placeholder="name@paisavasool.com"
+                />
+              </div>
               {errors.email && (
-                <p className="mt-1 text-xs text-rose-500">{errors.email.message}</p>
+                <p className="mt-1.5 text-xs text-rose-400 font-medium flex items-center gap-1">
+                  <AlertCircle className="h-3 w-3" /> {errors.email.message}
+                </p>
               )}
             </div>
 
+            {/* Password Field */}
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-foreground">
+              <label htmlFor="password" className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">
                 Password
               </label>
-              <input
-                id="password"
-                type="password"
-                disabled={isLoading}
-                {...register("password")}
-                className="mt-1 block w-full rounded-md border border-input bg-background px-3 py-2 text-foreground placeholder-muted-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary sm:text-sm"
-                placeholder="••••••••"
-              />
+              <div className="relative rounded-lg shadow-sm group">
+                <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-slate-500 group-focus-within:text-primary transition-colors">
+                  <Lock className="h-4 w-4" />
+                </div>
+                <input
+                  id="password"
+                  type={showPassword ? "text" : "password"}
+                  disabled={isLoading}
+                  {...register("password")}
+                  className="block w-full rounded-lg border border-slate-800 bg-slate-900/50 pl-10 pr-10 py-2.5 text-sm text-slate-100 placeholder-slate-500 transition-all focus:border-primary focus:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:opacity-50"
+                  placeholder="••••••••"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  disabled={isLoading}
+                  className="absolute inset-y-0 right-0 flex items-center pr-3 text-slate-500 hover:text-slate-300 transition-colors focus:outline-none"
+                >
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
               {errors.password && (
-                <p className="mt-1 text-xs text-rose-500">{errors.password.message}</p>
+                <p className="mt-1.5 text-xs text-rose-400 font-medium flex items-center gap-1">
+                  <AlertCircle className="h-3 w-3" /> {errors.password.message}
+                </p>
               )}
             </div>
           </div>
 
-          <div>
-            <button
-              type="submit"
-              disabled={isLoading}
-              className="group relative flex w-full justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/95 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 disabled:opacity-50"
-            >
-              {isLoading ? "Authenticating..." : "Sign In"}
-            </button>
-          </div>
+          {/* Submit Button */}
+          <button
+            type="submit"
+            disabled={isLoading}
+            className="group relative flex w-full justify-center items-center rounded-lg bg-primary px-4 py-3 text-sm font-bold text-white shadow-lg shadow-primary/20 hover:bg-primary/95 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-slate-950 disabled:opacity-50 transition-all duration-200 cursor-pointer"
+          >
+            {isLoading ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                Authenticating...
+              </>
+            ) : (
+              "Sign In"
+            )}
+          </button>
         </form>
 
-        <div className="mt-4 border-t border-border pt-4 text-center">
-          <p className="text-xs text-muted-foreground mb-2">Test Accounts:</p>
-          <div className="grid grid-cols-1 gap-1 text-[10px] font-mono text-muted-foreground">
-            <div>Admin: admin@paisavasool.com / ChangeMe123!</div>
-          </div>
+        {/* Collapsible Test Credentials Panel */}
+        <div className="mt-6 border-t border-slate-800/80 pt-5">
+          <button
+            type="button"
+            onClick={() => setShowTestAccounts(!showTestAccounts)}
+            className="flex items-center justify-between w-full px-3 py-2.5 text-xs font-bold text-slate-400 hover:text-slate-200 transition-all bg-slate-900/30 hover:bg-slate-900/60 rounded-lg border border-slate-800/50 hover:cursor-pointer"
+          >
+            <span className="flex items-center gap-2">
+              <KeyRound className="h-3.5 w-3.5 text-primary" />
+              Demo / Test Accounts
+            </span>
+            {showTestAccounts ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+          </button>
+
+          {showTestAccounts && (
+            <div className="mt-3 p-3.5 rounded-lg bg-slate-900/50 border border-slate-800/60 space-y-2.5 animate-in fade-in slide-in-from-top-1 duration-200">
+              <div className="flex flex-col gap-1 text-[11px] text-slate-400">
+                <div className="flex justify-between items-center bg-slate-950/40 p-2 rounded border border-slate-800/40">
+                  <div>
+                    <span className="font-semibold text-slate-200 block">Administrator Account</span>
+                    <span className="font-mono text-slate-500">admin@paisavasool.com</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleFillCredentials("admin@paisavasool.com", "ChangeMe123!")}
+                    className="px-2.5 py-1 text-[10px] font-bold text-primary bg-primary/10 border border-primary/20 rounded hover:bg-primary hover:text-white transition-all duration-150 hover:cursor-pointer"
+                  >
+                    Auto-Fill
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
+
       </div>
     </div>
   );
