@@ -1,28 +1,54 @@
 import React from "react"
-import { useParams, Link, useNavigate } from "react-router-dom"
-import { useBatchStatus, useBatchInvoices } from "../hooks/useInvoices"
+import { useParams, Link } from "react-router-dom"
+import { useBatchStatus } from "../hooks/useInvoices"
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
-import { 
-  FileSpreadsheet, 
-  CheckCircle, 
-  XCircle, 
-  Loader2, 
+import {
+  CheckCircle,
+  XCircle,
+  Loader2,
   ArrowLeft,
   Calendar,
-  Layers
+  Layers,
+  ChevronDown,
+  ChevronUp
 } from "lucide-react"
 
 export const BatchDetailsPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
-  const navigate = useNavigate();
+
+  const [expandedFiles, setExpandedFiles] = React.useState<Record<string, boolean>>({});
+
+  const toggleExpand = (fileId: string) => {
+    setExpandedFiles((prev) => ({ ...prev, [fileId]: !prev[fileId] }));
+  };
 
   // Fetch status details (polled automatically every 2s until completed)
   const { data: batch, isLoading: isBatchLoading, error: batchError } = useBatchStatus(id);
 
-  // Fetch successful invoices for this batch
-  const { data: invoices = [], isLoading: isInvoicesLoading } = useBatchInvoices(id);
+
+
+  const failedFiles = React.useMemo(() => {
+    if (!batch || !batch.files) return [];
+    return batch.files.filter((f: any) => f.status === "FAILED");
+  }, [batch]);
+
+  const parseErrorMessage = (errorMsg: string | null) => {
+    if (!errorMsg) return { reason: "Unknown error occurred.", rawText: "" };
+    try {
+      if (errorMsg.trim().startsWith("{")) {
+        const parsed = JSON.parse(errorMsg);
+        return {
+          reason: parsed.reason || "Extraction failed.",
+          rawText: parsed.raw_text || "",
+        };
+      }
+    } catch (e) {
+      // Fallback if it's not JSON
+    }
+    return { reason: errorMsg, rawText: "" };
+  };
 
   const getBatchStatusVariant = (status: string | undefined) => {
     switch (status) {
@@ -152,64 +178,87 @@ export const BatchDetailsPage: React.FC = () => {
         </Card>
       )}
 
-      {/* Successfully Imported Invoices Table */}
-      <Card className="border-border shadow-xs">
-        <CardHeader className="pb-3 border-b border-border mb-4">
-          <CardTitle className="text-sm font-bold uppercase tracking-wider flex items-center gap-2">
-            <FileSpreadsheet className="h-4 w-4 text-primary" /> Successfully Imported Invoices
-          </CardTitle>
-          <CardDescription>Lines parsed and saved to billing registers.</CardDescription>
-        </CardHeader>
-        <CardContent className="pt-0">
-          {isInvoicesLoading ? (
-            <div className="space-y-3">
-              <Skeleton className="h-10 w-full" />
-              <Skeleton className="h-10 w-full" />
-            </div>
-          ) : invoices.length === 0 ? (
-            <div className="text-center py-12 text-muted-foreground text-sm border border-dashed rounded-lg">
-              {batch.status === "FAILED" ? "Ingestion failed. No invoices imported." : "No invoices successfully processed in this batch yet."}
-            </div>
-          ) : (
+
+
+      {/* Failed Ingestion Details Table */}
+      {failedFiles.length > 0 && (
+        <Card className="border-rose-500/20 shadow-xs">
+          <CardHeader className="pb-3 border-b border-rose-500/20 bg-rose-50/10 dark:bg-rose-950/5 mb-4">
+            <CardTitle className="text-sm font-bold uppercase tracking-wider flex items-center gap-2 text-rose-600 dark:text-rose-400">
+              <XCircle className="h-4 w-4" /> Failed Ingestion Details
+            </CardTitle>
+            <CardDescription className="text-rose-500/80">
+              Files that could not be processed during ingestion.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="pt-0">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm">
                 <thead>
                   <tr className="border-b border-border text-muted-foreground uppercase text-xs font-semibold">
-                    <th className="py-3 px-3">Invoice Number</th>
-                    <th className="py-3 px-3">Customer</th>
-                    <th className="py-3 px-3">Invoice Date</th>
-                    <th className="py-3 px-3">Due Date</th>
-                    <th className="py-3 px-3 text-right">Outstanding</th>
-                    <th className="py-3 px-3 text-right">Total Amount</th>
+                    <th className="py-3 px-3">File Name</th>
+                    <th className="py-3 px-3">Failure Reason</th>
+                    <th className="py-3 px-3">Raw Parsed Text</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
-                  {invoices.map((inv) => (
-                    <tr
-                      key={inv.id}
-                      onClick={() => navigate(`/invoices/${inv.id}`)}
-                      className="hover:bg-slate-50/50 dark:hover:bg-zinc-900/40 cursor-pointer transition-colors"
-                    >
-                      <td className="py-3 px-3 font-semibold text-foreground">{inv.invoice_number}</td>
-                      <td className="py-3 px-3 text-muted-foreground font-semibold">
-                        {inv.customer?.customer_name || "Active Account"}
-                      </td>
-                      <td className="py-3 px-3 text-muted-foreground">{new Date(inv.invoice_date).toLocaleDateString()}</td>
-                      <td className="py-3 px-3 text-muted-foreground">{new Date(inv.due_date).toLocaleDateString()}</td>
-                      <td className="py-3 px-3 text-right font-mono text-muted-foreground">
-                        {inv.currency} {inv.outstanding_amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                      </td>
-                      <td className="py-3 px-3 text-right font-bold text-foreground font-mono">
-                        {inv.currency} {inv.total_amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                      </td>
-                    </tr>
-                  ))}
+                  {failedFiles.map((file: any) => {
+                    const { reason, rawText } = parseErrorMessage(file.error_message);
+                    const isExpanded = !!expandedFiles[file.id];
+                    return (
+                      <React.Fragment key={file.id}>
+                        <tr className="hover:bg-slate-50/50 dark:hover:bg-zinc-900/40 transition-colors">
+                          <td className="py-3 px-3 font-semibold text-foreground max-w-[240px] truncate" title={file.file_name}>
+                            {file.file_name}
+                          </td>
+                          <td className="py-3 px-3 text-rose-600 dark:text-rose-400 font-semibold text-xs uppercase tracking-wide">
+                            {formatStatus(reason)}
+                          </td>
+                          <td className="py-3 px-3">
+                            {rawText ? (
+                              <button
+                                onClick={() => toggleExpand(file.id)}
+                                className="inline-flex items-center gap-1.5 text-xs font-bold text-primary hover:underline hover:cursor-pointer"
+                              >
+                                {isExpanded ? (
+                                  <>
+                                    Hide Raw Text <ChevronUp className="h-3.5 w-3.5" />
+                                  </>
+                                ) : (
+                                  <>
+                                    Show Raw Text ({rawText.length} chars){" "}
+                                    <ChevronDown className="h-3.5 w-3.5" />
+                                  </>
+                                )}
+                              </button>
+                            ) : (
+                              <span className="text-xs text-muted-foreground italic">No raw text available</span>
+                            )}
+                          </td>
+                        </tr>
+                        {isExpanded && rawText && (
+                          <tr>
+                            <td colSpan={3} className="bg-slate-50/40 dark:bg-zinc-950/20 p-4 border-t border-b border-border">
+                              <div className="space-y-2">
+                                <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                                  Raw Extracted Content
+                                </span>
+                                <pre className="max-h-60 overflow-y-auto rounded-lg border border-border bg-slate-100 dark:bg-zinc-900 p-3.5 text-xs font-mono text-foreground whitespace-pre-wrap leading-relaxed shadow-inner">
+                                  {rawText}
+                                </pre>
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </React.Fragment>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
-          )}
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 };

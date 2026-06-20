@@ -5,6 +5,7 @@ export const customerService = {
   getCustomers: async (params?: {
     limit?: number;
     offset?: number;
+    customer_code?: string;
   }): Promise<Customer[]> => {
     const response = await arApi.get("/customers", { params });
     return response.data;

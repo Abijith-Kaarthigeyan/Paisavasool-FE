@@ -4,6 +4,7 @@ import { customerService } from "../services/customerService"
 export const useCustomers = (params?: {
   limit?: number;
   offset?: number;
+  customer_code?: string;
 }) => {
   return useQuery({
     queryKey: ["customers", params],

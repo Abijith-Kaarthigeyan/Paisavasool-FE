@@ -1,5 +1,12 @@
 export type ReviewStatus = "PENDING" | "APPROVED" | "REJECTED";
 
+export interface CustomerSuggestion {
+  customer_id: string;
+  customer_name: string;
+  customer_code: string;
+  confidence: number;
+}
+
 export interface PaymentReviewResponse {
   id: string;
   payment_id: string;
@@ -8,6 +15,10 @@ export interface PaymentReviewResponse {
   status: ReviewStatus;
   assigned_to: string | null;
   created_at: string;
+  suggested_customer_id?: string | null;
+  suggested_customer_name?: string | null;
+  suggested_customer_code?: string | null;
+  suggested_candidates?: CustomerSuggestion[];
 }
 
 export interface PaymentDetailsResponse {

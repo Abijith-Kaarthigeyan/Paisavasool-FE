@@ -1,198 +1,389 @@
-import React from "react"
+import React, { useMemo } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { useSelector } from "react-redux"
 import { RootState } from "@/app/store"
+import { Link, useNavigate } from "react-router-dom"
 import { userService } from "@/features/users/services/userService"
-import { paymentService } from "@/features/payments/services/paymentService"
-import { reviewService } from "@/features/matching/services/reviewService"
+import {
+  useCollections,
+  useBrokenPromises,
+  useEscalatedCases,
+} from "@/features/collections/hooks/useCollections"
 import { UserResponse } from "@/types"
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
-import { 
-  Mail, 
-  ShieldCheck, 
-  Users, 
-  FileSpreadsheet, 
-  AlertCircle 
+import {
+  Mail,
+  ShieldCheck,
+  Users,
+  AlertTriangle,
+  FolderOpen,
+  HeartOff,
+  ArrowRight,
+  Percent,
+  RefreshCw,
 } from "lucide-react"
 
 export const ManagerDashboard: React.FC = () => {
+  const navigate = useNavigate();
   const { user: manager } = useSelector((state: RootState) => state.auth);
 
-  // 1. Fetch all users to find reporting associates
+  // 1. Fetch direct reports (associates)
   const { data: allUsers = [], isLoading: isUsersLoading } = useQuery<UserResponse[]>({
     queryKey: ["users"],
     queryFn: userService.listUsers,
     enabled: !!manager,
   });
 
-  // Filter associates reporting to this manager
-  const teamAssociates = allUsers.filter(
-    (u) => u.manager_id === manager?.sub && u.role.role_name === "FINANCE_ASSOCIATE"
-  );
-  const teamAssociateIds = teamAssociates.map(a => a.id);
+  const teamAssociates = useMemo(() => {
+    return allUsers.filter(
+      (u) => u.manager_id === manager?.sub && u.role.role_name === "FINANCE_ASSOCIATE"
+    );
+  }, [allUsers, manager]);
 
-  // 2. Fetch payment uploads to calculate team payment metrics
-  const { data: payments = [], isLoading: isPaymentsLoading } = useQuery({
-    queryKey: ["paymentUploads"],
-    queryFn: () => paymentService.listPaymentUploads(),
-    enabled: !!manager && teamAssociateIds.length > 0,
-  });
+  const teamAssociateIds = useMemo(() => {
+    return teamAssociates.map((a) => a.id);
+  }, [teamAssociates]);
 
-  // Filter payments uploaded by team members
-  const teamPayments = payments.filter(p => teamAssociateIds.includes(p.uploaded_by));
-  const teamPaymentCount = teamPayments.length;
+  // 2. Fetch collections case records
+  const { data: allCases = [], isLoading: isCasesLoading, refetch: refetchCases } = useCollections();
+  const { data: brokenPromises = [], isLoading: isBrokenLoading } = useBrokenPromises();
+  const { data: escalatedCases = [], isLoading: isEscalatedLoading } = useEscalatedCases();
 
-  // 3. Fetch reviews queue to find pending reviews related to team payments
-  const { data: reviews = [], isLoading: isReviewsLoading } = useQuery({
-    queryKey: ["paymentReviews"],
-    queryFn: () => reviewService.listPaymentReviews(),
-    enabled: !!manager && teamAssociateIds.length > 0,
-  });
+  // Filter collections assigned to the manager's direct team
+  const teamCases = useMemo(() => {
+    return allCases.filter((c) => c.assigned_to && teamAssociateIds.includes(c.assigned_to));
+  }, [allCases, teamAssociateIds]);
 
-  // Global pending reviews as fallback if team assignment is null
-  const globalPendingReviews = reviews.filter(r => r.status === "PENDING").length;
+  // Calculate manager operational KPIs
+  const openCasesCount = allCases.filter((c) => c.status !== "CLOSED").length;
+  const escalatedCasesCount = escalatedCases.length;
+  const brokenPromisesCount = brokenPromises.length;
+  const teamCasesCount = teamCases.length;
+
+  // Recent Escalations Registry
+  const recentEscalations = useMemo(() => {
+    return escalatedCases
+      .sort((a, b) => {
+        const dateA = a.escalated_at ? new Date(a.escalated_at).getTime() : 0;
+        const dateB = b.escalated_at ? new Date(b.escalated_at).getTime() : 0;
+        return dateB - dateA;
+      })
+      .slice(0, 5);
+  }, [escalatedCases]);
+
+  // Computed Associate Performance Summary Table
+  const associatePerformance = useMemo(() => {
+    if (!teamAssociates.length) return [];
+
+    return teamAssociates.map((assoc) => {
+      const assocCases = allCases.filter((c) => c.assigned_to === assoc.id);
+      const activeCases = assocCases.filter((c) => c.status !== "CLOSED");
+      const escalatedCount = assocCases.filter((c) => c.status === "ESCALATED").length;
+      
+      // Calculate amount collected vs snapshot
+      let totalSnapshot = 0;
+      let totalOutstanding = 0;
+      assocCases.forEach((c) => {
+        totalSnapshot += c.outstanding_amount_snapshot;
+        totalOutstanding += c.invoice?.outstanding_amount ?? c.outstanding_amount_snapshot;
+      });
+      const collectedAmount = Math.max(0, totalSnapshot - totalOutstanding);
+      const effectiveness = totalSnapshot > 0 ? collectedAmount / totalSnapshot : 0;
+
+      return {
+        id: assoc.id,
+        name: `${assoc.first_name} ${assoc.last_name}`,
+        email: assoc.email,
+        totalCases: assocCases.length,
+        activeCases: activeCases.length,
+        escalatedCases: escalatedCount,
+        collectedAmount,
+        effectiveness,
+      };
+    });
+  }, [teamAssociates, allCases]);
+
+  const isLoading = isUsersLoading || isCasesLoading || isBrokenLoading || isEscalatedLoading;
 
   return (
     <div className="space-y-6">
       {/* Page Header */}
-      <header className="border-b border-border pb-5">
-        <h1 className="text-2xl font-bold tracking-tight text-foreground m-0">
-          Manager Operations Center
-        </h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Monitor your team of associates, review operational efficiency, and view billing summaries.
-        </p>
+      <header className="flex flex-col sm:flex-row sm:items-center sm:justify-between border-b border-border pb-5 gap-4">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-foreground m-0">
+            Manager Operations Center
+          </h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Monitor direct reports performance, review credit collections dispatches, and intervene in escalations.
+          </p>
+        </div>
+        <button
+          onClick={() => refetchCases()}
+          className="flex items-center gap-1.5 self-start sm:self-center rounded-lg border border-border bg-card px-3.5 py-2 text-xs font-bold text-foreground hover:bg-muted transition-colors shadow-xs"
+        >
+          <RefreshCw className="h-3.5 w-3.5" /> Refresh Center
+        </button>
       </header>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Manager Information Profile Card */}
-        <Card className="shadow-xs border-border h-fit">
-          <CardHeader className="pb-3 border-b border-border mb-4">
-            <CardTitle>Manager Profile</CardTitle>
-            <CardDescription>Authenticated user details.</CardDescription>
-          </CardHeader>
-          <CardContent className="pt-0 space-y-4">
-            {manager ? (
-              <div className="space-y-4">
-                <div className="flex items-center gap-3">
-                  <div className="h-12 w-12 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center font-bold text-lg border border-emerald-500/20">
-                    M
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-base text-foreground leading-tight">
-                      Finance Manager
-                    </h3>
-                    <span className="text-xs text-muted-foreground block mt-0.5">{manager.email}</span>
-                  </div>
-                </div>
-
-                <div className="border-t border-border pt-4 space-y-3 text-sm">
-                  <div className="flex justify-between items-center">
-                    <span className="text-muted-foreground flex items-center gap-2">
-                      <Mail className="h-4 w-4 text-slate-400" /> Email
-                    </span>
-                    <span className="font-semibold text-foreground font-mono text-xs">{manager.email}</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-muted-foreground flex items-center gap-2">
-                      <ShieldCheck className="h-4 w-4 text-slate-400" /> Access Role
-                    </span>
-                    <Badge variant="success" className="uppercase font-bold text-[10px]">
-                      FINANCE MANAGER
-                    </Badge>
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <Skeleton className="h-28 w-full" />
-            )}
+      {/* KPI Cards Grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <Card className="hover:shadow-xs transition-shadow border-l-4 border-l-blue-500">
+          <CardContent className="p-5 flex items-center justify-between">
+            <div className="space-y-1">
+              <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Open Cases</span>
+              <p className="text-2xl font-bold text-foreground">
+                {isLoading ? <Skeleton className="h-7 w-12" /> : openCasesCount}
+              </p>
+            </div>
+            <div className="p-2.5 rounded-lg bg-blue-500/10 text-blue-500">
+              <FolderOpen className="h-5 w-5" />
+            </div>
           </CardContent>
         </Card>
 
-        {/* Team Overview & KPI Cards */}
+        <Card className="hover:shadow-xs transition-shadow border-l-4 border-l-red-500">
+          <CardContent className="p-5 flex items-center justify-between">
+            <div className="space-y-1">
+              <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Escalated Cases</span>
+              <p className="text-2xl font-bold text-red-655 font-mono">
+                {isLoading ? <Skeleton className="h-7 w-12" /> : escalatedCasesCount}
+              </p>
+            </div>
+            <div className="p-2.5 rounded-lg bg-red-500/10 text-red-500">
+              <AlertTriangle className="h-5 w-5" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="hover:shadow-xs transition-shadow border-l-4 border-l-amber-500">
+          <CardContent className="p-5 flex items-center justify-between">
+            <div className="space-y-1">
+              <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Broken Promises</span>
+              <p className="text-2xl font-bold text-amber-500">
+                {isLoading ? <Skeleton className="h-7 w-12" /> : brokenPromisesCount}
+              </p>
+            </div>
+            <div className="p-2.5 rounded-lg bg-amber-500/10 text-amber-500">
+              <HeartOff className="h-5 w-5" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="hover:shadow-xs transition-shadow border-l-4 border-l-emerald-500">
+          <CardContent className="p-5 flex items-center justify-between">
+            <div className="space-y-1">
+              <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Team Collections</span>
+              <p className="text-2xl font-bold text-foreground">
+                {isLoading ? <Skeleton className="h-7 w-12" /> : teamCasesCount}
+              </p>
+            </div>
+            <div className="p-2.5 rounded-lg bg-emerald-500/10 text-emerald-500">
+              <Users className="h-5 w-5" />
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Main Grid: Profiles + Performance Tables */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Manager Profile card */}
+        <div className="space-y-6">
+          <Card className="shadow-xs border-border h-fit">
+            <CardHeader className="pb-3 border-b border-border mb-4">
+              <CardTitle>Manager Profile</CardTitle>
+              <CardDescription>Authenticated user details.</CardDescription>
+            </CardHeader>
+            <CardContent className="pt-0 space-y-4">
+              {manager ? (
+                <div className="space-y-4">
+                  <div className="flex items-center gap-3">
+                    <div className="h-12 w-12 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center font-bold text-lg border border-emerald-500/20">
+                      M
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-base text-foreground leading-tight">
+                        Finance Manager
+                      </h3>
+                      <span className="text-xs text-muted-foreground block mt-0.5">{manager.email}</span>
+                    </div>
+                  </div>
+
+                  <div className="border-t border-border pt-4 space-y-3 text-sm">
+                    <div className="flex justify-between items-center">
+                      <span className="text-muted-foreground flex items-center gap-2">
+                        <Mail className="h-4 w-4 text-slate-400" /> Email
+                      </span>
+                      <span className="font-semibold text-foreground font-mono text-xs">{manager.email}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-muted-foreground flex items-center gap-2">
+                        <ShieldCheck className="h-4 w-4 text-slate-400" /> Access Role
+                      </span>
+                      <Badge variant="success" className="uppercase font-bold text-[10px]">
+                        FINANCE MANAGER
+                      </Badge>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <Skeleton className="h-28 w-full" />
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Recent Escalations intervenor widget */}
+          <Card className="shadow-xs border-border">
+            <CardHeader className="pb-3 border-b border-border mb-3 flex flex-row items-center justify-between">
+              <div>
+                <CardTitle className="text-sm">Recent Escalations</CardTitle>
+                <CardDescription>Cases requiring approval override.</CardDescription>
+              </div>
+              <Link to="/collections/escalated" className="text-xs font-bold text-primary flex items-center gap-0.5 hover:underline">
+                Intervene <ArrowRight className="h-3 w-3" />
+              </Link>
+            </CardHeader>
+            <CardContent className="pt-0">
+              {isLoading ? (
+                <div className="space-y-2">
+                  <Skeleton className="h-8 w-full" />
+                  <Skeleton className="h-8 w-full" />
+                </div>
+              ) : recentEscalations.length === 0 ? (
+                <div className="text-center py-6 text-muted-foreground text-xs border border-dashed rounded-lg">
+                  No escalated collection cases pending.
+                </div>
+              ) : (
+                <div className="space-y-2.5">
+                  {recentEscalations.map((esc) => (
+                    <div
+                      key={esc.id}
+                      onClick={() => navigate(`/collections/${esc.id}`)}
+                      className="flex items-center justify-between p-2.5 rounded-lg hover:bg-slate-50 dark:hover:bg-zinc-900/40 cursor-pointer border border-border transition-colors"
+                    >
+                      <div className="min-w-0">
+                        <p className="text-xs font-bold text-foreground truncate">
+                          {esc.customer?.customer_name}
+                        </p>
+                        <p className="text-[9px] text-muted-foreground mt-0.5">
+                          Amount: ₹{(esc.invoice?.outstanding_amount ?? esc.outstanding_amount_snapshot).toLocaleString()}
+                        </p>
+                      </div>
+                      <Badge variant="destructive" className="text-[9px] py-0 px-1.5 uppercase font-bold flex-shrink-0">
+                        Escalated
+                      </Badge>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Right Side: Performance summaries (2 Cols) */}
         <div className="lg:col-span-2 space-y-6">
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <Card className="hover:shadow-xs transition-shadow">
-              <CardContent className="p-5 flex items-center justify-between">
-                <div className="space-y-1">
-                  <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">My Team Size</span>
-                  <p className="text-2xl font-bold text-foreground">
-                    {isUsersLoading ? <Skeleton className="h-7 w-12" /> : `${teamAssociates.length} Associates`}
-                  </p>
-                </div>
-                <div className="p-2.5 rounded-lg bg-primary/10 text-primary">
-                  <Users className="h-5 w-5" />
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="hover:shadow-xs transition-shadow">
-              <CardContent className="p-5 flex items-center justify-between">
-                <div className="space-y-1">
-                  <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Team Uploaded Payments</span>
-                  <p className="text-2xl font-bold text-foreground">
-                    {isPaymentsLoading ? <Skeleton className="h-7 w-12" /> : teamPaymentCount}
-                  </p>
-                </div>
-                <div className="p-2.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
-                  <FileSpreadsheet className="h-5 w-5" />
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="hover:shadow-xs transition-shadow">
-              <CardContent className="p-5 flex items-center justify-between">
-                <div className="space-y-1">
-                  <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Pending Review Items</span>
-                  <p className="text-2xl font-bold text-amber-600 dark:text-amber-400">
-                    {isReviewsLoading ? <Skeleton className="h-7 w-12" /> : globalPendingReviews}
-                  </p>
-                </div>
-                <div className="p-2.5 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400">
-                  <AlertCircle className="h-5 w-5" />
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Reporting Associates Table */}
+          {/* Direct report associate performance metrics summary */}
           <Card className="shadow-xs border-border">
             <CardHeader className="pb-3 border-b border-border mb-4">
-              <CardTitle>My Direct Reports</CardTitle>
-              <CardDescription>Finance Associates assigned to report to your profile.</CardDescription>
+              <CardTitle>Associate Performance Summary</CardTitle>
+              <CardDescription>
+                Overview of case distribution and payment collection effectiveness per associate.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="pt-0">
+              {isLoading ? (
+                <div className="space-y-3">
+                  <Skeleton className="h-10 w-full" />
+                  <Skeleton className="h-10 w-full" />
+                </div>
+              ) : associatePerformance.length === 0 ? (
+                <div className="text-center py-10 text-muted-foreground border border-dashed rounded-lg text-xs">
+                  No active associates are assigned to report to your profile.
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead>
+                      <tr className="border-b border-border text-muted-foreground uppercase text-[10px] font-bold tracking-wider bg-slate-50/50 dark:bg-zinc-900/10">
+                        <th className="py-2.5 px-2">Associate Name</th>
+                        <th className="py-2.5 px-2 text-center">Cases</th>
+                        <th className="py-2.5 px-2 text-center">Active</th>
+                        <th className="py-2.5 px-2 text-center">Escalated</th>
+                        <th className="py-2.5 px-2 text-right">Collected</th>
+                        <th className="py-2.5 px-2 text-right">Effectiveness</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border">
+                      {associatePerformance.map((perf) => (
+                        <tr key={perf.id} className="hover:bg-slate-50/50 dark:hover:bg-zinc-900/40">
+                          <td className="py-3 px-2 font-semibold text-foreground">{perf.name}</td>
+                          <td className="py-3 px-2 text-center font-mono">{perf.totalCases}</td>
+                          <td className="py-3 px-2 text-center font-mono">{perf.activeCases}</td>
+                          <td className="py-3 px-2 text-center font-mono text-rose-500 font-semibold">
+                            {perf.escalatedCases}
+                          </td>
+                          <td className="py-3 px-2 text-right font-mono font-semibold text-foreground">
+                            ₹{perf.collectedAmount.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                          </td>
+                          <td className="py-3 px-2 text-right font-semibold">
+                            <span
+                              className={`inline-flex items-center gap-0.5 ${
+                                perf.effectiveness >= 0.7
+                                  ? "text-emerald-600 dark:text-emerald-400"
+                                  : perf.effectiveness >= 0.4
+                                  ? "text-amber-600 dark:text-amber-500"
+                                  : "text-rose-600 dark:text-rose-400"
+                              }`}
+                            >
+                              <Percent className="h-3 w-3" /> {(perf.effectiveness * 100).toFixed(0)}%
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Direct reports active/inactive roster */}
+          <Card className="shadow-xs border-border">
+            <CardHeader className="pb-3 border-b border-border mb-4">
+              <CardTitle>My Direct Reports Roster</CardTitle>
+              <CardDescription>Associate account statuses.</CardDescription>
             </CardHeader>
             <CardContent className="pt-0">
               {isUsersLoading ? (
                 <div className="space-y-3">
-                  <Skeleton className="h-10 w-full" />
-                  <Skeleton className="h-10 w-full" />
-                  <Skeleton className="h-10 w-full" />
+                  <Skeleton className="h-8 w-full" />
                 </div>
               ) : teamAssociates.length === 0 ? (
-                <div className="text-center py-10 text-muted-foreground border border-dashed rounded-lg">
-                  No direct report associates have been assigned to you. Admin can assign manager profiles.
+                <div className="text-center py-6 text-muted-foreground border border-dashed rounded-lg text-xs">
+                  No direct report associates.
                 </div>
               ) : (
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-sm">
                     <thead>
-                      <tr className="border-b border-border text-muted-foreground uppercase text-[10px] font-bold tracking-widest">
-                        <th className="pb-3 px-3">Associate Name</th>
-                        <th className="pb-3 px-3">Email Address</th>
-                        <th className="pb-3 px-3">Status</th>
+                      <tr className="border-b border-border text-muted-foreground uppercase text-[10px] font-bold tracking-wider">
+                        <th className="pb-2 px-2">Associate Name</th>
+                        <th className="pb-2 px-2">Email</th>
+                        <th className="pb-2 px-2 text-right">Status</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border">
                       {teamAssociates.map((assoc) => (
-                        <tr key={assoc.id} className="hover:bg-slate-50/50 dark:hover:bg-zinc-900/40">
-                          <td className="py-3 px-3 font-semibold text-foreground">
+                        <tr key={assoc.id} className="hover:bg-slate-50/50 dark:hover:bg-zinc-900/40 text-xs">
+                          <td className="py-2.5 px-2 font-semibold text-foreground">
                             {assoc.first_name} {assoc.last_name}
                           </td>
-                          <td className="py-3 px-3 text-muted-foreground font-mono text-xs">{assoc.email}</td>
-                          <td className="py-3 px-3">
-                            <Badge variant={assoc.is_active ? "success" : "destructive"} className="text-[10px] py-0.5 px-2 font-bold">
+                          <td className="py-2.5 px-2 text-muted-foreground font-mono text-xs truncate max-w-[180px]">
+                            {assoc.email}
+                          </td>
+                          <td className="py-2.5 px-2 text-right">
+                            <Badge variant={assoc.is_active ? "success" : "destructive"} className="text-[9px] py-0 px-1.5 font-bold">
                               {assoc.is_active ? "Active" : "Inactive"}
                             </Badge>
                           </td>

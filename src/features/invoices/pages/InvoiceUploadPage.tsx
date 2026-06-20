@@ -49,7 +49,7 @@ export const InvoiceUploadPage: React.FC = () => {
           Invoice Ingestion Center
         </h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Ingest billing invoices into the Accounts Receivable pipeline. Files are parsed using Gemini AI.
+          Ingest billing invoices into the Accounts Receivable pipeline.
         </p>
       </header>
 
@@ -84,7 +84,7 @@ export const InvoiceUploadPage: React.FC = () => {
           </CardHeader>
           <CardContent className="pt-0">
             <ul className="text-xs space-y-4 text-muted-foreground leading-relaxed pl-4 list-disc">
-              <li>Upload individual <strong>Text PDFs</strong> only. Scanned image invoices will fail validation.</li>
+              <li>Upload individual <strong>Text PDFs</strong> only.</li>
               <li>For bulk uploads, pack files in a single <strong>ZIP archive</strong>.</li>
               <li>A single invoice failure will <strong>not</strong> rollback the entire batch. Succeeded files persist; failed ones trigger reviews.</li>
               <li>If the currency is omitted, it will default to <strong>INR</strong>.</li>

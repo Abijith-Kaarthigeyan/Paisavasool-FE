@@ -39,7 +39,6 @@ export const BatchStatusCard: React.FC<BatchStatusCardProps> = ({ batch }) => {
               {batch.status}
             </span>
           </div>
-          <p className="text-xs text-muted-foreground font-mono">ID: {batch.id}</p>
         </div>
         <div className="flex flex-col text-xs text-muted-foreground gap-1 md:text-right">
           <div className="flex items-center gap-1.5 md:justify-end">

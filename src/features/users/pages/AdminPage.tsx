@@ -286,7 +286,6 @@ export const AdminPage: React.FC = () => {
                   <h3 className="font-bold text-base text-foreground">
                     {selectedUser.first_name} {selectedUser.last_name}
                   </h3>
-                  <span className="text-xs text-muted-foreground font-mono">{selectedUser.id}</span>
                 </div>
 
                 <div className="border-t border-border pt-3 space-y-2">
@@ -299,9 +298,14 @@ export const AdminPage: React.FC = () => {
                     <span className="font-bold text-primary">{selectedUser.role.role_name}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">Manager ID:</span>
-                    <span className="font-mono text-zinc-400 text-xs truncate max-w-[150px]">
-                      {selectedUser.manager_id || "None"}
+                    <span className="text-muted-foreground">Manager:</span>
+                    <span className="font-semibold text-foreground text-xs">
+                      {selectedUser.manager_id
+                        ? (() => {
+                            const m = users.find((u) => u.id === selectedUser.manager_id);
+                            return m ? `${m.first_name} ${m.last_name}` : "Assigned Manager";
+                          })()
+                        : "None"}
                     </span>
                   </div>
                   <div className="flex justify-between">

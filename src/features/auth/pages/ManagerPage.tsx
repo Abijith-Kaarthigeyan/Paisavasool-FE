@@ -79,10 +79,6 @@ export const ManagerPage: React.FC = () => {
                   <span className="text-muted-foreground">Email:</span>
                   <span className="font-semibold text-foreground">{profile.email}</span>
                 </div>
-                <div className="flex justify-between border-b border-border pb-2">
-                  <span className="text-muted-foreground">User ID:</span>
-                  <span className="font-mono text-zinc-500 text-xs">{profile.id}</span>
-                </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Status:</span>
                   <span
@@ -105,10 +101,6 @@ export const ManagerPage: React.FC = () => {
                   <span className="rounded bg-primary/10 px-2 py-0.5 text-xs font-bold text-primary">
                     {profile.role.role_name}
                   </span>
-                </div>
-                <div className="flex justify-between border-b border-border pb-2">
-                  <span className="text-muted-foreground">Role ID:</span>
-                  <span className="font-mono text-zinc-500 text-xs">{profile.role.id}</span>
                 </div>
                 <div>
                   <span className="text-muted-foreground block mb-2">Role Description:</span>

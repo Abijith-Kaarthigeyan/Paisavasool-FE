@@ -13,6 +13,7 @@ export interface InvoiceUploadBatch {
   uploaded_by: string;
   uploaded_at: string;
   completed_at: string | null;
+  files?: InvoiceUploadFile[];
 }
 
 export interface InvoiceUploadFile {

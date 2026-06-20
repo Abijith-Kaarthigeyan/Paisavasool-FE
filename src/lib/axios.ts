@@ -93,13 +93,18 @@ const setupResponseInterceptor = (instance: typeof authApi) => {
             const freshUser = meResponse.data;
             const { store } = await import("@/app/store");
             const { setCredentials } = await import("@/features/auth/slices/authSlice");
+            const { getCookie } = await import("@/lib/cookies");
+
+            const expiresAtStr = getCookie("access_token_expires_at");
+            const exp = expiresAtStr ? parseInt(expiresAtStr, 10) : Math.floor(Date.now() / 1000) + 2700;
+
             store.dispatch(
               setCredentials({
                 sub: freshUser.id,
                 email: freshUser.email,
                 role: freshUser.role.role_name,
                 is_active: freshUser.is_active,
-                exp: Math.floor(Date.now() / 1000) + 900, // standard 15 mins
+                exp,
               })
             );
           } catch (meError) {
@@ -115,6 +120,14 @@ const setupResponseInterceptor = (instance: typeof authApi) => {
           isRefreshing = false;
           
           // Clear credentials and redirect to login page
+          try {
+            const { store } = await import("@/app/store");
+            const { clearCredentials } = await import("@/features/auth/slices/authSlice");
+            store.dispatch(clearCredentials());
+          } catch (clearError) {
+            console.error("Failed to clear credentials on refresh failure:", clearError);
+          }
+
           if (typeof window !== "undefined") {
             window.location.href = "/login?session_expired=true";
           }

@@ -1,13 +1,14 @@
 import { useEffect } from "react"
 import { BrowserRouter } from "react-router-dom"
-import { Provider, useDispatch } from "react-redux"
+import { Provider, useDispatch, useSelector } from "react-redux"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import { store } from "@/app/store"
+import { store, RootState } from "@/app/store"
 import { AppRoutes } from "@/app/routes"
 import { AuthDebugPanel } from "@/components/AuthDebugPanel"
 import { authService } from "@/features/auth/services/authService"
 import { setCredentials, clearCredentials, setAuthStatus } from "@/features/auth/slices/authSlice"
 import { ToastProvider } from "@/components/ui/toast"
+import { getCookie } from "@/lib/cookies"
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -20,20 +21,24 @@ const queryClient = new QueryClient({
 
 function AppContent() {
   const dispatch = useDispatch();
+  const { isAuthenticated, user } = useSelector((state: RootState) => state.auth);
 
   useEffect(() => {
     const restoreSession = async () => {
       dispatch(setAuthStatus("loading"));
       try {
         const profile = await authService.getMe();
-        // Since getMe succeeds, cookies are valid. Estimate remaining JWT exp (e.g. 15 mins)
+        // Since getMe succeeds, cookies are valid. Retrieve actual JWT exp from cookie
+        const expiresAtStr = getCookie("access_token_expires_at");
+        const exp = expiresAtStr ? parseInt(expiresAtStr, 10) : Math.floor(Date.now() / 1000) + 2700;
+        
         dispatch(
           setCredentials({
             sub: profile.id,
             email: profile.email,
             role: profile.role.role_name,
             is_active: profile.is_active,
-            exp: Math.floor(Date.now() / 1000) + 900,
+            exp,
           })
         );
       } catch (err) {
@@ -44,6 +49,51 @@ function AppContent() {
 
     restoreSession();
   }, [dispatch]);
+
+  // Proactive background silent refresh loop
+  useEffect(() => {
+    if (!isAuthenticated || !user?.exp) return;
+
+    const checkAndRefresh = async () => {
+      const remainingTime = user.exp - Math.floor(Date.now() / 1000);
+      
+      // Proactively refresh when token has <= 60 seconds left
+      if (remainingTime <= 60) {
+        try {
+          // Trigger refresh (updates HTTPOnly and non-HTTPOnly cookies on the client)
+          await authService.refresh();
+          
+          // Retrieve updated user details and exact expiration timestamp
+          const profile = await authService.getMe();
+          const expiresAtStr = getCookie("access_token_expires_at");
+          const exp = expiresAtStr ? parseInt(expiresAtStr, 10) : Math.floor(Date.now() / 1000) + 2700;
+          
+          dispatch(
+            setCredentials({
+              sub: profile.id,
+              email: profile.email,
+              role: profile.role.role_name,
+              is_active: profile.is_active,
+              exp,
+            })
+          );
+        } catch (err: any) {
+          console.error("Proactive silent refresh failed:", err);
+          // Only force logout if it's an explicit 401/403 (invalid refresh token)
+          if (err.response?.status === 401 || err.response?.status === 403) {
+            dispatch(clearCredentials());
+            if (typeof window !== "undefined") {
+              window.location.href = "/login?session_expired=true";
+            }
+          }
+        }
+      }
+    };
+
+    // Check every 10 seconds
+    const interval = setInterval(checkAndRefresh, 10000);
+    return () => clearInterval(interval);
+  }, [isAuthenticated, user?.exp, dispatch]);
 
   return (
     <BrowserRouter>

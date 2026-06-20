@@ -4,6 +4,7 @@ import { useLocation } from "react-router-dom"
 import { RootState } from "@/app/store"
 import { api } from "@/lib/axios"
 import { setCredentials, clearCredentials } from "@/features/auth/slices/authSlice"
+import { getCookie } from "@/lib/cookies"
 import { authService } from "@/features/auth/services/authService"
 
 export const AuthDebugPanel: React.FC = () => {
@@ -41,13 +42,16 @@ export const AuthDebugPanel: React.FC = () => {
       const freshUser = await authService.getMe();
       
       if (user) {
+        const expiresAtStr = getCookie("access_token_expires_at");
+        const exp = expiresAtStr ? parseInt(expiresAtStr, 10) : Math.floor(Date.now() / 1000) + 2700;
+
         dispatch(
           setCredentials({
             sub: freshUser.id,
             email: freshUser.email,
             role: freshUser.role.role_name,
             is_active: freshUser.is_active,
-            exp: Math.floor(Date.now() / 1000) + 900, // standard 15 mins
+            exp,
           })
         );
       }

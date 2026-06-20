@@ -18,6 +18,15 @@ import { PaymentUploadDetailPage } from "@/features/payments/pages/PaymentUpload
 import { ReviewQueuePage } from "@/features/matching/pages/ReviewQueuePage"
 import { CustomerListPage } from "@/features/customers/pages/CustomerListPage"
 import { CustomerDetailPage } from "@/features/customers/pages/CustomerDetailPage"
+import React from "react"
+
+const CollectionsDashboardPage = React.lazy(() => import("@/features/collections/pages/CollectionsDashboardPage"));
+const OpenCasesPage = React.lazy(() => import("@/features/collections/pages/OpenCasesPage"));
+const AssignedCasesPage = React.lazy(() => import("@/features/collections/pages/AssignedCasesPage"));
+const EscalatedCasesPage = React.lazy(() => import("@/features/collections/pages/EscalatedCasesPage"));
+const BrokenPromisesPage = React.lazy(() => import("@/features/collections/pages/BrokenPromisesPage"));
+const ReminderHistoryPage = React.lazy(() => import("@/features/collections/pages/ReminderHistoryPage"));
+const CollectionCaseDetailPage = React.lazy(() => import("@/features/collections/pages/CollectionCaseDetailPage"));
 
 const LoadingFallback = () => (
   <div className="flex h-screen w-screen items-center justify-center bg-gray-50 dark:bg-gray-950">
@@ -137,6 +146,64 @@ export const AppRoutes = () => {
             element={
               <ProtectedRoute allowedRoles={["FINANCE_ASSOCIATE"]}>
                 <CustomerDetailPage />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Collections Workspace Routes */}
+          <Route
+            path="/collections"
+            element={
+              <ProtectedRoute allowedRoles={["FINANCE_MANAGER", "FINANCE_ASSOCIATE"]}>
+                <CollectionsDashboardPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/collections/open"
+            element={
+              <ProtectedRoute allowedRoles={["FINANCE_MANAGER", "FINANCE_ASSOCIATE"]}>
+                <OpenCasesPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/collections/assigned"
+            element={
+              <ProtectedRoute allowedRoles={["FINANCE_MANAGER", "FINANCE_ASSOCIATE"]}>
+                <AssignedCasesPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/collections/escalated"
+            element={
+              <ProtectedRoute allowedRoles={["FINANCE_MANAGER"]}>
+                <EscalatedCasesPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/collections/broken-promises"
+            element={
+              <ProtectedRoute allowedRoles={["FINANCE_MANAGER", "FINANCE_ASSOCIATE"]}>
+                <BrokenPromisesPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/collections/reminders"
+            element={
+              <ProtectedRoute allowedRoles={["FINANCE_MANAGER", "FINANCE_ASSOCIATE"]}>
+                <ReminderHistoryPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/collections/:id"
+            element={
+              <ProtectedRoute allowedRoles={["FINANCE_MANAGER", "FINANCE_ASSOCIATE"]}>
+                <CollectionCaseDetailPage />
               </ProtectedRoute>
             }
           />

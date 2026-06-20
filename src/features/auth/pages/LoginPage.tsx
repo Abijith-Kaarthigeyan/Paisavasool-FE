@@ -6,6 +6,7 @@ import { Navigate, useNavigate, useSearchParams } from "react-router-dom"
 import { loginSchema, LoginRequest } from "@/features/auth/types"
 import { authService } from "@/features/auth/services/authService"
 import { setCredentials, clearCredentials } from "@/features/auth/slices/authSlice"
+import { getCookie } from "@/lib/cookies"
 import { RootState } from "@/app/store"
 import { ROLES, RoleType } from "@/config/constants"
 import { CreditCard, Mail, Lock, Eye, EyeOff, Loader2, KeyRound, AlertCircle, Info, ChevronDown, ChevronUp } from "lucide-react"
@@ -55,13 +56,18 @@ export const LoginPage: React.FC = () => {
       const profile = await authService.getMe();
       
       // Step 3: Extract expiration from TokenResponse details or profile, 
-      // let's estimate JWT exp claim based on backend config (e.g. 15 mins = 900 seconds)
+      // using the exact cookie-based expiration time if available, otherwise fall back to response
+      const expiresAtStr = getCookie("access_token_expires_at");
+      const exp = expiresAtStr 
+        ? parseInt(expiresAtStr, 10) 
+        : Math.floor(Date.now() / 1000) + (loginResponse.expires_in || 2700);
+
       const tokenPayload = {
         sub: profile.id,
         email: profile.email,
         role: profile.role.role_name,
         is_active: profile.is_active,
-        exp: Math.floor(Date.now() / 1000) + (loginResponse.expires_in || 900),
+        exp,
       };
 
       dispatch(setCredentials(tokenPayload));

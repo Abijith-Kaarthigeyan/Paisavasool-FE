@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from "react"
 import { usePaymentReviews, usePaymentDetails, useApproveReview, useRejectReview } from "../hooks/useReviews"
 import { useInvoices } from "@/features/invoices/hooks/useInvoices"
+import { useQuery } from "@tanstack/react-query"
+import { customerService } from "@/features/customers/services/customerService"
+import { useCustomerDetail } from "@/features/customers/hooks/useCustomers"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -94,11 +97,19 @@ export const ReviewQueuePage: React.FC = () => {
 
   // Drawer allocations state
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>("");
+  const [customerCodeInput, setCustomerCodeInput] = useState<string>("");
   const [selectedAllocations, setSelectedAllocations] = useState<Array<{ invoice_id: string; invoice_number: string; amount: number }>>([]);
   const [allocationInputs, setAllocationInputs] = useState<Record<string, string>>({});
 
   const resetAllocations = () => {
     setSelectedCustomerId("");
+    setCustomerCodeInput("");
+    setSelectedAllocations([]);
+    setAllocationInputs({});
+  };
+
+  const handleCustomerCodeChange = (val: string) => {
+    setCustomerCodeInput(val);
     setSelectedAllocations([]);
     setAllocationInputs({});
   };
@@ -108,12 +119,53 @@ export const ReviewQueuePage: React.FC = () => {
     selectedReview?.payment_id
   );
 
-  // Set default customer ID when paymentDetails load
+  // Fetch customer details if a customer_id is assigned (e.g. loaded from backend review details)
+  const { data: matchedCustomerDetail } = useCustomerDetail(
+    paymentDetails?.customer_id || undefined
+  );
+
+  // Set default customer ID and code when paymentDetails and matchedCustomerDetail load
   useEffect(() => {
     if (paymentDetails?.customer_id) {
       setSelectedCustomerId(paymentDetails.customer_id);
+      if (matchedCustomerDetail?.customer?.customer_code) {
+        setCustomerCodeInput(matchedCustomerDetail.customer.customer_code);
+      }
+    } else {
+      setSelectedCustomerId("");
+      setCustomerCodeInput("");
     }
-  }, [paymentDetails]);
+  }, [paymentDetails, matchedCustomerDetail]);
+
+  // Query customers dynamically when customerCodeInput is modified
+  const trimmedCode = customerCodeInput.trim();
+  const { data: searchedCustomers, isFetching: isSearchingCustomer } = useQuery({
+    queryKey: ["customers", { customer_code: trimmedCode }],
+    queryFn: () => customerService.getCustomers({ customer_code: trimmedCode }),
+    enabled: trimmedCode.length >= 3,
+  });
+
+  // Find the resolved customer matching the input
+  const resolvedCustomer = searchedCustomers?.find(
+    (c) => c.customer_code.toLowerCase() === trimmedCode.toLowerCase()
+  );
+
+  // Update selectedCustomerId based on code match
+  useEffect(() => {
+    if (resolvedCustomer) {
+      setSelectedCustomerId(resolvedCustomer.id);
+    } else {
+      // Keep selectedCustomerId if the input matches the pre-loaded customer code
+      if (
+        matchedCustomerDetail?.customer?.customer_code.toLowerCase() ===
+        trimmedCode.toLowerCase()
+      ) {
+        setSelectedCustomerId(paymentDetails?.customer_id || "");
+      } else {
+        setSelectedCustomerId("");
+      }
+    }
+  }, [resolvedCustomer, trimmedCode, matchedCustomerDetail, paymentDetails]);
 
   // Fetch open invoices for resolved customer
   const { data: customerInvoices = [], isLoading: isCustomerInvoicesLoading } = useInvoices(
@@ -210,9 +262,16 @@ export const ReviewQueuePage: React.FC = () => {
                         Wire Transfer
                       </td>
                       <td className="py-3.5 px-4 font-semibold text-foreground">
-                        <span className={rev.confidence >= 90 ? "text-emerald-600 dark:text-emerald-400" : "text-amber-600 dark:text-amber-500"}>
-                          {rev.confidence.toFixed(1)}%
-                        </span>
+                        <div className="flex flex-col">
+                          <span className={rev.confidence >= 90 ? "text-emerald-600 dark:text-emerald-400 font-bold" : "text-amber-600 dark:text-amber-500 font-bold"}>
+                            {rev.confidence.toFixed(1)}% Match
+                          </span>
+                          {rev.suggested_customer_name && (
+                            <span className="text-[10px] text-muted-foreground font-normal mt-0.5">
+                              to {rev.suggested_customer_name} ({rev.suggested_customer_code})
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="py-3.5 px-4 text-muted-foreground truncate max-w-[320px]" title={rev.review_reason}>
                         {rev.review_reason}
@@ -277,21 +336,129 @@ export const ReviewQueuePage: React.FC = () => {
                 </div>
               </div>
 
+              {/* Suggestion Card */}
+              {/* Suggestion Card */}
+              {selectedReview?.suggested_candidates && selectedReview.suggested_candidates.length > 0 ? (
+                <div className="space-y-2">
+                  <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider block">Match Suggestions (Top 5 Candidates)</span>
+                  <div className="space-y-2.5 max-h-[280px] overflow-y-auto pr-1">
+                    {selectedReview.suggested_candidates.map((cand: any) => {
+                      const isSelected = selectedCustomerId === cand.customer_id;
+                      return (
+                        <div
+                          key={cand.customer_id}
+                          className={`border rounded-xl p-3.5 flex flex-col gap-2 transition-all ${
+                            isSelected
+                              ? "bg-primary/5 border-primary"
+                              : "bg-card hover:bg-slate-50/50 border-border"
+                          }`}
+                        >
+                          <div className="flex justify-between items-center text-xs">
+                            <div>
+                              <p className="font-bold text-foreground">{cand.customer_name}</p>
+                              <p className="font-mono text-[10px] text-muted-foreground mt-0.5">{cand.customer_code}</p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Badge
+                                variant={cand.confidence >= 90 ? "success" : "warning"}
+                                className="py-0 px-2 uppercase font-bold text-[9px]"
+                              >
+                                {cand.confidence.toFixed(1)}% Match
+                              </Badge>
+                              {isSelected ? (
+                                <span className="text-xs text-emerald-600 dark:text-emerald-400 font-bold flex items-center gap-1 shrink-0 ml-1">
+                                  ✓ Selected
+                                </span>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setSelectedCustomerId(cand.customer_id);
+                                    setCustomerCodeInput(cand.customer_code);
+                                  }}
+                                  className="bg-primary text-primary-foreground hover:bg-primary/95 rounded-lg px-2.5 py-1.5 text-xs font-semibold shadow-xs transition-all shrink-0"
+                                >
+                                  Use Suggestion
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : (
+                selectedReview?.suggested_customer_name && (
+                  <div className="bg-primary/5 border border-primary/20 rounded-xl p-3.5 flex flex-col gap-2">
+                    <div className="flex justify-between items-center">
+                      <span className="text-xs font-bold text-primary uppercase tracking-wider">Top Match Candidate</span>
+                      <Badge variant={selectedReview.confidence >= 90 ? "success" : "warning"} className="py-0 px-2 uppercase font-bold text-[9px]">
+                        {selectedReview.confidence.toFixed(1)}% Match
+                      </Badge>
+                    </div>
+                    <div className="flex justify-between items-center text-xs">
+                      <div>
+                        <p className="font-bold text-foreground">{selectedReview.suggested_customer_name}</p>
+                        <p className="font-mono text-[10px] text-muted-foreground mt-0.5">{selectedReview.suggested_customer_code}</p>
+                      </div>
+                      {selectedCustomerId !== selectedReview.suggested_customer_id ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedCustomerId(selectedReview.suggested_customer_id);
+                            setCustomerCodeInput(selectedReview.suggested_customer_code);
+                          }}
+                          className="bg-primary text-primary-foreground hover:bg-primary/95 rounded-lg px-3 py-1.5 text-xs font-semibold shadow-sm transition-all"
+                        >
+                          Use Suggestion
+                        </button>
+                      ) : (
+                        <span className="text-xs text-emerald-600 dark:text-emerald-400 font-bold flex items-center gap-1">
+                          ✓ Selected
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )
+              )}
+
               {/* Resolved Customer Assignment Selector */}
               <div className="space-y-2">
-                <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground">Resolved Customer ID Association</label>
-                <input
-                  type="password"
-                  value={selectedCustomerId}
-                  onChange={(e) => {
-                    setSelectedCustomerId(e.target.value);
-                    setSelectedAllocations([]);
-                    setAllocationInputs({});
-                  }}
-                  placeholder="Paste verified customer reference ID..."
-                  className="w-full rounded-lg border border-input bg-background p-2 font-mono text-xs focus:ring-1 focus:ring-primary focus:outline-hidden text-foreground animate-pulse"
-                />
-                <p className="text-[10px] text-muted-foreground">Modify this hidden reference if customer fuzzy mapping was incorrect.</p>
+                <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                  Resolved Customer Code
+                </label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={customerCodeInput}
+                    onChange={(e) => handleCustomerCodeChange(e.target.value)}
+                    placeholder="Enter customer code (e.g. CUST-000001)..."
+                    className="w-full rounded-lg border border-input bg-background p-2 font-mono text-xs focus:ring-1 focus:ring-primary focus:outline-hidden text-foreground uppercase"
+                  />
+                  {isSearchingCustomer && (
+                    <div className="absolute right-3 top-2.5">
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
+                    </div>
+                  )}
+                </div>
+                {/* Status messages for premium feel */}
+                {selectedCustomerId ? (
+                  <p className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold mt-1">
+                    ✓ Customer resolved: {
+                      (resolvedCustomer?.customer_name) || 
+                      (matchedCustomerDetail?.customer?.customer_name)
+                    }
+                  </p>
+                ) : customerCodeInput.trim().length >= 3 ? (
+                  <p className="text-[10px] text-rose-500 font-semibold animate-pulse mt-1">
+                    ✗ No active customer found with code "{customerCodeInput}"
+                  </p>
+                ) : (
+                  <p className="text-[10px] text-muted-foreground mt-1">
+                    Enter customer code to query open invoices.
+                  </p>
+                )}
               </div>
 
               {/* Match candidate Invoices Selection */}
