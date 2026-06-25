@@ -172,8 +172,14 @@ export const ReviewQueuePage: React.FC = () => {
     selectedCustomerId ? { customer_id: selectedCustomerId } : undefined
   );
 
-  // Filter open invoices (PENDING, PARTIALLY_PAID)
-  const openInvoices = customerInvoices.filter(inv => inv.status === "PENDING" || inv.status === "PARTIALLY_PAID");
+  // Candidate invoices for allocation (open + disputed)
+  const allocatableInvoices = customerInvoices.filter(
+    (inv) =>
+      (inv.status === "PENDING" ||
+        inv.status === "PARTIALLY_PAID" ||
+        inv.status === "DISPUTED") &&
+      inv.outstanding_amount > 0
+  );
 
   const totalAllocated = selectedAllocations.reduce((sum, a) => sum + a.amount, 0);
   const remainingToAllocate = paymentDetails ? paymentDetails.payment_amount - totalAllocated : 0;
@@ -456,7 +462,7 @@ export const ReviewQueuePage: React.FC = () => {
                   </p>
                 ) : (
                   <p className="text-[10px] text-muted-foreground mt-1">
-                    Enter customer code to query open invoices.
+                    Enter customer code to query candidate invoices.
                   </p>
                 )}
               </div>
@@ -466,8 +472,8 @@ export const ReviewQueuePage: React.FC = () => {
                 <div className="flex justify-between items-center border-b border-border pb-2">
                   <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground">Candidate Invoices Allocation</label>
                   {selectedCustomerId && (
-                    <Badge variant={openInvoices.length > 0 ? "outline" : "destructive"} className="text-[10px] py-0 px-2.5 font-bold">
-                      {openInvoices.length} Open Invoices
+                    <Badge variant={allocatableInvoices.length > 0 ? "outline" : "destructive"} className="text-[10px] py-0 px-2.5 font-bold">
+                      {allocatableInvoices.length} Candidate Invoices
                     </Badge>
                   )}
                 </div>
@@ -481,13 +487,13 @@ export const ReviewQueuePage: React.FC = () => {
                   <div className="text-center py-6 text-xs text-muted-foreground italic bg-slate-50/30 rounded-lg border">
                     Set a Customer reference to view open matching candidates.
                   </div>
-                ) : openInvoices.length === 0 ? (
+                ) : allocatableInvoices.length === 0 ? (
                   <div className="text-center py-6 text-xs text-rose-500 font-semibold bg-rose-50/30 rounded-lg border border-rose-500/25">
-                    No open invoices found for this Customer in the billing registry.
+                    No open or disputed invoices found for this Customer in the billing registry.
                   </div>
                 ) : (
                   <div className="space-y-3 max-h-[250px] overflow-y-auto pr-1">
-                    {openInvoices.map((inv) => {
+                    {allocatableInvoices.map((inv) => {
                       const isChecked = selectedAllocations.some(a => a.invoice_id === inv.id);
                       return (
                         <div
@@ -504,7 +510,14 @@ export const ReviewQueuePage: React.FC = () => {
                               className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
                             />
                             <div>
-                              <p className="text-xs font-bold text-foreground">{inv.invoice_number}</p>
+                              <div className="flex items-center gap-2">
+                                <p className="text-xs font-bold text-foreground">{inv.invoice_number}</p>
+                                {inv.status === "DISPUTED" && (
+                                  <Badge variant="warning" className="text-[9px] py-0 px-1.5 uppercase font-bold">
+                                    Disputed
+                                  </Badge>
+                                )}
+                              </div>
                               <p className="text-[10px] text-muted-foreground mt-0.5">
                                 Outstanding: {inv.currency} {inv.outstanding_amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                               </p>

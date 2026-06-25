@@ -20,6 +20,12 @@ export const arApi = axios.create({
   ...commonConfig,
 })
 
+// Client targeting the Dispute Service
+export const disputeApi = axios.create({
+  baseURL: ENV.DISPUTE_API_BASE_URL,
+  ...commonConfig,
+})
+
 // Export api as backward-compatible alias to authApi
 export const api = authApi;
 
@@ -51,6 +57,7 @@ const requestInterceptor = (config: InternalAxiosRequestConfig) => {
 
 authApi.interceptors.request.use(requestInterceptor, (error) => Promise.reject(error));
 arApi.interceptors.request.use(requestInterceptor, (error) => Promise.reject(error));
+disputeApi.interceptors.request.use(requestInterceptor, (error) => Promise.reject(error));
 
 // Setup Response Interceptor for handling token refresh & 401 logouts
 const setupResponseInterceptor = (instance: typeof authApi) => {
@@ -142,3 +149,4 @@ const setupResponseInterceptor = (instance: typeof authApi) => {
 
 setupResponseInterceptor(authApi);
 setupResponseInterceptor(arApi);
+setupResponseInterceptor(disputeApi);

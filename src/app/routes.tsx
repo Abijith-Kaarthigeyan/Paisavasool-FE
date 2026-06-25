@@ -28,6 +28,18 @@ const BrokenPromisesPage = React.lazy(() => import("@/features/collections/pages
 const ReminderHistoryPage = React.lazy(() => import("@/features/collections/pages/ReminderHistoryPage"));
 const CollectionCaseDetailPage = React.lazy(() => import("@/features/collections/pages/CollectionCaseDetailPage"));
 
+// Dispute feature pages
+const DisputeDashboardPage = React.lazy(() => import("@/features/disputes/pages/DisputeDashboardPage"));
+const CasesListPage = React.lazy(() => import("@/features/disputes/pages/CasesListPage"));
+const CaseDetailsPage = React.lazy(() => import("@/features/disputes/pages/CaseDetailsPage"));
+const OpenDisputesPage = React.lazy(() => import("@/features/disputes/pages/OpenDisputesPage"));
+const MyAssignedDisputesPage = React.lazy(() => import("@/features/disputes/pages/MyAssignedDisputesPage"));
+const EscalatedDisputesPage = React.lazy(() => import("@/features/disputes/pages/EscalatedDisputesPage"));
+const DisputeReviewQueuePage = React.lazy(() => import("@/features/disputes/pages/ReviewQueuePage"));
+const WaitingCustomerPage = React.lazy(() => import("@/features/disputes/pages/WaitingCustomerPage"));
+const WaitingInternalTeamPage = React.lazy(() => import("@/features/disputes/pages/WaitingInternalTeamPage"));
+const DisputeDetailPage = React.lazy(() => import("@/features/disputes/pages/DisputeDetailPage"));
+
 const LoadingFallback = () => (
   <div className="flex h-screen w-screen items-center justify-center bg-gray-50 dark:bg-gray-950">
     <div className="flex flex-col items-center space-y-4">
@@ -204,6 +216,88 @@ export const AppRoutes = () => {
             element={
               <ProtectedRoute allowedRoles={["FINANCE_MANAGER", "FINANCE_ASSOCIATE"]}>
                 <CollectionCaseDetailPage />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Dispute Management Routes */}
+          <Route
+            path="/disputes"
+            element={
+              <ProtectedRoute allowedRoles={["FINANCE_MANAGER", "FINANCE_ASSOCIATE"]}>
+                <DisputeDashboardPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/disputes/open"
+            element={
+              <ProtectedRoute allowedRoles={["FINANCE_MANAGER", "FINANCE_ASSOCIATE"]}>
+                <OpenDisputesPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/disputes/assigned"
+            element={
+              <ProtectedRoute allowedRoles={["FINANCE_ASSOCIATE"]}>
+                <MyAssignedDisputesPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/disputes/escalated"
+            element={
+              <ProtectedRoute allowedRoles={["FINANCE_MANAGER"]}>
+                <EscalatedDisputesPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/disputes/review-queue"
+            element={
+              <ProtectedRoute allowedRoles={["FINANCE_MANAGER", "FINANCE_ASSOCIATE"]}>
+                <DisputeReviewQueuePage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/disputes/waiting-customer"
+            element={
+              <ProtectedRoute allowedRoles={["FINANCE_MANAGER", "FINANCE_ASSOCIATE"]}>
+                <WaitingCustomerPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/disputes/waiting-internal"
+            element={
+              <ProtectedRoute allowedRoles={["FINANCE_MANAGER", "FINANCE_ASSOCIATE"]}>
+                <WaitingInternalTeamPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/disputes/cases"
+            element={
+              <ProtectedRoute allowedRoles={["FINANCE_MANAGER", "FINANCE_ASSOCIATE"]}>
+                <CasesListPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/disputes/cases/:caseId"
+            element={
+              <ProtectedRoute allowedRoles={["FINANCE_MANAGER", "FINANCE_ASSOCIATE"]}>
+                <CaseDetailsPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/disputes/:disputeId"
+            element={
+              <ProtectedRoute allowedRoles={["FINANCE_MANAGER", "FINANCE_ASSOCIATE"]}>
+                <DisputeDetailPage />
               </ProtectedRoute>
             }
           />

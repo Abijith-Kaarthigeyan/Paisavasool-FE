@@ -15,7 +15,8 @@ import {
   User, 
   Menu, 
   X,
-  CreditCard
+  CreditCard,
+  AlertTriangle
 } from "lucide-react"
 
 export const AppLayout: React.FC = () => {
@@ -59,6 +60,23 @@ export const AppLayout: React.FC = () => {
       path: "/dashboard",
       icon: LayoutDashboard,
       roles: ["ADMIN", "FINANCE_MANAGER", "FINANCE_ASSOCIATE"],
+    },
+    {
+      name: "Disputes",
+      roles: ["FINANCE_MANAGER", "FINANCE_ASSOCIATE"],
+      icon: AlertTriangle,
+      children: [
+        { name: "Disputes Dashboard", path: "/disputes", roles: ["FINANCE_MANAGER", "FINANCE_ASSOCIATE"] },
+        { name: "Open Disputes", path: "/disputes/open", roles: ["FINANCE_MANAGER", "FINANCE_ASSOCIATE"] },
+        { name: "My Assigned Disputes", path: "/disputes/assigned", roles: ["FINANCE_ASSOCIATE"] },
+        { name: "Escalated Disputes", path: "/disputes/escalated", roles: ["FINANCE_MANAGER"] },
+        { name: "SLA Breaches", path: "/disputes/open?sla=breached", roles: ["FINANCE_MANAGER"] },
+        { name: "Review Queue", path: "/disputes/review-queue", roles: ["FINANCE_MANAGER", "FINANCE_ASSOCIATE"] },
+        { name: "Waiting Customer", path: "/disputes/waiting-customer", roles: ["FINANCE_MANAGER", "FINANCE_ASSOCIATE"] },
+        { name: "Waiting Internal Team", path: "/disputes/waiting-internal", roles: ["FINANCE_MANAGER", "FINANCE_ASSOCIATE"] },
+        { name: "Team Disputes", path: "/disputes/open?team=true", roles: ["FINANCE_MANAGER"] },
+        { name: "Dispute Cases", path: "/disputes/cases", roles: ["FINANCE_MANAGER", "FINANCE_ASSOCIATE"] },
+      ],
     },
     {
       name: "User Management",

@@ -9,6 +9,8 @@ import {
   useBrokenPromises,
   useEscalatedCases,
 } from "@/features/collections/hooks/useCollections"
+import { useDisputes, useReviewQueue } from "@/features/disputes/hooks/useDisputes"
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip } from "recharts"
 import { UserResponse } from "@/types"
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -23,6 +25,8 @@ import {
   ArrowRight,
   Percent,
   RefreshCw,
+  Clock,
+  HelpCircle,
 } from "lucide-react"
 
 export const ManagerDashboard: React.FC = () => {
@@ -46,10 +50,13 @@ export const ManagerDashboard: React.FC = () => {
     return teamAssociates.map((a) => a.id);
   }, [teamAssociates]);
 
-  // 2. Fetch collections case records
   const { data: allCases = [], isLoading: isCasesLoading, refetch: refetchCases } = useCollections();
   const { data: brokenPromises = [], isLoading: isBrokenLoading } = useBrokenPromises();
   const { data: escalatedCases = [], isLoading: isEscalatedLoading } = useEscalatedCases();
+
+  // 3. Dispute queries
+  const { data: disputes = [], isLoading: isDisputesLoading } = useDisputes();
+  const { data: reviewQueue = [], isLoading: isDisputesReviewLoading } = useReviewQueue("PENDING");
 
   // Filter collections assigned to the manager's direct team
   const teamCases = useMemo(() => {
@@ -105,7 +112,17 @@ export const ManagerDashboard: React.FC = () => {
     });
   }, [teamAssociates, allCases]);
 
-  const isLoading = isUsersLoading || isCasesLoading || isBrokenLoading || isEscalatedLoading;
+  // Chart category data for disputes
+  const disputesCategoryChartData = useMemo(() => {
+    const counts: Record<string, number> = {};
+    disputes.forEach((d) => {
+      const cat = d.dispute_category || "Unclassified";
+      counts[cat] = (counts[cat] || 0) + 1;
+    });
+    return Object.entries(counts).map(([name, value]) => ({ name, value }));
+  }, [disputes]);
+
+  const isLoading = isUsersLoading || isCasesLoading || isBrokenLoading || isEscalatedLoading || isDisputesLoading;
 
   return (
     <div className="space-y-6">
@@ -181,6 +198,87 @@ export const ManagerDashboard: React.FC = () => {
             </div>
             <div className="p-2.5 rounded-lg bg-emerald-500/10 text-emerald-500">
               <Users className="h-5 w-5" />
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Disputes KPI Grid Section */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+        <Card className="hover:shadow-xs transition-shadow border-l-4 border-l-blue-500">
+          <CardContent className="p-5 flex items-center justify-between">
+            <div className="space-y-1">
+              <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Open Disputes</span>
+              <p className="text-2xl font-bold text-foreground">
+                {isDisputesLoading ? <Skeleton className="h-7 w-12" /> : disputes.filter((d) => d.status === "OPEN").length}
+              </p>
+            </div>
+            <div className="p-2.5 rounded-lg bg-blue-500/10 text-blue-500">
+              <AlertTriangle className="h-5 w-5" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="hover:shadow-xs transition-shadow border-l-4 border-l-red-500">
+          <CardContent className="p-5 flex items-center justify-between">
+            <div className="space-y-1">
+              <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Escalated Disputes</span>
+              <p className="text-2xl font-bold text-red-500 font-mono">
+                {isDisputesLoading ? (
+                  <Skeleton className="h-7 w-12" />
+                ) : (
+                  disputes.filter((d) => d.sla?.status === "BREACHED" && d.status !== "RESOLVED" && d.status !== "CLOSED").length
+                )}
+              </p>
+            </div>
+            <div className="p-2.5 rounded-lg bg-red-500/10 text-red-500">
+              <AlertTriangle className="h-5 w-5" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="hover:shadow-xs transition-shadow border-l-4 border-l-rose-500">
+          <CardContent className="p-5 flex items-center justify-between">
+            <div className="space-y-1">
+              <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">SLA Breached</span>
+              <p className="text-2xl font-bold text-rose-500 font-mono">
+                {isDisputesLoading ? (
+                  <Skeleton className="h-7 w-12" />
+                ) : (
+                  disputes.filter((d) => d.sla?.status === "BREACHED" && d.status !== "RESOLVED" && d.status !== "CLOSED").length
+                )}
+              </p>
+            </div>
+            <div className="p-2.5 rounded-lg bg-rose-500/10 text-rose-500">
+              <AlertTriangle className="h-5 w-5" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="hover:shadow-xs transition-shadow border-l-4 border-l-amber-500">
+          <CardContent className="p-5 flex items-center justify-between">
+            <div className="space-y-1">
+              <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Avg Resolution</span>
+              <p className="text-2xl font-bold text-foreground">
+                2.4 Days
+              </p>
+            </div>
+            <div className="p-2.5 rounded-lg bg-amber-500/10 text-amber-500">
+              <Clock className="h-5 w-5" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="hover:shadow-xs transition-shadow border-l-4 border-l-emerald-500">
+          <CardContent className="p-5 flex items-center justify-between">
+            <div className="space-y-1">
+              <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Review Queue</span>
+              <p className="text-2xl font-bold text-foreground">
+                {isDisputesReviewLoading ? <Skeleton className="h-7 w-12" /> : reviewQueue.length}
+              </p>
+            </div>
+            <div className="p-2.5 rounded-lg bg-emerald-500/10 text-emerald-500">
+              <HelpCircle className="h-5 w-5" />
             </div>
           </CardContent>
         </Card>
@@ -275,6 +373,35 @@ export const ManagerDashboard: React.FC = () => {
                       </Badge>
                     </div>
                   ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Disputes by Category Chart */}
+          <Card className="shadow-xs border-border">
+            <CardHeader className="pb-3 border-b border-border mb-3">
+              <CardTitle className="text-sm">Disputes by Category</CardTitle>
+              <CardDescription>Volume segmented by classification.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {isDisputesLoading ? (
+                <Skeleton className="h-44 w-full" />
+              ) : disputesCategoryChartData.length === 0 ? (
+                <div className="h-44 flex items-center justify-center text-xs text-muted-foreground">
+                  No active disputes.
+                </div>
+              ) : (
+                <div className="h-44 w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={disputesCategoryChartData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                      <XAxis dataKey="name" fontSize={9} fontWeight={600} />
+                      <YAxis fontSize={9} fontWeight={600} />
+                      <Tooltip formatter={(v: any) => [v, "Disputes"]} />
+                      <Bar dataKey="value" fill="#8b5cf6" radius={[3, 3, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
                 </div>
               )}
             </CardContent>

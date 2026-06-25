@@ -1,5 +1,7 @@
 import React, { useMemo } from "react"
 import { useQuery } from "@tanstack/react-query"
+import { useSelector } from "react-redux"
+import { RootState } from "@/app/store"
 import { Link, useNavigate } from "react-router-dom"
 import { invoiceService } from "@/features/invoices/services/invoiceService"
 import { paymentService } from "@/features/payments/services/paymentService"
@@ -13,6 +15,7 @@ import {
   useReminderHistory,
   usePromises,
 } from "@/features/collections/hooks/useCollections"
+import { useDisputes, useReviewQueue } from "@/features/disputes/hooks/useDisputes"
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -34,6 +37,7 @@ import {
 
 export const AssociateDashboard: React.FC = () => {
   const navigate = useNavigate();
+  const { user } = useSelector((state: RootState) => state.auth);
 
   // 1. Existing queries
   const { data: invoices = [], isLoading: isInvoicesLoading } = useQuery({
@@ -59,6 +63,10 @@ export const AssociateDashboard: React.FC = () => {
   const { data: aging, isLoading: isAgingLoading } = useAgingAnalytics();
   const { data: reminders = [], isLoading: isRemindersLoading } = useReminderHistory();
   const { data: promises = [], isLoading: isPromisesLoading } = usePromises();
+
+  // 3. New Disputes queries
+  const { data: disputes = [], isLoading: isDisputesLoading } = useDisputes();
+  const { data: reviewQueue = [], isLoading: isDisputesReviewLoading } = useReviewQueue("PENDING");
 
   const totalInvoices = invoices.length;
   const outstandingAmount = invoices.reduce((sum, inv) => sum + inv.outstanding_amount, 0);
@@ -337,6 +345,85 @@ export const AssociateDashboard: React.FC = () => {
             </div>
             <div className="p-2 rounded-lg bg-red-500/10 text-red-500">
               <AlertTriangle className="h-4.5 w-4.5" />
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Disputes KPI Grid Section */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <Card className="border-l-4 border-l-blue-500 hover:shadow-xs transition-shadow">
+          <CardContent className="p-4 flex items-center justify-between">
+            <div className="space-y-1">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                My Open Disputes
+              </span>
+              <p className="text-xl font-bold text-foreground">
+                {isDisputesLoading ? (
+                  <Skeleton className="h-6 w-10" />
+                ) : (
+                  disputes.filter((d) => d.assigned_to === user?.sub && d.status === "OPEN").length
+                )}
+              </p>
+            </div>
+            <div className="p-2 rounded-lg bg-blue-500/10 text-blue-500">
+              <AlertTriangle className="h-4.5 w-4.5" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-l-4 border-l-yellow-500 hover:shadow-xs transition-shadow">
+          <CardContent className="p-4 flex items-center justify-between">
+            <div className="space-y-1">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                Waiting Customer
+              </span>
+              <p className="text-xl font-bold text-foreground">
+                {isDisputesLoading ? (
+                  <Skeleton className="h-6 w-10" />
+                ) : (
+                  disputes.filter((d) => d.status === "WAITING_CUSTOMER").length
+                )}
+              </p>
+            </div>
+            <div className="p-2 rounded-lg bg-yellow-500/10 text-yellow-500">
+              <UserCheck className="h-4.5 w-4.5" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-l-4 border-l-orange-500 hover:shadow-xs transition-shadow">
+          <CardContent className="p-4 flex items-center justify-between">
+            <div className="space-y-1">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                Waiting Internal Team
+              </span>
+              <p className="text-xl font-bold text-foreground">
+                {isDisputesLoading ? (
+                  <Skeleton className="h-6 w-10" />
+                ) : (
+                  disputes.filter((d) => d.status === "WAITING_INTERNAL").length
+                )}
+              </p>
+            </div>
+            <div className="p-2 rounded-lg bg-orange-500/10 text-orange-500">
+              <Clock className="h-4.5 w-4.5" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-l-4 border-l-amber-500 hover:shadow-xs transition-shadow">
+          <CardContent className="p-4 flex items-center justify-between">
+            <div className="space-y-1">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                Review Queue Count
+              </span>
+              <p className="text-xl font-bold text-amber-600 dark:text-amber-400">
+                {isDisputesReviewLoading ? <Skeleton className="h-6 w-10" /> : reviewQueue.length}
+              </p>
+            </div>
+            <div className="p-2 rounded-lg bg-amber-500/10 text-amber-500">
+              <HelpCircle className="h-4.5 w-4.5" />
             </div>
           </CardContent>
         </Card>
