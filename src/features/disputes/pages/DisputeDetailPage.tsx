@@ -1,7 +1,8 @@
-import React, { useState } from "react"
+import React, { useCallback, useMemo, useState } from "react"
 import { useParams, useNavigate } from "react-router-dom"
 import {
   useDispute,
+  useCase,
   useActivities,
   useComments,
   useRecommendations,
@@ -18,6 +19,19 @@ import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useToast } from "@/components/ui/toast"
 import { SLAProgress } from "../components/SLAProgress"
+import { RecommendedInvoiceCard } from "../components/RecommendedInvoiceCard"
+import {
+  EditableRecommendedInvoiceForm,
+  EditableInvoiceData,
+} from "../components/EditableRecommendedInvoiceForm"
+import {
+  formatConfidencePercent,
+  formatSlaStatusLabel,
+  getCommunicationAddress,
+  getCommunicationDirection,
+  getCommunicationTypeLabel,
+  parseRecommendationAction,
+} from "../utils/disputeFormatters"
 import {
   ChevronLeft,
   Calendar,
@@ -37,6 +51,7 @@ export const DisputeDetailPage: React.FC = () => {
 
   // Query Hooks
   const { data: dispute, isLoading: isDisputeLoading, isError: isDisputeError, refetch: refetchDispute } = useDispute(disputeId || "");
+  const { data: disputeCase } = useCase(dispute?.case_id || "");
   const { data: activities = [], isLoading: isActivitiesLoading } = useActivities(disputeId || "");
   const { data: comments = [], isLoading: isCommentsLoading } = useComments(disputeId || "");
   const { data: recommendations = [], isLoading: isRecsLoading } = useRecommendations(disputeId || "");
@@ -44,9 +59,39 @@ export const DisputeDetailPage: React.FC = () => {
   const { data: evidence = [], isLoading: isEvidenceLoading } = useEvidence(disputeId || "");
   const { data: wfContext, isLoading: isWfLoading } = useWorkflowContext(disputeId || "");
 
-  const customerCommunications = communications.filter(
-    (comm) => comm.communication_type !== "INTERNAL"
-  );
+  const customerEmail =
+    disputeCase?.customer_email || dispute?.customer?.email || null;
+
+  const allCommunications = useMemo(() => {
+    const items = [...communications];
+    const caseBody = (disputeCase?.raw_content || disputeCase?.email_body || "").trim();
+
+    if (caseBody) {
+      const alreadyIncluded = communications.some((comm) => {
+        const body = comm.message_body || "";
+        return body.includes(caseBody.slice(0, Math.min(caseBody.length, 80)));
+      });
+
+      if (!alreadyIncluded) {
+        items.unshift({
+          id: `case-${disputeCase?.id || "origin"}`,
+          dispute_id: disputeId || "",
+          recipient: customerEmail || "customer",
+          subject: disputeCase?.email_subject || "Original customer email",
+          message_body: caseBody,
+          communication_type: "CUSTOMER",
+          sent_time: disputeCase?.created_at || dispute?.created_at || "",
+          created_at: disputeCase?.created_at || dispute?.created_at || "",
+        });
+      }
+    }
+
+    return items.sort((a, b) => {
+      const aTime = new Date(a.sent_time || a.created_at).getTime();
+      const bTime = new Date(b.sent_time || b.created_at).getTime();
+      return aTime - bTime;
+    });
+  }, [communications, disputeCase, dispute, disputeId, customerEmail]);
 
   const getCommunicationBody = (comm: (typeof communications)[number]) =>
     comm.message_body || (comm as { body?: string }).body || "";
@@ -69,6 +114,16 @@ export const DisputeDetailPage: React.FC = () => {
 
   // Decision Modal inputs
   const [decisionNotes, setDecisionNotes] = useState("");
+  const [showEditApply, setShowEditApply] = useState(false);
+  const [editedInvoice, setEditedInvoice] = useState<EditableInvoiceData | null>(null);
+
+  const latestAmendmentRecommendation = useMemo(() => {
+    return recommendations.find((rec) => rec.recommended_invoice_json) || null;
+  }, [recommendations]);
+
+  const handleEditedInvoiceChange = useCallback((data: EditableInvoiceData) => {
+    setEditedInvoice(data);
+  }, []);
 
   const handleSendComment = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -104,6 +159,7 @@ export const DisputeDetailPage: React.FC = () => {
         comments: decisionNotes || `Associate Decision: ${decision}`,
       });
       setDecisionNotes("");
+      setShowEditApply(false);
       toast({
         title: "Decision Submitted",
         description: `Associate decision ${decision} processed.`,
@@ -114,6 +170,32 @@ export const DisputeDetailPage: React.FC = () => {
       toast({
         title: "Decision Failed",
         description: "Failed to process decision.",
+        type: "error",
+      });
+    }
+  };
+
+  const handleEditAndApply = async () => {
+    if (!disputeId || !editedInvoice) return;
+    try {
+      await associateDecisionMutation.mutateAsync({
+        id: disputeId,
+        decision: "EDIT_AND_APPLY",
+        comments: decisionNotes || "Associate edited and applied amendment",
+        amended_invoice_json: editedInvoice as unknown as Record<string, unknown>,
+      });
+      setDecisionNotes("");
+      setShowEditApply(false);
+      toast({
+        title: "Amendment Applied",
+        description: "Edited invoice changes submitted for application.",
+        type: "success",
+      });
+      refetchDispute();
+    } catch (err) {
+      toast({
+        title: "Edit & Apply Failed",
+        description: "Failed to apply edited amendment.",
         type: "error",
       });
     }
@@ -227,6 +309,13 @@ export const DisputeDetailPage: React.FC = () => {
   const isWaitingOperationalReview =
     dispute.status === "WAITING_INTERNAL_TEAM" ||
     (currentNode === "waiting_resolution_node" && (dispute.status === "WAITING_INTERNAL_TEAM" || dispute.dispute_category !== "SHORT_PAYMENT"));
+  const isPaymentCategory = ["PAYMENT_ALREADY_DONE", "PAYMENT_NOT_REFLECTED"].includes(
+    dispute.dispute_category
+  );
+  const isPaymentSettlementConfirmation =
+    isWaitingAssociateApproval && isPaymentCategory;
+  const isAmendmentDispute =
+    dispute.dispute_category === "AMENDMENT" && !isPaymentSettlementConfirmation;
 
   return (
     <div className="space-y-6">
@@ -250,8 +339,22 @@ export const DisputeDetailPage: React.FC = () => {
               <Badge variant="outline" className="uppercase text-[9px] font-bold">
                 {dispute.dispute_category}
               </Badge>
-              <Badge variant={getPriorityBadgeVariant(dispute.sla?.status === "BREACHED" ? "HIGH" : dispute.sla?.status === "AT_RISK" ? "MEDIUM" : "LOW")} className="uppercase text-[9px] font-bold">
-                Priority: {dispute.sla?.status === "BREACHED" ? "HIGH" : dispute.sla?.status === "AT_RISK" ? "MEDIUM" : "LOW"}
+              <Badge variant={getPriorityBadgeVariant(
+                !dispute.sla
+                  ? "LOW"
+                  : dispute.sla.status === "BREACHED"
+                  ? "HIGH"
+                  : dispute.sla.status === "AT_RISK"
+                  ? "MEDIUM"
+                  : "LOW"
+              )} className="uppercase text-[9px] font-bold">
+                Priority: {!dispute.sla
+                  ? "N/A"
+                  : dispute.sla.status === "BREACHED"
+                  ? "HIGH"
+                  : dispute.sla.status === "AT_RISK"
+                  ? "MEDIUM"
+                  : "LOW"}
               </Badge>
             </div>
             <p className="text-xs text-muted-foreground font-semibold flex items-center gap-1">
@@ -265,9 +368,13 @@ export const DisputeDetailPage: React.FC = () => {
               <SLAProgress
                 percentage={dispute.sla.current_percentage}
                 isPaused={dispute.sla.is_paused}
+                status={dispute.sla.status}
+                disputeStatus={dispute.status}
               />
             ) : (
-              <span className="text-muted-foreground text-[10px] font-bold">No SLA Mapped</span>
+              <span className="text-muted-foreground text-[10px] font-bold">
+                {formatSlaStatusLabel(null)}
+              </span>
             )}
           </div>
         </div>
@@ -278,10 +385,26 @@ export const DisputeDetailPage: React.FC = () => {
         <Card className="border-amber-500/20 bg-amber-500/5 shadow-xs">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-bold text-amber-600 dark:text-amber-400 flex items-center gap-1.5">
-              <AlertTriangle className="h-4.5 w-4.5" /> Action Required - Workflow Suspended at Node
+              <AlertTriangle className="h-4.5 w-4.5" />{" "}
+              {isPaymentSettlementConfirmation
+                ? "Action Required - Confirm Settlement"
+                : "Action Required - Workflow Suspended at Node"}
             </CardTitle>
             <CardDescription className="text-xs">
-              State node: <span className="font-mono font-semibold">{currentNode || "WAITING_HUMAN_INTERVENTION"}</span>. Submit manual decision overrides to resume execution.
+              {isPaymentSettlementConfirmation ? (
+                <>
+                  Payment verification indicates the customer is correct. Confirm that
+                  settlement has been completed before closing this dispute.
+                </>
+              ) : (
+                <>
+                  State node:{" "}
+                  <span className="font-mono font-semibold">
+                    {currentNode || "WAITING_HUMAN_INTERVENTION"}
+                  </span>
+                  . Submit manual decision overrides to resume execution.
+                </>
+              )}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -292,24 +415,40 @@ export const DisputeDetailPage: React.FC = () => {
               <textarea
                 value={decisionNotes}
                 onChange={(e) => setDecisionNotes(e.target.value)}
-                placeholder="Include details explaining approval decisions..."
+                placeholder={
+                  isPaymentSettlementConfirmation
+                    ? "Include settlement reference or notes..."
+                    : "Include details explaining approval decisions..."
+                }
                 className="w-full text-xs p-2 rounded-md border border-input bg-background focus:outline-hidden text-foreground min-h-[50px]"
               />
             </div>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               {isWaitingAssociateApproval && (
                 <>
                   <button
                     onClick={() => handleAssociateDecision("APPROVE")}
                     className="px-3.5 py-1.5 text-xs font-bold bg-emerald-600 text-white hover:bg-emerald-700 rounded-md transition-colors"
                   >
-                    Approve Resolution
+                    {isPaymentSettlementConfirmation
+                      ? "Confirm Settlement"
+                      : "Approve Resolution"}
                   </button>
+                  {isAmendmentDispute && latestAmendmentRecommendation?.recommended_invoice_json && (
+                    <button
+                      onClick={() => setShowEditApply((v) => !v)}
+                      className="px-3.5 py-1.5 text-xs font-bold bg-blue-600 text-white hover:bg-blue-700 rounded-md transition-colors"
+                    >
+                      {showEditApply ? "Cancel Edit" : "Edit & Apply"}
+                    </button>
+                  )}
                   <button
                     onClick={() => handleAssociateDecision("REJECT")}
                     className="px-3.5 py-1.5 text-xs font-bold bg-rose-600 text-white hover:bg-rose-700 rounded-md transition-colors"
                   >
-                    Reject & Reroute
+                    {isPaymentSettlementConfirmation
+                      ? "Settlement Not Confirmed"
+                      : "Reject & Reroute"}
                   </button>
                 </>
               )}
@@ -346,6 +485,29 @@ export const DisputeDetailPage: React.FC = () => {
                 </>
               )}
             </div>
+            {showEditApply && latestAmendmentRecommendation?.recommended_invoice_json && (
+              <div className="mt-4 space-y-3 border-t border-border pt-4">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                  Edit invoice before applying
+                </p>
+                <EditableRecommendedInvoiceForm
+                  initialInvoice={
+                    latestAmendmentRecommendation.recommended_invoice_json as Record<
+                      string,
+                      unknown
+                    >
+                  }
+                  onChange={handleEditedInvoiceChange}
+                />
+                <button
+                  onClick={handleEditAndApply}
+                  disabled={!editedInvoice}
+                  className="px-3.5 py-1.5 text-xs font-bold bg-blue-600 text-white hover:bg-blue-700 rounded-md transition-colors disabled:opacity-50"
+                >
+                  Submit Edited Amendment
+                </button>
+              </div>
+            )}
           </CardContent>
         </Card>
       )}
@@ -596,22 +758,35 @@ export const DisputeDetailPage: React.FC = () => {
                 ) : recommendations.length === 0 ? (
                   <div className="text-center py-6 text-xs text-muted-foreground">No recommendations generated.</div>
                 ) : (
-                  recommendations.map((rec) => (
+                  recommendations.map((rec) => {
+                    const parsed = parseRecommendationAction(rec.recommended_action);
+                    return (
                     <div key={rec.id} className="p-4 border border-border rounded-lg bg-slate-50/50 dark:bg-zinc-950/10 space-y-4">
                       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 text-xs">
                         <div className="space-y-1">
                           <span className="text-muted-foreground">Suggested Action Outcome</span>
-                          <p className="font-bold text-foreground text-sm uppercase">{rec.recommended_action}</p>
+                          <p className="font-bold text-foreground text-sm uppercase">{parsed.outcome}</p>
+                          {parsed.reasoning && (
+                            <p className="text-muted-foreground leading-relaxed max-w-3xl">
+                              {parsed.reasoning}
+                            </p>
+                          )}
                         </div>
                         <div className="flex gap-4">
                           <div>
                             <span className="text-muted-foreground block text-[10px]">Confidence</span>
                             <Badge variant="warning" className="font-mono text-xs mt-0.5">
-                              {(rec.confidence * 100).toFixed(0)}%
+                              {formatConfidencePercent(rec.confidence)}
                             </Badge>
                           </div>
                           <div>
-                            <span className="text-muted-foreground block text-[10px]">Agent Version</span>
+                            <span className="text-muted-foreground block text-[10px]">Generated</span>
+                            <span className="font-semibold text-foreground mt-0.5 block">
+                              {new Date(rec.created_at).toLocaleString()}
+                            </span>
+                          </div>
+                          <div>
+                            <span className="text-muted-foreground block text-[10px]">Agent</span>
                             <span className="font-semibold text-foreground font-mono mt-0.5 block">
                               {rec.created_by_agent}
                             </span>
@@ -619,19 +794,11 @@ export const DisputeDetailPage: React.FC = () => {
                         </div>
                       </div>
 
-                      {/* Recommend Invoice JSON for Amendments */}
                       {rec.recommended_invoice_json && (
-                        <div className="space-y-1.5">
-                          <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block">
-                            Recommended Invoice JSON Changes
-                          </span>
-                          <pre className="bg-slate-950 text-slate-100 p-4 rounded-lg overflow-x-auto text-[10px] font-mono leading-relaxed border border-slate-800">
-                            {JSON.stringify(rec.recommended_invoice_json, null, 2)}
-                          </pre>
-                        </div>
+                        <RecommendedInvoiceCard invoice={rec.recommended_invoice_json} />
                       )}
                     </div>
-                  ))
+                  )})
                 )}
               </CardContent>
             </Card>
@@ -640,33 +807,45 @@ export const DisputeDetailPage: React.FC = () => {
           {activeTab === "communications" && (
             <Card className="shadow-xs border-border">
               <CardHeader>
-                <CardTitle className="text-sm">Customer Communications</CardTitle>
-                <CardDescription>Emails received from and sent to the customer.</CardDescription>
+                <CardTitle className="text-sm">Communications</CardTitle>
+                <CardDescription>
+                  Customer emails and internal department notifications for this dispute.
+                </CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
                 {isCommsLoading ? (
                   <Skeleton className="h-20 w-full" />
-                ) : customerCommunications.length === 0 ? (
+                ) : allCommunications.length === 0 ? (
                   <div className="text-center py-6 text-xs text-muted-foreground">No correspondence found.</div>
                 ) : (
-                  customerCommunications.map((comm) => {
+                  allCommunications.map((comm) => {
                     const isExpanded = expandedCommId === comm.id;
-                    const isOutbound = comm.subject?.includes("Paisa Vasool Update");
+                    const direction = getCommunicationDirection(comm);
+                    const address = getCommunicationAddress(comm, customerEmail);
+                    const typeLabel = getCommunicationTypeLabel(comm);
                     return (
                       <div
                         key={comm.id}
                         onClick={() => setExpandedCommId(isExpanded ? null : comm.id)}
                         className="p-3 border border-border rounded-lg bg-white dark:bg-zinc-950/20 cursor-pointer hover:bg-slate-50/50 dark:hover:bg-zinc-900/40 transition-colors text-xs"
                       >
-                        <div className="flex justify-between items-center font-semibold text-foreground">
-                          <span className="flex items-center gap-1.5">
-                            <Mail className="h-4.5 w-4.5 text-slate-400" />
-                            <Badge variant={isOutbound ? "default" : "outline"} className="text-[9px] py-0 px-1.5 uppercase font-bold">
-                              {isOutbound ? "Sent" : "Received"}
+                        <div className="flex justify-between items-center font-semibold text-foreground gap-3">
+                          <span className="flex items-center gap-1.5 min-w-0">
+                            <Mail className="h-4.5 w-4.5 text-slate-400 shrink-0" />
+                            <Badge
+                              variant={direction === "Sent" ? "default" : "outline"}
+                              className="text-[9px] py-0 px-1.5 uppercase font-bold shrink-0"
+                            >
+                              {direction}
                             </Badge>
-                            {comm.recipient}
+                            <Badge variant="outline" className="text-[9px] py-0 px-1.5 uppercase font-bold shrink-0">
+                              {typeLabel}
+                            </Badge>
+                            <span className="truncate text-[11px] font-mono text-muted-foreground">
+                              {direction === "Sent" ? `To: ${address}` : `From: ${address}`}
+                            </span>
                           </span>
-                          <span className="text-[10px] text-muted-foreground font-mono">
+                          <span className="text-[10px] text-muted-foreground font-mono shrink-0">
                             {getCommunicationTime(comm)
                               ? new Date(getCommunicationTime(comm)!).toLocaleString()
                               : "—"}

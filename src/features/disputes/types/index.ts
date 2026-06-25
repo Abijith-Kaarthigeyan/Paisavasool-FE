@@ -6,9 +6,10 @@ export type DisputeStatus =
   | "WAITING_CUSTOMER"
   | "WAITING_INTERNAL"
   | "RESOLVED"
-  | "CLOSED";
+  | "CLOSED"
+  | "FAILED";
 
-export type SLAStatus = "ON_TRACK" | "AT_RISK" | "BREACHED";
+export type SLAStatus = "ON_TRACK" | "AT_RISK" | "BREACHED" | "CLOSED";
 
 export interface DisputeSLA {
   id: string;
@@ -61,6 +62,7 @@ export interface DisputeCase {
   customer_email: string;
   email_subject: string | null;
   email_body: string | null;
+  raw_content?: string | null;
   original_message_id: string | null;
   status: string;
   created_at: string;

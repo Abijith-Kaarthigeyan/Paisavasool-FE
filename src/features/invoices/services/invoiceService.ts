@@ -1,5 +1,5 @@
 import { arApi } from "@/lib/axios"
-import { InvoiceUploadBatch, Invoice, InvoiceItem } from "../types"
+import { InvoiceUploadBatch, Invoice, InvoiceItem, InvoiceVersionSummary, InvoiceVersionDetail } from "../types"
 
 export const invoiceService = {
   uploadPdf: async (
@@ -71,6 +71,16 @@ export const invoiceService = {
 
   getInvoiceItems: async (id: string): Promise<InvoiceItem[]> => {
     const response = await arApi.get(`/invoices/${id}/items`);
+    return response.data;
+  },
+
+  getInvoiceVersions: async (id: string): Promise<InvoiceVersionSummary[]> => {
+    const response = await arApi.get(`/invoices/${id}/versions`);
+    return response.data.versions;
+  },
+
+  getInvoiceVersion: async (id: string, version: number): Promise<InvoiceVersionDetail> => {
+    const response = await arApi.get(`/invoices/${id}/versions/${version}`);
     return response.data;
   },
 };

@@ -35,12 +35,30 @@ const useEnrichedDisputes = (
     enabled: isPrivilegedUser,
   });
 
+  const disputeIds = disputes?.map((d) => d.id).join(",") || "";
+  const slaQuery = useQuery({
+    queryKey: ["disputeSLAs", disputeIds],
+    queryFn: async () => {
+      if (!disputes?.length) return new Map<string, Dispute["sla"]>();
+      const entries = await Promise.all(
+        disputes.map(async (d) => {
+          const sla = await disputeService.getSLA(d.id).catch(() => undefined);
+          return [d.id, sla] as const;
+        })
+      );
+      return new Map(entries);
+    },
+    enabled: !!disputes?.length,
+    staleTime: 60 * 1000,
+  });
+
   const enrichedData = useMemo(() => {
     if (!disputes) return [];
 
     const invoicesMap = new Map(invoicesQuery.data?.map((i) => [i.id, i]) || []);
     const customersMap = new Map(customersQuery.data?.map((c) => [c.id, c]) || []);
     const usersMap = new Map(usersQuery.data?.map((u) => [u.id, u]) || []);
+    const slaMap = slaQuery.data || new Map<string, Dispute["sla"]>();
 
     return disputes.map((d) => {
       const invoice = invoicesMap.get(d.invoice_id);
@@ -68,9 +86,10 @@ const useEnrichedDisputes = (
         } : undefined,
         assigned_user_name: assoc ? `${assoc.first_name} ${assoc.last_name}` : d.assigned_to ? "Finance Associate" : "Unassigned",
         manager_name: mgr ? `${mgr.first_name} ${mgr.last_name}` : undefined,
+        sla: slaMap.get(d.id),
       };
     });
-  }, [disputes, invoicesQuery.data, customersQuery.data, usersQuery.data]);
+  }, [disputes, invoicesQuery.data, customersQuery.data, usersQuery.data, slaQuery.data]);
 
   return {
     data: enrichedData,
@@ -78,6 +97,7 @@ const useEnrichedDisputes = (
       isLoadingDisputes ||
       invoicesQuery.isLoading ||
       customersQuery.isLoading ||
+      slaQuery.isLoading ||
       (isPrivilegedUser && usersQuery.isLoading),
     isError:
       invoicesQuery.isError ||
@@ -362,11 +382,18 @@ export const useAssociateDecision = () => {
       id,
       decision,
       comments,
+      amended_invoice_json,
     }: {
       id: string;
       decision: string;
       comments?: string;
-    }) => disputeService.submitAssociateDecision(id, { decision, comments }),
+      amended_invoice_json?: Record<string, unknown>;
+    }) =>
+      disputeService.submitAssociateDecision(id, {
+        decision,
+        comments,
+        amended_invoice_json,
+      }),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["dispute", variables.id] });
       queryClient.invalidateQueries({ queryKey: ["disputes"] });

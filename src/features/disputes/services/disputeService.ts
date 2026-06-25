@@ -110,7 +110,11 @@ export const disputeService = {
 
   submitAssociateDecision: async (
     id: string,
-    payload: { decision: "APPROVE" | "REJECT" | string; comments?: string }
+    payload: {
+      decision: "APPROVE" | "REJECT" | "EDIT_AND_APPLY" | string;
+      comments?: string;
+      amended_invoice_json?: Record<string, unknown>;
+    }
   ): Promise<{ status: string; message: string }> => {
     const response = await disputeApi.post<{ status: string; message: string }>(
       `/disputes/${id}/associate-decision`,

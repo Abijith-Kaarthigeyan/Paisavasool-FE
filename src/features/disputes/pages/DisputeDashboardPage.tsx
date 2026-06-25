@@ -17,6 +17,7 @@ import {
   Cell,
   Legend,
 } from "recharts"
+import { isTerminalDisputeStatus } from "../utils/disputeFormatters"
 import {
   AlertTriangle,
   Clock,
@@ -40,8 +41,8 @@ export const DisputeDashboardPage: React.FC = () => {
       inReview: disputes.filter((d) => d.status === "IN_REVIEW").length,
       waitingCustomer: disputes.filter((d) => d.status === "WAITING_CUSTOMER").length,
       waitingInternal: disputes.filter((d) => d.status === "WAITING_INTERNAL").length,
-      escalated: disputes.filter((d) => d.sla?.status === "BREACHED" && d.status !== "RESOLVED" && d.status !== "CLOSED").length, // or has escalations
-      slaBreached: disputes.filter((d) => d.sla?.status === "BREACHED" && d.status !== "RESOLVED" && d.status !== "CLOSED").length,
+      escalated: disputes.filter((d) => d.sla?.status === "BREACHED" && !isTerminalDisputeStatus(d.status)).length,
+      slaBreached: disputes.filter((d) => d.sla?.status === "BREACHED" && !isTerminalDisputeStatus(d.status)).length,
       resolvedToday: disputes.filter((d) => d.status === "RESOLVED" && d.resolved_at?.startsWith(today)).length,
       reviewQueueCount: reviewQueue.filter((r) => r.status === "PENDING").length,
     };
@@ -74,8 +75,9 @@ export const DisputeDashboardPage: React.FC = () => {
     let breached = 0;
 
     disputes.forEach((d) => {
-      if (d.status === "RESOLVED" || d.status === "CLOSED") return;
-      const status = d.sla?.status || "ON_TRACK";
+      if (isTerminalDisputeStatus(d.status)) return;
+      const status = d.sla?.status;
+      if (!status) return;
       if (status === "ON_TRACK") healthy++;
       else if (status === "AT_RISK") atRisk++;
       else if (status === "BREACHED") breached++;
@@ -373,7 +375,7 @@ export const DisputeDashboardPage: React.FC = () => {
                 </thead>
                 <tbody className="divide-y divide-border">
                   {disputes
-                    .filter((d) => d.status !== "RESOLVED" && d.status !== "CLOSED")
+                    .filter((d) => !isTerminalDisputeStatus(d.status))
                     .slice(0, 5)
                     .map((d) => (
                       <tr
@@ -400,7 +402,11 @@ export const DisputeDashboardPage: React.FC = () => {
                             }
                             className="text-[9px] py-0 px-1.5 uppercase font-bold"
                           >
-                            {d.sla?.status || "ON_TRACK"}
+                            {d.sla?.status
+                              ? d.sla.status === "CLOSED" || isTerminalDisputeStatus(d.status)
+                                ? "Closed"
+                                : d.sla.status.replace(/_/g, " ")
+                              : "No SLA"}
                           </Badge>
                         </td>
                         <td className="py-2.5 px-2 text-right">

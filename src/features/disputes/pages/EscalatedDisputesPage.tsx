@@ -15,6 +15,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog"
+import { isTerminalDisputeStatus } from "../utils/disputeFormatters"
 import { Search, FolderOpen, ArrowUpDown, RefreshCw, UserMinus } from "lucide-react"
 
 export const EscalatedDisputesPage: React.FC = () => {
@@ -50,7 +51,7 @@ export const EscalatedDisputesPage: React.FC = () => {
   // Filter escalated disputes (e.g. SLA is breached, or has active escalations)
   const escalatedDisputes = useMemo(() => {
     return disputes.filter(
-      (d) => d.sla?.status === "BREACHED" && d.status !== "RESOLVED" && d.status !== "CLOSED"
+      (d) => d.sla?.status === "BREACHED" && !isTerminalDisputeStatus(d.status)
     );
   }, [disputes]);
 

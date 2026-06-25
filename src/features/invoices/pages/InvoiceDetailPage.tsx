@@ -1,25 +1,94 @@
-import React from "react"
+import React, { useMemo, useState } from "react"
 import { useParams, Link } from "react-router-dom"
-import { useInvoiceDetails, useInvoiceItems } from "../hooks/useInvoices"
+import {
+  useInvoiceDetails,
+  useInvoiceItems,
+  useInvoiceVersions,
+  useInvoiceVersion,
+} from "../hooks/useInvoices"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
-import { 
-  ArrowLeft, 
-  Calendar, 
-  User, 
+import {
+  ArrowLeft,
+  Calendar,
+  User,
   HelpCircle,
-  FileSpreadsheet
+  FileSpreadsheet,
+  History,
 } from "lucide-react"
 
 export const InvoiceDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
+  const [selectedVersion, setSelectedVersion] = useState<number | "current">("current");
 
-  // Fetch invoice details
   const { data: invoice, isLoading: isDetailsLoading, error: detailsError } = useInvoiceDetails(id);
+  const { data: liveItems = [], isLoading: isItemsLoading } = useInvoiceItems(id);
+  const { data: versions = [] } = useInvoiceVersions(id);
 
-  // Fetch invoice items
-  const { data: items = [], isLoading: isItemsLoading } = useInvoiceItems(id);
+  const viewingHistorical =
+    selectedVersion !== "current" && selectedVersion !== invoice?.current_version;
+
+  const { data: historicalVersion, isLoading: isHistoricalLoading } = useInvoiceVersion(
+    id,
+    viewingHistorical ? (selectedVersion as number) : null
+  );
+
+  const displaySnapshot = useMemo(() => {
+    if (!viewingHistorical || !historicalVersion) return null;
+    return historicalVersion.invoice_snapshot;
+  }, [viewingHistorical, historicalVersion]);
+
+  const displayItems = useMemo(() => {
+    if (viewingHistorical && historicalVersion) {
+      return historicalVersion.items_snapshot.map((item, index) => ({
+        id: `hist-${index}`,
+        invoice_id: id || "",
+        description: String(item.description ?? ""),
+        quantity: Number(item.quantity ?? 0),
+        unit_price: Number(item.unit_price ?? 0),
+        amount: Number(item.amount ?? 0),
+        created_at: historicalVersion.created_at || "",
+      }));
+    }
+    return liveItems;
+  }, [viewingHistorical, historicalVersion, liveItems, id]);
+
+  const headerInvoiceNumber = viewingHistorical
+    ? String(displaySnapshot?.invoice_number ?? invoice?.invoice_number)
+    : invoice?.invoice_number;
+
+  const headerStatus = viewingHistorical
+    ? String(displaySnapshot?.status ?? "HISTORICAL")
+    : invoice?.status;
+
+  const currency = viewingHistorical
+    ? String(displaySnapshot?.currency ?? invoice?.currency ?? "INR")
+    : invoice?.currency ?? "INR";
+
+  const subtotal = viewingHistorical
+    ? Number(displaySnapshot?.subtotal_amount ?? 0)
+    : invoice?.subtotal_amount ?? 0;
+
+  const tax = viewingHistorical
+    ? Number(displaySnapshot?.tax_amount ?? 0)
+    : invoice?.tax_amount ?? 0;
+
+  const total = viewingHistorical
+    ? Number(displaySnapshot?.total_amount ?? 0)
+    : invoice?.total_amount ?? 0;
+
+  const outstanding = viewingHistorical
+    ? Number(displaySnapshot?.outstanding_amount ?? 0)
+    : invoice?.outstanding_amount ?? 0;
+
+  const invoiceDate = viewingHistorical
+    ? String(displaySnapshot?.invoice_date ?? "")
+    : invoice?.invoice_date ?? "";
+
+  const dueDate = viewingHistorical
+    ? String(displaySnapshot?.due_date ?? "")
+    : invoice?.due_date ?? "";
 
   const getStatusBadgeVariant = (status: string | undefined) => {
     if (!status) return "outline";
@@ -59,9 +128,10 @@ export const InvoiceDetailPage: React.FC = () => {
     );
   }
 
+  const currentVersion = invoice.current_version ?? 1;
+
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
-      {/* Header */}
       <header className="flex flex-col sm:flex-row sm:items-center sm:justify-between border-b border-border pb-5 gap-4">
         <div className="space-y-1">
           <div className="flex items-center gap-2">
@@ -69,20 +139,92 @@ export const InvoiceDetailPage: React.FC = () => {
               <ArrowLeft className="h-5 w-5" />
             </Link>
             <h1 className="text-2xl font-bold tracking-tight text-foreground m-0">
-              Invoice #{invoice.invoice_number}
+              Invoice #{headerInvoiceNumber}
             </h1>
           </div>
+          <div className="flex items-center gap-2 pl-7">
+            <Badge variant="outline" className="text-[10px] uppercase">
+              Version {viewingHistorical ? selectedVersion : currentVersion}
+            </Badge>
+            {viewingHistorical && (
+              <span className="text-[10px] text-amber-600 font-semibold uppercase">
+                Historical snapshot (read-only)
+              </span>
+            )}
+          </div>
         </div>
-        <div>
-          <Badge variant={getStatusBadgeVariant(invoice.status)} className="text-xs uppercase px-3 py-1 font-bold tracking-wider">
-            {invoice.status}
+        <div className="flex items-center gap-2">
+          {versions.length > 0 && (
+            <select
+              value={selectedVersion === "current" ? String(currentVersion) : String(selectedVersion)}
+              onChange={(e) => {
+                const val = Number(e.target.value);
+                setSelectedVersion(val === currentVersion ? "current" : val);
+              }}
+              className="text-xs rounded-md border border-input bg-background px-2 py-1.5"
+            >
+              {versions.map((v) => (
+                <option key={v.version_number} value={v.version_number}>
+                  v{v.version_number}
+                  {v.is_current ? " (current)" : ""}
+                </option>
+              ))}
+            </select>
+          )}
+          <Badge variant={getStatusBadgeVariant(headerStatus)} className="text-xs uppercase px-3 py-1 font-bold tracking-wider">
+            {headerStatus}
           </Badge>
         </div>
       </header>
 
-      {/* Grid of details */}
+      {versions.length > 1 && (
+        <Card className="border-border shadow-xs">
+          <CardHeader className="pb-3 border-b border-border mb-4">
+            <CardTitle className="text-sm font-bold uppercase tracking-wider flex items-center gap-2">
+              <History className="h-4 w-4 text-primary" /> Amendment History
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead>
+                  <tr className="border-b border-border text-muted-foreground uppercase">
+                    <th className="py-2 pr-3">Version</th>
+                    <th className="py-2 pr-3">When</th>
+                    <th className="py-2 pr-3">Reason</th>
+                    <th className="py-2 pr-3">Source</th>
+                    <th className="py-2 pr-3">By</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {versions.map((v) => (
+                    <tr
+                      key={v.version_number}
+                      className="border-b border-border/60 hover:bg-slate-50/30 cursor-pointer"
+                      onClick={() =>
+                        setSelectedVersion(v.is_current ? "current" : v.version_number)
+                      }
+                    >
+                      <td className="py-2 pr-3 font-mono font-bold">
+                        v{v.version_number}
+                        {v.is_current ? " *" : ""}
+                      </td>
+                      <td className="py-2 pr-3">
+                        {new Date(v.created_at).toLocaleString()}
+                      </td>
+                      <td className="py-2 pr-3">{v.change_reason || "—"}</td>
+                      <td className="py-2 pr-3">{v.change_source}</td>
+                      <td className="py-2 pr-3">{v.created_by || "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Invoice Info Card */}
         <Card className="border-border shadow-xs">
           <CardHeader className="pb-3 border-b border-border mb-4">
             <CardTitle className="text-sm font-bold uppercase tracking-wider flex items-center gap-2">
@@ -92,20 +234,19 @@ export const InvoiceDetailPage: React.FC = () => {
           <CardContent className="pt-0 space-y-3 text-sm">
             <div className="flex justify-between">
               <span className="text-muted-foreground">Invoice Date:</span>
-              <span className="font-semibold text-foreground">{new Date(invoice.invoice_date).toLocaleDateString()}</span>
+              <span className="font-semibold text-foreground">
+                {invoiceDate ? new Date(invoiceDate).toLocaleDateString() : "—"}
+              </span>
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">Due Date:</span>
-              <span className="font-semibold text-foreground">{new Date(invoice.due_date).toLocaleDateString()}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Source:</span>
-              <span className="font-semibold text-foreground text-xs">AI Ingested Batch</span>
+              <span className="font-semibold text-foreground">
+                {dueDate ? new Date(dueDate).toLocaleDateString() : "—"}
+              </span>
             </div>
           </CardContent>
         </Card>
 
-        {/* Customer Information Card */}
         <Card className="border-border shadow-xs">
           <CardHeader className="pb-3 border-b border-border mb-4">
             <CardTitle className="text-sm font-bold uppercase tracking-wider flex items-center gap-2">
@@ -123,50 +264,31 @@ export const InvoiceDetailPage: React.FC = () => {
                   <span className="text-muted-foreground">Customer Code:</span>
                   <span className="font-semibold text-foreground font-mono text-xs">{invoice.customer.customer_code}</span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Email:</span>
-                  <span className="font-semibold text-foreground font-mono text-xs">{invoice.customer.email || "N/A"}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Phone:</span>
-                  <span className="font-semibold text-foreground text-xs">{invoice.customer.phone || "N/A"}</span>
-                </div>
-                <div className="flex flex-col border-t border-border pt-2.5 mt-2.5">
-                  <span className="text-xs text-muted-foreground">Billing Address:</span>
-                  <span className="font-medium text-foreground text-[11px] leading-relaxed mt-1">{invoice.customer.billing_address || "N/A"}</span>
-                </div>
               </>
             ) : (
-              <>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Account:</span>
-                  <span className="font-bold text-emerald-600 dark:text-emerald-400 text-xs">Active Billing Account</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Billing Currency:</span>
-                  <span className="font-semibold text-foreground">{invoice.currency}</span>
-                </div>
-              </>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Billing Currency:</span>
+                <span className="font-semibold text-foreground">{currency}</span>
+              </div>
             )}
           </CardContent>
         </Card>
       </div>
 
-      {/* Invoice items table */}
       <Card className="border-border shadow-xs">
         <CardHeader className="pb-3 border-b border-border mb-4">
           <CardTitle className="text-sm font-bold uppercase tracking-wider flex items-center gap-2">
-            <FileSpreadsheet className="h-4 w-4 text-primary" /> Extracted Line Items
+            <FileSpreadsheet className="h-4 w-4 text-primary" /> Line Items
           </CardTitle>
         </CardHeader>
         <CardContent className="pt-0">
-          {isItemsLoading ? (
+          {isItemsLoading || (viewingHistorical && isHistoricalLoading) ? (
             <div className="space-y-3">
               <Skeleton className="h-8 w-full" />
               <Skeleton className="h-8 w-full" />
             </div>
-          ) : items.length === 0 ? (
-            <div className="text-center py-10 text-muted-foreground text-xs">No line items extracted.</div>
+          ) : displayItems.length === 0 ? (
+            <div className="text-center py-10 text-muted-foreground text-xs">No line items.</div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm">
@@ -179,15 +301,15 @@ export const InvoiceDetailPage: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
-                  {items.map((item) => (
+                  {displayItems.map((item) => (
                     <tr key={item.id} className="hover:bg-slate-50/20">
                       <td className="py-3 px-3 font-medium text-foreground">{item.description}</td>
                       <td className="py-3 px-3 text-right text-muted-foreground font-mono">{item.quantity.toLocaleString()}</td>
                       <td className="py-3 px-3 text-right text-muted-foreground font-mono">
-                        {invoice.currency} {item.unit_price.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                        {currency} {item.unit_price.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                       </td>
                       <td className="py-3 px-3 text-right font-bold text-foreground font-mono">
-                        {invoice.currency} {item.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                        {currency} {item.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                       </td>
                     </tr>
                   ))}
@@ -196,31 +318,30 @@ export const InvoiceDetailPage: React.FC = () => {
             </div>
           )}
 
-          {/* Totals Section */}
           <div className="border-t border-border mt-6 pt-4 flex justify-end">
             <div className="w-full max-w-sm space-y-3 text-sm">
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Subtotal:</span>
                 <span className="font-semibold text-foreground font-mono">
-                  {invoice.currency} {invoice.subtotal_amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                  {currency} {subtotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                 </span>
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Taxes:</span>
                 <span className="font-semibold text-foreground font-mono">
-                  {invoice.currency} {invoice.tax_amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                  {currency} {tax.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                 </span>
               </div>
               <div className="flex justify-between border-b border-border pb-3">
                 <span className="font-bold text-foreground">Total Invoice Amount:</span>
                 <span className="font-bold text-foreground font-mono">
-                  {invoice.currency} {invoice.total_amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                  {currency} {total.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                 </span>
               </div>
               <div className="flex justify-between pt-1">
-                <span className="font-bold text-rose-500">Remaining Balance (Outstanding):</span>
+                <span className="font-bold text-rose-500">Outstanding:</span>
                 <span className="font-bold text-rose-500 font-mono">
-                  {invoice.currency} {invoice.outstanding_amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                  {currency} {outstanding.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                 </span>
               </div>
             </div>

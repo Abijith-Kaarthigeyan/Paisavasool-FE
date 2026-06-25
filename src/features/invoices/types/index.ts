@@ -49,8 +49,33 @@ export interface Invoice {
   outstanding_amount: number;
   status: InvoiceStatus;
   batch_id: string;
+  current_version?: number;
   created_at: string;
   updated_at: string;
+}
+
+export interface InvoiceVersionSummary {
+  version_number: number;
+  change_reason: string | null;
+  change_source: string;
+  dispute_id: string | null;
+  recommendation_id: string | null;
+  created_by: string | null;
+  created_at: string;
+  is_current: boolean;
+}
+
+export interface InvoiceVersionDetail {
+  version_number: number;
+  invoice_snapshot: Record<string, unknown>;
+  items_snapshot: Array<Record<string, unknown>>;
+  change_reason?: string | null;
+  change_source?: string | null;
+  dispute_id?: string | null;
+  recommendation_id?: string | null;
+  created_by?: string | null;
+  created_at?: string | null;
+  is_current: boolean;
 }
 
 export interface InvoiceItem {

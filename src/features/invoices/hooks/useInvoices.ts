@@ -37,6 +37,25 @@ export const useInvoiceItems = (invoiceId: string | undefined) => {
   });
 };
 
+export const useInvoiceVersions = (invoiceId: string | undefined) => {
+  return useQuery({
+    queryKey: ["invoice", invoiceId, "versions"],
+    queryFn: () => invoiceService.getInvoiceVersions(invoiceId!),
+    enabled: !!invoiceId,
+  });
+};
+
+export const useInvoiceVersion = (
+  invoiceId: string | undefined,
+  version: number | null
+) => {
+  return useQuery({
+    queryKey: ["invoice", invoiceId, "version", version],
+    queryFn: () => invoiceService.getInvoiceVersion(invoiceId!, version!),
+    enabled: !!invoiceId && version != null && version > 0,
+  });
+};
+
 export const useBatchStatus = (batchId: string | undefined) => {
   return useQuery({
     queryKey: ["batchStatus", batchId],

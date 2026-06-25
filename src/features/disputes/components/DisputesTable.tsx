@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Pagination } from "@/components/ui/pagination"
 import { SLAProgress } from "./SLAProgress"
+import { isTerminalDisputeStatus } from "../utils/disputeFormatters"
 import { Search, FolderOpen, ArrowUpDown, RefreshCw } from "lucide-react"
 
 interface DisputesTableProps {
@@ -424,15 +425,27 @@ export const DisputesTable: React.FC<DisputesTableProps> = ({
                       <td className="py-3 px-4 text-center">
                         <Badge
                           variant={
-                            d.sla?.status === "BREACHED"
+                            isTerminalDisputeStatus(d.status) || d.sla?.status === "CLOSED"
+                              ? "outline"
+                              : !d.sla
+                              ? "outline"
+                              : d.sla.status === "BREACHED"
                               ? "destructive"
-                              : d.sla?.status === "AT_RISK"
+                              : d.sla.status === "AT_RISK"
                               ? "warning"
                               : "default"
                           }
                           className="text-[9px] py-0 px-2 font-bold"
                         >
-                          {d.sla?.status === "BREACHED" ? "HIGH" : d.sla?.status === "AT_RISK" ? "MEDIUM" : "LOW"}
+                          {isTerminalDisputeStatus(d.status) || d.sla?.status === "CLOSED"
+                            ? "CLOSED"
+                            : !d.sla
+                            ? "N/A"
+                            : d.sla.status === "BREACHED"
+                            ? "HIGH"
+                            : d.sla.status === "AT_RISK"
+                            ? "MEDIUM"
+                            : "LOW"}
                         </Badge>
                       </td>
                       <td className="py-3 px-4">
@@ -440,9 +453,13 @@ export const DisputesTable: React.FC<DisputesTableProps> = ({
                           <SLAProgress
                             percentage={d.sla.current_percentage}
                             isPaused={d.sla.is_paused}
+                            status={d.sla.status}
+                            disputeStatus={d.status}
                           />
                         ) : (
-                          <span className="text-muted-foreground text-[10px] font-semibold">No SLA SLA Mapped</span>
+                          <span className="text-muted-foreground text-[10px] font-semibold">
+                            No SLA Mapped
+                          </span>
                         )}
                       </td>
                       <td className="py-3 px-4 text-muted-foreground font-semibold">
