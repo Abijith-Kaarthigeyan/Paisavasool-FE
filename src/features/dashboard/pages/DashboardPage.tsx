@@ -32,10 +32,10 @@ export const DashboardPage: React.FC = () => {
   })();
 
   return (
-    <>
+    <div className="animate-in fade-in duration-150">
       {dashboard}
       {canPollEmails && <EmailPollFab />}
-    </>
+    </div>
   );
 };
 

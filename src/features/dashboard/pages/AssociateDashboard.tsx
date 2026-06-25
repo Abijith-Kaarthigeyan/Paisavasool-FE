@@ -19,7 +19,14 @@ import { useDisputes, useReviewQueue } from "@/features/disputes/hooks/useDisput
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
+import { KpiCard, KpiGrid } from "@/components/ui/kpi-card"
+import { ChartCard } from "@/components/ui/chart-card"
+import { PageHeader } from "@/components/ui/page-header"
+import { EmptyState } from "@/components/ui/empty-state"
+import { Timeline, TimelineItem } from "@/components/ui/timeline"
+import { Button } from "@/components/ui/button"
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip } from "recharts"
+import { CHART_COLORS } from "@/lib/design-tokens"
 import {
   FileText,
   DollarSign,
@@ -39,7 +46,6 @@ export const AssociateDashboard: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useSelector((state: RootState) => state.auth);
 
-  // 1. Existing queries
   const { data: invoices = [], isLoading: isInvoicesLoading } = useQuery({
     queryKey: ["invoices"],
     queryFn: () => invoiceService.getInvoices(),
@@ -55,7 +61,6 @@ export const AssociateDashboard: React.FC = () => {
     queryFn: () => reviewService.listPaymentReviews(),
   });
 
-  // 2. New Collections queries
   const { data: openCases = [], isLoading: isOpenCasesLoading } = useOpenCollections();
   const { data: assignedCases = [], isLoading: isAssignedCasesLoading } = useAssignedCases();
   const { data: brokenPromisesCases = [], isLoading: isBrokenPromisesLoading } = useBrokenPromises();
@@ -64,7 +69,6 @@ export const AssociateDashboard: React.FC = () => {
   const { data: reminders = [], isLoading: isRemindersLoading } = useReminderHistory();
   const { data: promises = [], isLoading: isPromisesLoading } = usePromises();
 
-  // 3. New Disputes queries
   const { data: disputes = [], isLoading: isDisputesLoading } = useDisputes();
   const { data: reviewQueue = [], isLoading: isDisputesReviewLoading } = useReviewQueue("PENDING");
 
@@ -74,12 +78,9 @@ export const AssociateDashboard: React.FC = () => {
   const paymentsProcessing = payments.filter((p) => p.status === "UPLOADED" || p.status === "PROCESSING").length;
   const paymentsPendingReview = reviews.filter((r) => r.status === "PENDING").length;
 
-
-  // Recent subsets
   const recentInvoices = invoices.slice(0, 5);
   const recentPayments = payments.slice(0, 5);
 
-  // Filter out recent escalations assigned to this associate
   const recentEscalations = useMemo(() => {
     return assignedCases
       .filter((c) => c.status === "ESCALATED")
@@ -91,7 +92,6 @@ export const AssociateDashboard: React.FC = () => {
       .slice(0, 5);
   }, [assignedCases]);
 
-  // Merge reminders and promises into a unified recent activities timeline
   const recentActivities = useMemo(() => {
     const items: Array<{
       id: string;
@@ -102,7 +102,6 @@ export const AssociateDashboard: React.FC = () => {
       caseId: string;
     }> = [];
 
-    // Map reminders
     reminders.forEach((r) => {
       items.push({
         id: r.id,
@@ -114,7 +113,6 @@ export const AssociateDashboard: React.FC = () => {
       });
     });
 
-    // Map promises
     promises.forEach((p) => {
       items.push({
         id: p.id,
@@ -131,7 +129,6 @@ export const AssociateDashboard: React.FC = () => {
     return items.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice(0, 5);
   }, [reminders, promises]);
 
-  // Aging distribution chart data
   const agingChartData = useMemo(() => {
     if (!aging) return [];
     return [
@@ -174,273 +171,143 @@ export const AssociateDashboard: React.FC = () => {
     isRemindersLoading ||
     isPromisesLoading;
 
+  const escalatedCount = assignedCases.filter((c) => c.status === "ESCALATED").length;
+
   return (
-    <div className="space-y-6">
-      {/* Page Header */}
-      <header className="flex flex-col sm:flex-row sm:items-center sm:justify-between border-b border-border pb-5 gap-4">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground m-0">
-            AR Operational Dashboard
-          </h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Perform daily Accounts Receivable activities, upload invoices, ingest bank payments, and review collections.
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Link
-            to="/invoice-upload"
-            className="rounded-lg bg-slate-900 px-4 py-2.5 text-xs font-bold text-white hover:bg-slate-800 transition-colors shadow-xs"
-          >
-            Upload Invoices
-          </Link>
-          <Link
-            to="/payment-upload"
-            className="rounded-lg bg-primary px-4 py-2.5 text-xs font-bold text-primary-foreground hover:bg-primary/95 transition-colors shadow-xs"
-          >
-            Upload Payments
-          </Link>
-        </div>
-      </header>
+    <div className="space-y-8">
+      <PageHeader
+        title="AR Operational Dashboard"
+        description="Perform daily Accounts Receivable activities, upload invoices, ingest bank payments, and review collections."
+        actions={
+          <>
+            <Button variant="secondary" size="sm" onClick={() => navigate("/invoice-upload")}>
+              Upload Invoices
+            </Button>
+            <Button size="sm" onClick={() => navigate("/payment-upload")}>
+              Upload Payments
+            </Button>
+          </>
+        }
+      />
 
-      {/* Primary KPI Section */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-        <Card>
-          <CardContent className="p-5 flex items-center justify-between">
-            <div className="space-y-1">
-              <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Total Invoices</span>
-              <p className="text-2xl font-bold text-foreground">
-                {isInvoicesLoading ? <Skeleton className="h-7 w-12" /> : totalInvoices}
-              </p>
-            </div>
-            <div className="p-2.5 rounded-lg bg-slate-100 dark:bg-zinc-800 text-slate-500">
-              <FileText className="h-5 w-5" />
-            </div>
-          </CardContent>
-        </Card>
+      <section className="space-y-4">
+        <h2 className="text-2xl font-semibold text-foreground">Accounts receivable</h2>
+        <KpiGrid columns={5}>
+          <KpiCard
+            label="Total invoices"
+            value={totalInvoices}
+            loading={isInvoicesLoading}
+            icon={<FileText className="h-5 w-5" />}
+            iconTone="default"
+          />
+          <KpiCard
+            label="Outstanding"
+            value={`₹${outstandingAmount.toLocaleString(undefined, { maximumFractionDigits: 0 })}`}
+            loading={isInvoicesLoading}
+            icon={<DollarSign className="h-5 w-5" />}
+            iconTone="destructive"
+          />
+          <KpiCard
+            label="Uploaded payments"
+            value={totalPaymentsUploaded}
+            loading={isPaymentsLoading}
+            icon={<FileCheck className="h-5 w-5" />}
+            iconTone="success"
+          />
+          <KpiCard
+            label="Processing"
+            value={paymentsProcessing}
+            loading={isPaymentsLoading}
+            icon={<Clock className="h-5 w-5" />}
+            iconTone="info"
+          />
+          <KpiCard
+            label="Pending review"
+            value={paymentsPendingReview}
+            loading={isReviewsLoading}
+            icon={<HelpCircle className="h-5 w-5" />}
+            iconTone="warning"
+          />
+        </KpiGrid>
+      </section>
 
-        <Card>
-          <CardContent className="p-5 flex items-center justify-between">
-            <div className="space-y-1">
-              <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Outstanding</span>
-              <p className="text-2xl font-bold text-foreground">
-                {isInvoicesLoading ? (
-                  <Skeleton className="h-7 w-20" />
-                ) : (
-                  `₹${outstandingAmount.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
-                )}
-              </p>
-            </div>
-            <div className="p-2.5 rounded-lg bg-rose-500/10 text-rose-500">
-              <DollarSign className="h-5 w-5" />
-            </div>
-          </CardContent>
-        </Card>
+      <section className="space-y-4">
+        <h2 className="text-2xl font-semibold text-foreground">Collections</h2>
+        <KpiGrid>
+          <KpiCard
+            label="Open collection cases"
+            value={openCases.length}
+            loading={isCollectionsLoading}
+            icon={<FolderOpen className="h-5 w-5" />}
+            iconTone="info"
+          />
+          <KpiCard
+            label="My assigned cases"
+            value={assignedCases.length}
+            loading={isCollectionsLoading}
+            icon={<UserCheck className="h-5 w-5" />}
+            iconTone="warning"
+          />
+          <KpiCard
+            label="Broken promises"
+            value={brokenPromisesCases.length}
+            loading={isCollectionsLoading}
+            icon={<HeartOff className="h-5 w-5" />}
+            iconTone="destructive"
+          />
+          <KpiCard
+            label="Escalated cases"
+            value={escalatedCount}
+            loading={isCollectionsLoading}
+            icon={<AlertTriangle className="h-5 w-5" />}
+            iconTone="destructive"
+          />
+        </KpiGrid>
+      </section>
 
-        <Card>
-          <CardContent className="p-5 flex items-center justify-between">
-            <div className="space-y-1">
-              <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Uploaded Payments</span>
-              <p className="text-2xl font-bold text-foreground">
-                {isPaymentsLoading ? <Skeleton className="h-7 w-12" /> : totalPaymentsUploaded}
-              </p>
-            </div>
-            <div className="p-2.5 rounded-lg bg-emerald-500/10 text-emerald-500">
-              <FileCheck className="h-5 w-5" />
-            </div>
-          </CardContent>
-        </Card>
+      <section className="space-y-4">
+        <h2 className="text-2xl font-semibold text-foreground">Disputes</h2>
+        <KpiGrid>
+          <KpiCard
+            label="My open disputes"
+            value={disputes.filter((d) => d.assigned_to === user?.sub && d.status === "OPEN").length}
+            loading={isDisputesLoading}
+            icon={<AlertTriangle className="h-5 w-5" />}
+            iconTone="info"
+          />
+          <KpiCard
+            label="Waiting customer"
+            value={disputes.filter((d) => d.status === "WAITING_CUSTOMER").length}
+            loading={isDisputesLoading}
+            icon={<UserCheck className="h-5 w-5" />}
+            iconTone="warning"
+          />
+          <KpiCard
+            label="Waiting internal team"
+            value={disputes.filter((d) => d.status === "WAITING_INTERNAL").length}
+            loading={isDisputesLoading}
+            icon={<Clock className="h-5 w-5" />}
+            iconTone="warning"
+          />
+          <KpiCard
+            label="Review queue count"
+            value={reviewQueue.length}
+            loading={isDisputesReviewLoading}
+            icon={<HelpCircle className="h-5 w-5" />}
+            iconTone="warning"
+          />
+        </KpiGrid>
+      </section>
 
-        <Card>
-          <CardContent className="p-5 flex items-center justify-between">
-            <div className="space-y-1">
-              <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Processing</span>
-              <p className="text-2xl font-bold text-foreground">
-                {isPaymentsLoading ? <Skeleton className="h-7 w-12" /> : paymentsProcessing}
-              </p>
-            </div>
-            <div className="p-2.5 rounded-lg bg-blue-500/10 text-blue-500">
-              <Clock className="h-5 w-5" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-5 flex items-center justify-between">
-            <div className="space-y-1">
-              <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Pending Review</span>
-              <p className="text-2xl font-bold text-amber-600 dark:text-amber-400">
-                {isReviewsLoading ? <Skeleton className="h-7 w-12" /> : paymentsPendingReview}
-              </p>
-            </div>
-            <div className="p-2.5 rounded-lg bg-amber-500/10 text-amber-500">
-              <HelpCircle className="h-5 w-5" />
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Secondary Collections KPI Grid Section */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="border-l-4 border-l-blue-500">
-          <CardContent className="p-4 flex items-center justify-between">
-            <div className="space-y-1">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                Open Collection Cases
-              </span>
-              <p className="text-xl font-bold text-foreground">
-                {isCollectionsLoading ? <Skeleton className="h-6 w-10" /> : openCases.length}
-              </p>
-            </div>
-            <div className="p-2 rounded-lg bg-blue-500/10 text-blue-500">
-              <FolderOpen className="h-4.5 w-4.5" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-l-4 border-l-orange-500">
-          <CardContent className="p-4 flex items-center justify-between">
-            <div className="space-y-1">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                My Assigned Cases
-              </span>
-              <p className="text-xl font-bold text-foreground">
-                {isCollectionsLoading ? <Skeleton className="h-6 w-10" /> : assignedCases.length}
-              </p>
-            </div>
-            <div className="p-2 rounded-lg bg-orange-500/10 text-orange-500">
-              <UserCheck className="h-4.5 w-4.5" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-l-4 border-l-rose-500">
-          <CardContent className="p-4 flex items-center justify-between">
-            <div className="space-y-1">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                Broken Promises
-              </span>
-              <p className="text-xl font-bold text-rose-500">
-                {isCollectionsLoading ? <Skeleton className="h-6 w-10" /> : brokenPromisesCases.length}
-              </p>
-            </div>
-            <div className="p-2 rounded-lg bg-rose-500/10 text-rose-500">
-              <HeartOff className="h-4.5 w-4.5" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-l-4 border-l-red-500">
-          <CardContent className="p-4 flex items-center justify-between">
-            <div className="space-y-1">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                Escalated Cases
-              </span>
-              <p className="text-xl font-bold text-red-500 font-mono">
-                {isCollectionsLoading ? (
-                  <Skeleton className="h-6 w-10" />
-                ) : (
-                  assignedCases.filter((c) => c.status === "ESCALATED").length
-                )}
-              </p>
-            </div>
-            <div className="p-2 rounded-lg bg-red-500/10 text-red-500">
-              <AlertTriangle className="h-4.5 w-4.5" />
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Disputes KPI Grid Section */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="border-l-4 border-l-blue-500 hover:shadow-xs transition-shadow">
-          <CardContent className="p-4 flex items-center justify-between">
-            <div className="space-y-1">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                My Open Disputes
-              </span>
-              <p className="text-xl font-bold text-foreground">
-                {isDisputesLoading ? (
-                  <Skeleton className="h-6 w-10" />
-                ) : (
-                  disputes.filter((d) => d.assigned_to === user?.sub && d.status === "OPEN").length
-                )}
-              </p>
-            </div>
-            <div className="p-2 rounded-lg bg-blue-500/10 text-blue-500">
-              <AlertTriangle className="h-4.5 w-4.5" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-l-4 border-l-yellow-500 hover:shadow-xs transition-shadow">
-          <CardContent className="p-4 flex items-center justify-between">
-            <div className="space-y-1">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                Waiting Customer
-              </span>
-              <p className="text-xl font-bold text-foreground">
-                {isDisputesLoading ? (
-                  <Skeleton className="h-6 w-10" />
-                ) : (
-                  disputes.filter((d) => d.status === "WAITING_CUSTOMER").length
-                )}
-              </p>
-            </div>
-            <div className="p-2 rounded-lg bg-yellow-500/10 text-yellow-500">
-              <UserCheck className="h-4.5 w-4.5" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-l-4 border-l-orange-500 hover:shadow-xs transition-shadow">
-          <CardContent className="p-4 flex items-center justify-between">
-            <div className="space-y-1">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                Waiting Internal Team
-              </span>
-              <p className="text-xl font-bold text-foreground">
-                {isDisputesLoading ? (
-                  <Skeleton className="h-6 w-10" />
-                ) : (
-                  disputes.filter((d) => d.status === "WAITING_INTERNAL").length
-                )}
-              </p>
-            </div>
-            <div className="p-2 rounded-lg bg-orange-500/10 text-orange-500">
-              <Clock className="h-4.5 w-4.5" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-l-4 border-l-amber-500 hover:shadow-xs transition-shadow">
-          <CardContent className="p-4 flex items-center justify-between">
-            <div className="space-y-1">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                Review Queue Count
-              </span>
-              <p className="text-xl font-bold text-amber-600 dark:text-amber-400">
-                {isDisputesReviewLoading ? <Skeleton className="h-6 w-10" /> : reviewQueue.length}
-              </p>
-            </div>
-            <div className="p-2 rounded-lg bg-amber-500/10 text-amber-500">
-              <HelpCircle className="h-4.5 w-4.5" />
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Main Grid Section */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left Side: Recent Invoices & Payments (2 Cols) */}
-        <div className="lg:col-span-2 space-y-6">
-          {/* Recent Invoices */}
-          <Card className="shadow-xs border-border">
-            <CardHeader className="flex flex-row items-center justify-between pb-3 border-b border-border mb-4">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        <div className="space-y-6 lg:col-span-2">
+          <Card className="border-border shadow-xs">
+            <CardHeader className="mb-4 flex flex-row items-center justify-between border-b border-border pb-3">
               <div>
                 <CardTitle>Recent Invoices</CardTitle>
                 <CardDescription>Latest open billing items.</CardDescription>
               </div>
-              <Link to="/invoices" className="text-xs font-bold text-primary flex items-center gap-1 hover:underline">
+              <Link to="/invoices" className="flex items-center gap-1 text-xs font-bold text-primary hover:underline">
                 View All <ArrowRight className="h-3.5 w-3.5" />
               </Link>
             </CardHeader>
@@ -452,18 +319,16 @@ export const AssociateDashboard: React.FC = () => {
                   <Skeleton className="h-8 w-full" />
                 </div>
               ) : recentInvoices.length === 0 ? (
-                <div className="text-center py-10 text-muted-foreground text-xs">
-                  No invoices imported yet.
-                </div>
+                <EmptyState title="No invoices yet" description="No invoices imported yet." className="py-6" />
               ) : (
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-xs">
                     <thead>
-                      <tr className="border-b border-border text-muted-foreground uppercase text-[10px] font-bold tracking-wider">
-                        <th className="pb-3 px-2">Invoice Number</th>
-                        <th className="pb-3 px-2">Invoice Date</th>
-                        <th className="pb-3 px-2 text-right">Amount</th>
-                        <th className="pb-3 px-2 text-right">Status</th>
+                      <tr className="border-b border-border bg-muted/50 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                        <th scope="col" className="px-2 pb-3">Invoice Number</th>
+                        <th scope="col" className="px-2 pb-3">Invoice Date</th>
+                        <th scope="col" className="px-2 pb-3 text-right">Amount</th>
+                        <th scope="col" className="px-2 pb-3 text-right">Status</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border">
@@ -471,17 +336,17 @@ export const AssociateDashboard: React.FC = () => {
                         <tr
                           key={inv.id}
                           onClick={() => navigate(`/invoices/${inv.id}`)}
-                          className="hover:bg-slate-50/50 dark:hover:bg-zinc-900/40 cursor-pointer transition-colors"
+                          className="cursor-pointer transition-colors hover:bg-muted/40"
                         >
-                          <td className="py-2.5 px-2 font-semibold text-foreground">{inv.invoice_number}</td>
-                          <td className="py-2.5 px-2 text-muted-foreground">
+                          <td className="px-2 py-2.5 font-semibold text-foreground">{inv.invoice_number}</td>
+                          <td className="px-2 py-2.5 text-muted-foreground">
                             {new Date(inv.invoice_date).toLocaleDateString()}
                           </td>
-                          <td className="py-2.5 px-2 text-right font-bold font-mono">
+                          <td className="px-2 py-2.5 text-right font-bold tabular-nums">
                             {inv.currency} {inv.total_amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                           </td>
-                          <td className="py-2.5 px-2 text-right">
-                            <Badge variant={getInvoiceStatusVariant(inv.status)} className="text-[10px] py-0 px-2 uppercase font-bold">
+                          <td className="px-2 py-2.5 text-right">
+                            <Badge variant={getInvoiceStatusVariant(inv.status)} className="px-2 py-0 text-[10px] font-bold uppercase">
                               {inv.status}
                             </Badge>
                           </td>
@@ -494,14 +359,13 @@ export const AssociateDashboard: React.FC = () => {
             </CardContent>
           </Card>
 
-          {/* Recent Payment Uploads */}
-          <Card className="shadow-xs border-border">
-            <CardHeader className="flex flex-row items-center justify-between pb-3 border-b border-border mb-4">
+          <Card className="border-border shadow-xs">
+            <CardHeader className="mb-4 flex flex-row items-center justify-between border-b border-border pb-3">
               <div>
                 <CardTitle>Recent Payment Uploads</CardTitle>
                 <CardDescription>Processed receipts and matches.</CardDescription>
               </div>
-              <Link to="/payment-upload-history" className="text-xs font-bold text-primary flex items-center gap-1 hover:underline">
+              <Link to="/payment-upload-history" className="flex items-center gap-1 text-xs font-bold text-primary hover:underline">
                 View History <ArrowRight className="h-3.5 w-3.5" />
               </Link>
             </CardHeader>
@@ -513,17 +377,15 @@ export const AssociateDashboard: React.FC = () => {
                   <Skeleton className="h-8 w-full" />
                 </div>
               ) : recentPayments.length === 0 ? (
-                <div className="text-center py-10 text-muted-foreground text-xs">
-                  No payment documents ingested yet.
-                </div>
+                <EmptyState title="No payments yet" description="No payment documents ingested yet." className="py-6" />
               ) : (
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-xs">
                     <thead>
-                      <tr className="border-b border-border text-muted-foreground uppercase text-[10px] font-bold tracking-wider">
-                        <th className="pb-3 px-2">File Name</th>
-                        <th className="pb-3 px-2">Upload Date</th>
-                        <th className="pb-3 px-2 text-right">Status</th>
+                      <tr className="border-b border-border bg-muted/50 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                        <th scope="col" className="px-2 pb-3">File Name</th>
+                        <th scope="col" className="px-2 pb-3">Upload Date</th>
+                        <th scope="col" className="px-2 pb-3 text-right">Status</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border">
@@ -531,16 +393,16 @@ export const AssociateDashboard: React.FC = () => {
                         <tr
                           key={pay.id}
                           onClick={() => navigate(`/payment-upload/${pay.id}`)}
-                          className="hover:bg-slate-50/50 dark:hover:bg-zinc-900/40 cursor-pointer transition-colors"
+                          className="cursor-pointer transition-colors hover:bg-muted/40"
                         >
-                          <td className="py-2.5 px-2 font-semibold text-foreground truncate max-w-[180px]" title={pay.file_name}>
+                          <td className="max-w-[180px] truncate px-2 py-2.5 font-semibold text-foreground" title={pay.file_name}>
                             {pay.file_name}
                           </td>
-                          <td className="py-2.5 px-2 text-muted-foreground">
+                          <td className="px-2 py-2.5 text-muted-foreground">
                             {new Date(pay.uploaded_at).toLocaleDateString()}
                           </td>
-                          <td className="py-2.5 px-2 text-right">
-                            <Badge variant={getPaymentStatusVariant(pay.status)} className="text-[10px] py-0 px-2 uppercase font-bold">
+                          <td className="px-2 py-2.5 text-right">
+                            <Badge variant={getPaymentStatusVariant(pay.status)} className="px-2 py-0 text-[10px] font-bold uppercase">
                               {pay.status}
                             </Badge>
                           </td>
@@ -554,44 +416,34 @@ export const AssociateDashboard: React.FC = () => {
           </Card>
         </div>
 
-        {/* Right Side: Charts & Timelines (1 Col) */}
         <div className="space-y-6">
-          {/* Aging Distribution Chart Widget */}
-          <Card className="shadow-xs border-border">
-            <CardHeader className="pb-3 border-b border-border mb-3">
-              <CardTitle className="text-sm">Aging Distribution</CardTitle>
-              <CardDescription>Outstanding balance by bucket.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {isCollectionsLoading ? (
-                <Skeleton className="h-44 w-full" />
-              ) : agingChartData.length === 0 ? (
-                <div className="h-44 flex items-center justify-center text-xs text-muted-foreground">
-                  No active collection aging data.
-                </div>
-              ) : (
-                <div className="h-44 w-full">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={agingChartData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                      <XAxis dataKey="name" fontSize={10} fontWeight={600} />
-                      <YAxis
-                        fontSize={10}
-                        fontWeight={600}
-                        tickFormatter={(v) => `₹${v.toLocaleString(undefined, { notation: "compact" })}`}
-                      />
-                      <Tooltip formatter={(v: any) => [`₹${v.toLocaleString()}`, "Outstanding"]} />
-                      <Bar dataKey="Amount" fill="#3b82f6" radius={[3, 3, 0, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+          <ChartCard
+            title="Aging distribution"
+            description="Outstanding balance by bucket."
+            loading={isCollectionsLoading}
+            empty={
+              agingChartData.length === 0 || agingChartData.every((d) => d.Amount === 0)
+                ? { title: "No aging data", description: "No active collection aging data." }
+                : false
+            }
+          >
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={agingChartData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                <XAxis dataKey="name" fontSize={10} fontWeight={600} />
+                <YAxis
+                  fontSize={10}
+                  fontWeight={600}
+                  tickFormatter={(v) => `₹${v.toLocaleString(undefined, { notation: "compact" })}`}
+                />
+                <Tooltip formatter={(v: number | string) => [`₹${Number(v).toLocaleString()}`, "Outstanding"]} />
+                <Bar dataKey="Amount" fill={CHART_COLORS[2]} radius={[3, 3, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </ChartCard>
 
-          {/* Recent Collection Activities Timeline */}
-          <Card className="shadow-xs border-border">
-            <CardHeader className="pb-3 border-b border-border mb-3">
+          <Card className="border-border shadow-xs">
+            <CardHeader className="mb-3 border-b border-border pb-3">
               <CardTitle className="text-sm">Recent Activities</CardTitle>
               <CardDescription>Recent dunning dispatches and promises.</CardDescription>
             </CardHeader>
@@ -602,39 +454,40 @@ export const AssociateDashboard: React.FC = () => {
                   <Skeleton className="h-10 w-full" />
                 </div>
               ) : recentActivities.length === 0 ? (
-                <div className="text-center py-6 text-muted-foreground text-xs">
-                  No collection activities recorded yet.
-                </div>
+                <EmptyState
+                  title="No activities yet"
+                  description="No collection activities recorded yet."
+                  className="py-4"
+                />
               ) : (
-                <div className="relative pl-4 border-l border-border space-y-4 text-xs">
+                <Timeline>
                   {recentActivities.map((act) => (
-                    <div key={act.id} className="relative">
-                      <span className="absolute -left-[23px] top-0.5 rounded-full p-1 bg-slate-100 dark:bg-zinc-800 text-slate-500">
-                        {act.type === "REMINDER" ? <Mail className="h-3 w-3" /> : <Calendar className="h-3 w-3" />}
-                      </span>
-                      <div>
-                        <div className="flex justify-between items-center">
-                          <span className="font-semibold text-foreground hover:underline">
-                            <Link to={`/collections/${act.caseId}`}>{act.title}</Link>
-                          </span>
-                          <span className="text-[10px] text-muted-foreground">
-                            {new Date(act.date).toLocaleDateString()}
-                          </span>
-                        </div>
-                        <p className="text-[10px] text-muted-foreground mt-0.5 leading-snug">
-                          {act.description}
-                        </p>
-                      </div>
-                    </div>
+                    <TimelineItem
+                      key={act.id}
+                      tone="default"
+                      icon={
+                        act.type === "REMINDER" ? (
+                          <Mail className="h-2.5 w-2.5" />
+                        ) : (
+                          <Calendar className="h-2.5 w-2.5" />
+                        )
+                      }
+                      title={
+                        <Link to={`/collections/${act.caseId}`} className="hover:text-primary hover:underline">
+                          {act.title}
+                        </Link>
+                      }
+                      timestamp={new Date(act.date).toLocaleDateString()}
+                      description={act.description}
+                    />
                   ))}
-                </div>
+                </Timeline>
               )}
             </CardContent>
           </Card>
 
-          {/* Recent Escalations */}
-          <Card className="shadow-xs border-border">
-            <CardHeader className="pb-3 border-b border-border mb-3">
+          <Card className="border-border shadow-xs">
+            <CardHeader className="mb-3 border-b border-border pb-3">
               <CardTitle className="text-sm">Recent Escalations</CardTitle>
               <CardDescription>Your assigned cases escalated to managers.</CardDescription>
             </CardHeader>
@@ -645,26 +498,28 @@ export const AssociateDashboard: React.FC = () => {
                   <Skeleton className="h-8 w-full" />
                 </div>
               ) : recentEscalations.length === 0 ? (
-                <div className="text-center py-6 text-muted-foreground text-xs">
-                  None of your assigned cases are currently escalated.
-                </div>
+                <EmptyState
+                  title="No escalations"
+                  description="None of your assigned cases are currently escalated."
+                  className="py-4"
+                />
               ) : (
                 <div className="space-y-2">
                   {recentEscalations.map((esc) => (
                     <div
                       key={esc.id}
                       onClick={() => navigate(`/collections/${esc.id}`)}
-                      className="flex items-center justify-between p-2 rounded-lg hover:bg-slate-50 dark:hover:bg-zinc-900/40 cursor-pointer border border-border transition-colors"
+                      className="flex cursor-pointer items-center justify-between rounded-lg border border-border p-2 transition-colors hover:bg-muted/40"
                     >
                       <div className="min-w-0">
-                        <p className="text-xs font-bold text-foreground truncate">
+                        <p className="truncate text-xs font-bold text-foreground">
                           {esc.customer?.customer_name}
                         </p>
-                        <p className="text-[9px] text-muted-foreground mt-0.5">
+                        <p className="mt-0.5 text-[9px] text-muted-foreground">
                           Invoice: {esc.invoice?.invoice_number || "N/A"}
                         </p>
                       </div>
-                      <Badge variant="destructive" className="text-[9px] py-0 px-1.5 uppercase font-bold flex-shrink-0">
+                      <Badge variant="destructive" className="shrink-0 px-1.5 py-0 text-[9px] font-bold uppercase">
                         Escalated
                       </Badge>
                     </div>

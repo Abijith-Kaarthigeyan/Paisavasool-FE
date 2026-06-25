@@ -1,4 +1,15 @@
-import React, { useEffect, useState } from "react"
+import React, { useEffect, useMemo, useState } from "react"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
+import { cn } from "@/lib/utils"
 
 export type EditableInvoiceData = {
   invoice_number?: string
@@ -55,9 +66,13 @@ const toEditable = (invoice: Record<string, unknown>): EditableInvoiceData => {
   }
 }
 
+const changedFieldClass =
+  "border-warning/40 bg-warning-muted/40 ring-1 ring-warning/20"
+
 export const EditableRecommendedInvoiceForm: React.FC<
   EditableRecommendedInvoiceFormProps
 > = ({ initialInvoice, onChange }) => {
+  const original = useMemo(() => toEditable(initialInvoice), [initialInvoice])
   const [form, setForm] = useState<EditableInvoiceData>(() => toEditable(initialInvoice))
 
   useEffect(() => {
@@ -67,6 +82,22 @@ export const EditableRecommendedInvoiceForm: React.FC<
   useEffect(() => {
     onChange(form)
   }, [form, onChange])
+
+  const isFieldChanged = (key: keyof EditableInvoiceData, value: unknown) => {
+    const originalValue = original[key]
+    if (key === "items") return false
+    return String(originalValue ?? "") !== String(value ?? "")
+  }
+
+  const isItemFieldChanged = (
+    index: number,
+    field: keyof EditableInvoiceData["items"][0],
+    value: unknown
+  ) => {
+    const originalItem = original.items[index]
+    if (!originalItem) return false
+    return String(originalItem[field]) !== String(value)
+  }
 
   const updateItem = (index: number, patch: Partial<EditableInvoiceData["items"][0]>) => {
     setForm((prev) => {
@@ -88,29 +119,37 @@ export const EditableRecommendedInvoiceForm: React.FC<
   }
 
   return (
-    <div className="space-y-4 text-xs">
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <label className="space-y-1">
-          <span className="text-[10px] font-bold uppercase text-muted-foreground">Issue Date</span>
-          <input
+    <div className="space-y-4 text-sm">
+      <p className="text-xs text-muted-foreground">
+        Fields highlighted in amber differ from the agent&apos;s original recommendation.
+      </p>
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        <div className="space-y-1.5">
+          <Label htmlFor="edit-issue-date">Issue date</Label>
+          <Input
+            id="edit-issue-date"
             type="date"
             value={(form.invoice_date || "").slice(0, 10)}
             onChange={(e) => setForm((p) => ({ ...p, invoice_date: e.target.value }))}
-            className="w-full rounded-md border border-input bg-background px-2 py-1.5"
+            className={cn(
+              isFieldChanged("invoice_date", form.invoice_date) && changedFieldClass
+            )}
           />
-        </label>
-        <label className="space-y-1">
-          <span className="text-[10px] font-bold uppercase text-muted-foreground">Due Date</span>
-          <input
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="edit-due-date">Due date</Label>
+          <Input
+            id="edit-due-date"
             type="date"
             value={(form.due_date || "").slice(0, 10)}
             onChange={(e) => setForm((p) => ({ ...p, due_date: e.target.value }))}
-            className="w-full rounded-md border border-input bg-background px-2 py-1.5"
+            className={cn(isFieldChanged("due_date", form.due_date) && changedFieldClass)}
           />
-        </label>
-        <label className="space-y-1">
-          <span className="text-[10px] font-bold uppercase text-muted-foreground">Subtotal</span>
-          <input
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="edit-subtotal">Subtotal</Label>
+          <Input
+            id="edit-subtotal"
             type="number"
             step="0.01"
             value={form.subtotal_amount}
@@ -122,12 +161,16 @@ export const EditableRecommendedInvoiceForm: React.FC<
                 total_amount: Number((subtotal + p.tax_amount).toFixed(2)),
               }))
             }}
-            className="w-full rounded-md border border-input bg-background px-2 py-1.5 font-mono"
+            className={cn(
+              "tabular-nums",
+              isFieldChanged("subtotal_amount", form.subtotal_amount) && changedFieldClass
+            )}
           />
-        </label>
-        <label className="space-y-1">
-          <span className="text-[10px] font-bold uppercase text-muted-foreground">Tax</span>
-          <input
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="edit-tax">Tax</Label>
+          <Input
+            id="edit-tax"
             type="number"
             step="0.01"
             value={form.tax_amount}
@@ -139,59 +182,72 @@ export const EditableRecommendedInvoiceForm: React.FC<
                 total_amount: Number((p.subtotal_amount + tax).toFixed(2)),
               }))
             }}
-            className="w-full rounded-md border border-input bg-background px-2 py-1.5 font-mono"
+            className={cn(
+              "tabular-nums",
+              isFieldChanged("tax_amount", form.tax_amount) && changedFieldClass
+            )}
           />
-        </label>
+        </div>
       </div>
 
-      <div className="overflow-x-auto rounded-lg border border-border">
-        <table className="w-full text-left">
-          <thead className="bg-slate-50 dark:bg-zinc-900/40 text-[10px] uppercase text-muted-foreground">
-            <tr>
-              <th className="px-3 py-2 font-bold">Description</th>
-              <th className="px-3 py-2 font-bold text-right">Qty</th>
-              <th className="px-3 py-2 font-bold text-right">Unit Price</th>
-              <th className="px-3 py-2 font-bold text-right">Amount</th>
-            </tr>
-          </thead>
-          <tbody>
+      <div className="overflow-hidden rounded-lg border border-border">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Description</TableHead>
+              <TableHead className="text-right">Qty</TableHead>
+              <TableHead className="text-right">Unit price</TableHead>
+              <TableHead className="text-right">Amount</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {form.items.map((item, index) => (
-              <tr key={index} className="border-t border-border">
-                <td className="px-3 py-2">
-                  <input
+              <TableRow key={index}>
+                <TableCell>
+                  <Input
                     value={item.description}
                     onChange={(e) => updateItem(index, { description: e.target.value })}
-                    className="w-full rounded border border-input bg-background px-2 py-1"
+                    className={cn(
+                      isItemFieldChanged(index, "description", item.description) &&
+                        changedFieldClass
+                    )}
                   />
-                </td>
-                <td className="px-3 py-2">
-                  <input
+                </TableCell>
+                <TableCell>
+                  <Input
                     type="number"
                     step="0.0001"
                     value={item.quantity}
                     onChange={(e) => updateItem(index, { quantity: toNumber(e.target.value) })}
-                    className="w-full rounded border border-input bg-background px-2 py-1 text-right font-mono"
+                    className={cn(
+                      "text-right tabular-nums",
+                      isItemFieldChanged(index, "quantity", item.quantity) && changedFieldClass
+                    )}
                   />
-                </td>
-                <td className="px-3 py-2">
-                  <input
+                </TableCell>
+                <TableCell>
+                  <Input
                     type="number"
                     step="0.01"
                     value={item.unit_price}
                     onChange={(e) => updateItem(index, { unit_price: toNumber(e.target.value) })}
-                    className="w-full rounded border border-input bg-background px-2 py-1 text-right font-mono"
+                    className={cn(
+                      "text-right tabular-nums",
+                      isItemFieldChanged(index, "unit_price", item.unit_price) &&
+                        changedFieldClass
+                    )}
                   />
-                </td>
-                <td className="px-3 py-2 text-right font-mono font-semibold">
+                </TableCell>
+                <TableCell className="text-right font-medium tabular-nums">
                   ₹{item.amount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
-                </td>
-              </tr>
+                </TableCell>
+              </TableRow>
             ))}
-          </tbody>
-        </table>
+          </TableBody>
+        </Table>
       </div>
 
-      <div className="flex justify-end font-bold text-emerald-600">
+      <div className="flex justify-end text-sm font-semibold tabular-nums text-success">
         Total: ₹{form.total_amount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
       </div>
     </div>

@@ -1,4 +1,4 @@
-import type { DisputeCommunication } from "../types"
+import type { DisputeCommunication, DisputeReviewQueueItem } from "../types"
 
 const TERMINAL_DISPUTE_STATUSES = new Set(["CLOSED", "RESOLVED", "FAILED"])
 
@@ -6,14 +6,27 @@ export function isTerminalDisputeStatus(status?: string | null): boolean {
   return !!status && TERMINAL_DISPUTE_STATUSES.has(status)
 }
 
-export function formatConfidencePercent(confidence: number): string {
+export function normalizeConfidence(confidence: number): number {
   let pct = confidence
   if (pct <= 1) {
     pct *= 100
   } else if (pct > 100) {
     pct /= 100
   }
-  return `${pct.toFixed(2)}%`
+  return Math.min(100, Math.max(0, pct))
+}
+
+export function formatConfidencePercent(confidence: number): string {
+  return `${normalizeConfidence(confidence).toFixed(2)}%`
+}
+
+export function getReviewQueueDisplayConfidence(item: DisputeReviewQueueItem): number {
+  const reason = (item.review_reason || "").toUpperCase()
+  if (reason.includes("LOW_CONFIDENCE")) return 68
+  if (reason.includes("VALIDATION")) return 55
+  if (reason.includes("INVOICE_MISSING")) return 50
+  if (reason.includes("INVOICE_CANCELLED")) return 45
+  return 68
 }
 
 export function parseRecommendationAction(action: string): {

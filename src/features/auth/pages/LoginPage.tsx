@@ -9,20 +9,36 @@ import { setCredentials, clearCredentials } from "@/features/auth/slices/authSli
 import { getCookie } from "@/lib/cookies"
 import { RootState } from "@/app/store"
 import { ROLES, RoleType } from "@/config/constants"
-import { CreditCard, Mail, Lock, Eye, EyeOff, Loader2, KeyRound, AlertCircle, Info, ChevronDown, ChevronUp } from "lucide-react"
+import {
+  CreditCard,
+  Mail,
+  Lock,
+  Eye,
+  EyeOff,
+  KeyRound,
+  AlertCircle,
+  Info,
+  ChevronDown,
+  ChevronUp,
+} from "lucide-react"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { cn } from "@/lib/utils"
 
 export const LoginPage: React.FC = () => {
-  const dispatch = useDispatch();
-  const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
-  const { isAuthenticated, user } = useSelector((state: RootState) => state.auth);
-  
-  const [apiError, setApiError] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
-  const [showTestAccounts, setShowTestAccounts] = useState(false);
+  const dispatch = useDispatch()
+  const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const { isAuthenticated, user } = useSelector((state: RootState) => state.auth)
 
-  const isSessionExpired = searchParams.get("session_expired") === "true";
+  const [apiError, setApiError] = useState<string | null>(null)
+  const [isLoading, setIsLoading] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
+  const [showTestAccounts, setShowTestAccounts] = useState(false)
+
+  const isSessionExpired = searchParams.get("session_expired") === "true"
 
   const {
     register,
@@ -35,32 +51,26 @@ export const LoginPage: React.FC = () => {
       email: "",
       password: "",
     },
-  });
+  })
 
-  // Redirect to correct dashboard if already logged in
   if (isAuthenticated && user) {
-    const role = user.role as RoleType;
-    if (role === ROLES.ADMIN) return <Navigate to="/admin" replace />;
-    if (role === ROLES.FINANCE_MANAGER) return <Navigate to="/manager" replace />;
-    if (role === ROLES.FINANCE_ASSOCIATE) return <Navigate to="/associate" replace />;
+    const role = user.role as RoleType
+    if (role === ROLES.ADMIN) return <Navigate to="/admin" replace />
+    if (role === ROLES.FINANCE_MANAGER) return <Navigate to="/manager" replace />
+    if (role === ROLES.FINANCE_ASSOCIATE) return <Navigate to="/associate" replace />
   }
 
   const onSubmit = async (data: LoginRequest) => {
-    setIsLoading(true);
-    setApiError(null);
+    setIsLoading(true)
+    setApiError(null)
     try {
-      // Step 1: Perform login API request (sets cookies)
-      const loginResponse = await authService.login(data);
-      
-      // Step 2: Fetch current user profile to verify JWT and get user metadata
-      const profile = await authService.getMe();
-      
-      // Step 3: Extract expiration from TokenResponse details or profile, 
-      // using the exact cookie-based expiration time if available, otherwise fall back to response
-      const expiresAtStr = getCookie("access_token_expires_at");
-      const exp = expiresAtStr 
-        ? parseInt(expiresAtStr, 10) 
-        : Math.floor(Date.now() / 1000) + (loginResponse.expires_in || 2700);
+      const loginResponse = await authService.login(data)
+      const profile = await authService.getMe()
+
+      const expiresAtStr = getCookie("access_token_expires_at")
+      const exp = expiresAtStr
+        ? parseInt(expiresAtStr, 10)
+        : Math.floor(Date.now() / 1000) + (loginResponse.expires_in || 2700)
 
       const tokenPayload = {
         sub: profile.id,
@@ -68,194 +78,182 @@ export const LoginPage: React.FC = () => {
         role: profile.role.role_name,
         is_active: profile.is_active,
         exp,
-      };
-
-      dispatch(setCredentials(tokenPayload));
-      
-      // Step 4: Redirection based on user role
-      const targetRole = profile.role.role_name as RoleType;
-      if (targetRole === ROLES.ADMIN) {
-        navigate("/admin");
-      } else if (targetRole === ROLES.FINANCE_MANAGER) {
-        navigate("/manager");
-      } else if (targetRole === ROLES.FINANCE_ASSOCIATE) {
-        navigate("/associate");
-      } else {
-        navigate("/login");
       }
-    } catch (err: any) {
-      console.error(err);
-      dispatch(clearCredentials());
-      if (err.response?.data?.error?.message) {
-        setApiError(err.response.data.error.message);
-      } else if (err.response?.data?.detail) {
-        // Fallback for FastAPI default HTTPExceptions
-        setApiError(err.response.data.detail);
+
+      dispatch(setCredentials(tokenPayload))
+
+      const targetRole = profile.role.role_name as RoleType
+      if (targetRole === ROLES.ADMIN) {
+        navigate("/admin")
+      } else if (targetRole === ROLES.FINANCE_MANAGER) {
+        navigate("/manager")
+      } else if (targetRole === ROLES.FINANCE_ASSOCIATE) {
+        navigate("/associate")
       } else {
-        setApiError("Login failed. Check your credentials or network status.");
+        navigate("/login")
+      }
+    } catch (err: unknown) {
+      console.error(err)
+      dispatch(clearCredentials())
+      const axiosErr = err as { response?: { data?: { error?: { message?: string }; detail?: string } } }
+      if (axiosErr.response?.data?.error?.message) {
+        setApiError(axiosErr.response.data.error.message)
+      } else if (axiosErr.response?.data?.detail) {
+        setApiError(axiosErr.response.data.detail)
+      } else {
+        setApiError("Login failed. Check your credentials or network status.")
       }
     } finally {
-      setIsLoading(false);
+      setIsLoading(false)
     }
-  };
+  }
 
   const handleFillCredentials = (email: string, pass: string) => {
-    setValue("email", email);
-    setValue("password", pass);
-  };
+    setValue("email", email)
+    setValue("password", pass)
+  }
 
   return (
-    <div className="relative flex min-h-screen items-center justify-center bg-slate-900 px-4 py-12 sm:px-6 lg:px-8 overflow-hidden font-sans">
-      {/* Decorative Blur Blobs */}
-      <div className="absolute top-[-10%] left-[-10%] h-[400px] w-[400px] rounded-full bg-primary/20 blur-[100px] pointer-events-none" />
-      <div className="absolute bottom-[-10%] right-[-10%] h-[400px] w-[400px] rounded-full bg-indigo-500/10 blur-[100px] pointer-events-none" />
-
-      {/* Main Glassmorphic Card */}
-      <div className="relative w-full max-w-md space-y-6 rounded-2xl border border-slate-800/80 bg-slate-950/70 p-8 shadow-2xl backdrop-blur-md">
-        
-        {/* Logo and Header */}
-        <div className="flex flex-col items-center justify-center text-center">
-          <div className="flex items-center justify-center h-12 w-12 rounded-xl bg-primary/10 border border-primary/20 shadow-inner mb-4">
-            <CreditCard className="h-6 w-6 text-primary" />
+    <div className="flex min-h-screen items-center justify-center bg-background px-4 py-12 sm:px-6 lg:px-8">
+      <Card className="w-full max-w-md shadow-card">
+        <CardHeader className="items-center text-center">
+          <div className="mb-2 flex h-11 w-11 items-center justify-center rounded-lg border border-primary/20 bg-primary/10">
+            <CreditCard className="h-5 w-5 text-primary" aria-hidden />
           </div>
-          <h2 className="text-3xl font-extrabold tracking-tight text-white">
-            Paisa Vasool
-          </h2>
-          <p className="mt-1 text-xs font-semibold text-slate-400 uppercase tracking-widest">
-            Accounts Receivable Assistant
-          </p>
-        </div>
+          <CardTitle className="text-2xl">Paisa Vasool</CardTitle>
+          <CardDescription>Accounts Receivable Assistant</CardDescription>
+        </CardHeader>
 
-        {/* Info Banners */}
-        {isSessionExpired && (
-          <div className="flex items-start gap-3 rounded-lg border border-amber-500/20 bg-amber-500/10 p-3.5 text-xs text-amber-300">
-            <Info className="h-4 w-4 shrink-0 mt-0.5" />
-            <span>Your session has expired. Please log in again to continue.</span>
-          </div>
-        )}
+        <CardContent className="space-y-5">
+          {isSessionExpired && (
+            <div className="flex items-start gap-3 rounded-md border border-warning/20 bg-warning-muted p-3 text-sm text-warning-foreground">
+              <Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+              <span>Your session has expired. Please log in again to continue.</span>
+            </div>
+          )}
 
-        {apiError && (
-          <div className="flex items-start gap-3 rounded-lg border border-rose-500/20 bg-rose-500/10 p-3.5 text-xs text-rose-300">
-            <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
-            <span>{apiError}</span>
-          </div>
-        )}
+          {apiError && (
+            <div className="flex items-start gap-3 rounded-md border border-destructive/20 bg-destructive/10 p-3 text-sm text-destructive">
+              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+              <span>{apiError}</span>
+            </div>
+          )}
 
-        {/* Login Form */}
-        <form className="space-y-5" onSubmit={handleSubmit(onSubmit)}>
-          <div className="space-y-4">
-            {/* Email Field */}
-            <div>
-              <label htmlFor="email" className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">
-                Email Address
-              </label>
-              <div className="relative rounded-lg shadow-sm group">
-                <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-slate-500 group-focus-within:text-primary transition-colors">
-                  <Mail className="h-4 w-4" />
-                </div>
-                <input
+          <form className="space-y-4" onSubmit={handleSubmit(onSubmit)}>
+            <div className="space-y-2">
+              <Label htmlFor="email">Email address</Label>
+              <div className="relative">
+                <Mail
+                  className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+                  aria-hidden
+                />
+                <Input
                   id="email"
                   type="email"
                   disabled={isLoading}
-                  {...register("email")}
-                  className="block w-full rounded-lg border border-slate-800 bg-slate-900/50 pl-10 pr-4 py-2.5 text-sm text-slate-100 placeholder-slate-500 transition-all focus:border-primary focus:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:opacity-50"
                   placeholder="name@paisavasool.com"
+                  className="pl-9"
+                  {...register("email")}
                 />
               </div>
               {errors.email && (
-                <p className="mt-1.5 text-xs text-rose-400 font-medium flex items-center gap-1">
-                  <AlertCircle className="h-3 w-3" /> {errors.email.message}
+                <p className="flex items-center gap-1 text-xs text-destructive">
+                  <AlertCircle className="h-3 w-3" aria-hidden />
+                  {errors.email.message}
                 </p>
               )}
             </div>
 
-            {/* Password Field */}
-            <div>
-              <label htmlFor="password" className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">
-                Password
-              </label>
-              <div className="relative rounded-lg shadow-sm group">
-                <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-slate-500 group-focus-within:text-primary transition-colors">
-                  <Lock className="h-4 w-4" />
-                </div>
-                <input
+            <div className="space-y-2">
+              <Label htmlFor="password">Password</Label>
+              <div className="relative">
+                <Lock
+                  className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+                  aria-hidden
+                />
+                <Input
                   id="password"
                   type={showPassword ? "text" : "password"}
                   disabled={isLoading}
-                  {...register("password")}
-                  className="block w-full rounded-lg border border-slate-800 bg-slate-900/50 pl-10 pr-10 py-2.5 text-sm text-slate-100 placeholder-slate-500 transition-all focus:border-primary focus:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:opacity-50"
                   placeholder="••••••••"
+                  className="pl-9 pr-10"
+                  {...register("password")}
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
                   disabled={isLoading}
-                  className="absolute inset-y-0 right-0 flex items-center pr-3 text-slate-500 hover:text-slate-300 transition-colors focus:outline-none"
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 rounded-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring/30"
                 >
-                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  {showPassword ? (
+                    <EyeOff className="h-4 w-4" aria-hidden />
+                  ) : (
+                    <Eye className="h-4 w-4" aria-hidden />
+                  )}
                 </button>
               </div>
               {errors.password && (
-                <p className="mt-1.5 text-xs text-rose-400 font-medium flex items-center gap-1">
-                  <AlertCircle className="h-3 w-3" /> {errors.password.message}
+                <p className="flex items-center gap-1 text-xs text-destructive">
+                  <AlertCircle className="h-3 w-3" aria-hidden />
+                  {errors.password.message}
                 </p>
               )}
             </div>
-          </div>
 
-          {/* Submit Button */}
-          <button
-            type="submit"
-            disabled={isLoading}
-            className="group relative flex w-full justify-center items-center rounded-lg bg-primary px-4 py-3 text-sm font-bold text-white shadow-lg shadow-primary/20 hover:bg-primary/95 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-slate-950 disabled:opacity-50 transition-all duration-200 cursor-pointer"
-          >
-            {isLoading ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                Authenticating...
-              </>
-            ) : (
-              "Sign In"
-            )}
-          </button>
-        </form>
+            <Button type="submit" variant="primary" size="lg" loading={isLoading} className="w-full">
+              Sign in
+            </Button>
+          </form>
 
-        {/* Collapsible Test Credentials Panel */}
-        <div className="mt-6 border-t border-slate-800/80 pt-5">
-          <button
-            type="button"
-            onClick={() => setShowTestAccounts(!showTestAccounts)}
-            className="flex items-center justify-between w-full px-3 py-2.5 text-xs font-bold text-slate-400 hover:text-slate-200 transition-all bg-slate-900/30 hover:bg-slate-900/60 rounded-lg border border-slate-800/50 hover:cursor-pointer"
-          >
-            <span className="flex items-center gap-2">
-              <KeyRound className="h-3.5 w-3.5 text-primary" />
-              Demo / Test Accounts
-            </span>
-            {showTestAccounts ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
-          </button>
+          <div className="border-t border-border pt-4">
+            <button
+              type="button"
+              onClick={() => setShowTestAccounts(!showTestAccounts)}
+              aria-expanded={showTestAccounts}
+              className="flex w-full items-center justify-between rounded-md border border-border bg-muted/30 px-3 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring/30 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+            >
+              <span className="flex items-center gap-2">
+                <KeyRound className="h-4 w-4 text-primary" aria-hidden />
+                Demo / test accounts
+              </span>
+              {showTestAccounts ? (
+                <ChevronUp className="h-4 w-4" aria-hidden />
+              ) : (
+                <ChevronDown className="h-4 w-4" aria-hidden />
+              )}
+            </button>
 
-          {showTestAccounts && (
-            <div className="mt-3 p-3.5 rounded-lg bg-slate-900/50 border border-slate-800/60 space-y-2.5 animate-in fade-in slide-in-from-top-1 duration-200">
-              <div className="flex flex-col gap-1 text-[11px] text-slate-400">
-                <div className="flex justify-between items-center bg-slate-950/40 p-2 rounded border border-slate-800/40">
-                  <div>
-                    <span className="font-semibold text-slate-200 block">Administrator Account</span>
-                    <span className="font-mono text-slate-500">admin@paisavasool.com</span>
+            {showTestAccounts && (
+              <div
+                className={cn(
+                  "mt-3 space-y-2 rounded-md border border-border bg-muted/20 p-3",
+                  "motion-reduce:animate-none animate-in fade-in slide-in-from-top-1 duration-200"
+                )}
+              >
+                <div className="flex items-center justify-between gap-3 rounded-md border border-border bg-card p-2.5">
+                  <div className="min-w-0 text-left">
+                    <span className="block text-sm font-medium text-foreground">
+                      Administrator account
+                    </span>
+                    <span className="font-mono text-xs text-muted-foreground">
+                      admin@paisavasool.com
+                    </span>
                   </div>
-                  <button
+                  <Button
                     type="button"
+                    variant="secondary"
+                    size="sm"
                     onClick={() => handleFillCredentials("admin@paisavasool.com", "ChangeMe123!")}
-                    className="px-2.5 py-1 text-[10px] font-bold text-primary bg-primary/10 border border-primary/20 rounded hover:bg-primary hover:text-white transition-all duration-150 hover:cursor-pointer"
                   >
-                    Auto-Fill
-                  </button>
+                    Auto-fill
+                  </Button>
                 </div>
               </div>
-            </div>
-          )}
-        </div>
-
-      </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
     </div>
-  );
-};
+  )
+}

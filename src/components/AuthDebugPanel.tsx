@@ -6,44 +6,46 @@ import { api } from "@/lib/axios"
 import { setCredentials, clearCredentials } from "@/features/auth/slices/authSlice"
 import { getCookie } from "@/lib/cookies"
 import { authService } from "@/features/auth/services/authService"
+import { Button } from "@/components/ui/button"
+import { cn } from "@/lib/utils"
 
 export const AuthDebugPanel: React.FC = () => {
-  const { isAuthenticated, user } = useSelector((state: RootState) => state.auth);
-  const location = useLocation();
-  const dispatch = useDispatch();
-  
-  const [secondsLeft, setSecondsLeft] = useState<number | null>(null);
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const [isOpen, setIsOpen] = useState(true);
+  const { isAuthenticated, user } = useSelector((state: RootState) => state.auth)
+  const location = useLocation()
+  const dispatch = useDispatch()
 
-  // Live countdown timer for access token expiry
+  const [secondsLeft, setSecondsLeft] = useState<number | null>(null)
+  const [isRefreshing, setIsRefreshing] = useState(false)
+  const [isOpen, setIsOpen] = useState(true)
+
   useEffect(() => {
     if (!isAuthenticated || !user?.exp) {
-      setSecondsLeft(null);
-      return;
+      setSecondsLeft(null)
+      return
     }
 
     const calculateTimeLeft = () => {
-      const diff = Math.floor(user.exp - Date.now() / 1000);
-      setSecondsLeft(diff > 0 ? diff : 0);
-    };
+      const diff = Math.floor(user.exp - Date.now() / 1000)
+      setSecondsLeft(diff > 0 ? diff : 0)
+    }
 
-    calculateTimeLeft();
-    const interval = setInterval(calculateTimeLeft, 1000);
+    calculateTimeLeft()
+    const interval = setInterval(calculateTimeLeft, 1000)
 
-    return () => clearInterval(interval);
-  }, [isAuthenticated, user]);
+    return () => clearInterval(interval)
+  }, [isAuthenticated, user])
 
   const handleManualRefresh = async () => {
-    setIsRefreshing(true);
+    setIsRefreshing(true)
     try {
-      await api.post("/auth/refresh");
-      // Re-fetch current user profile to update Redux store with new expiration timestamp
-      const freshUser = await authService.getMe();
-      
+      await api.post("/auth/refresh")
+      const freshUser = await authService.getMe()
+
       if (user) {
-        const expiresAtStr = getCookie("access_token_expires_at");
-        const exp = expiresAtStr ? parseInt(expiresAtStr, 10) : Math.floor(Date.now() / 1000) + 2700;
+        const expiresAtStr = getCookie("access_token_expires_at")
+        const exp = expiresAtStr
+          ? parseInt(expiresAtStr, 10)
+          : Math.floor(Date.now() / 1000) + 2700
 
         dispatch(
           setCredentials({
@@ -53,90 +55,94 @@ export const AuthDebugPanel: React.FC = () => {
             is_active: freshUser.is_active,
             exp,
           })
-        );
+        )
       }
     } catch (err) {
-      console.error("Manual refresh failed", err);
-      dispatch(clearCredentials());
+      console.error("Manual refresh failed", err)
+      dispatch(clearCredentials())
     } finally {
-      setIsRefreshing(false);
+      setIsRefreshing(false)
     }
-  };
+  }
 
   if (!isOpen) {
     return (
       <button
+        type="button"
         onClick={() => setIsOpen(true)}
-        className="fixed bottom-4 right-4 z-50 rounded-full bg-primary p-3 text-white shadow-lg transition-transform hover:scale-105"
+        className="fixed bottom-4 right-4 z-50 rounded-full bg-primary p-3 text-primary-foreground shadow-popover transition-colors hover:bg-primary/90"
         title="Open Auth Debug Panel"
       >
-        <span className="text-xs font-bold font-mono">DEBUG</span>
+        <span className="font-mono text-xs font-medium">DEBUG</span>
       </button>
-    );
+    )
   }
 
   return (
-    <div className="fixed bottom-4 right-4 z-50 w-80 rounded-xl border border-border bg-card p-4 shadow-xl dark:bg-zinc-900">
+    <div className="fixed bottom-4 right-4 z-50 w-80 rounded-lg border border-border bg-card p-4 shadow-popover">
       <div className="mb-2 flex items-center justify-between border-b border-border pb-2">
-        <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground font-mono">
-          Auth Service Debug Panel
+        <h3 className="font-mono text-xs font-medium uppercase tracking-wider text-muted-foreground">
+          Auth service debug
         </h3>
         <button
+          type="button"
           onClick={() => setIsOpen(false)}
-          className="text-muted-foreground hover:text-foreground text-xs font-bold font-mono"
+          className="font-mono text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
         >
           [Minimize]
         </button>
       </div>
 
-      <div className="space-y-2 text-[11px] font-mono">
+      <div className="space-y-2 font-mono text-[11px]">
         <div className="flex justify-between">
-          <span className="text-muted-foreground">Auth State:</span>
+          <span className="text-muted-foreground">Auth state</span>
           <span
-            className={`font-bold ${
-              isAuthenticated ? "text-emerald-500" : "text-rose-500"
-            }`}
+            className={cn(
+              "font-medium",
+              isAuthenticated ? "text-success" : "text-destructive"
+            )}
           >
             {isAuthenticated ? "Authenticated" : "Unauthenticated"}
           </span>
         </div>
 
         <div className="flex justify-between">
-          <span className="text-muted-foreground">Current Route:</span>
-          <span className="font-semibold text-sky-400">{location.pathname}</span>
+          <span className="text-muted-foreground">Current route</span>
+          <span className="font-medium text-info">{location.pathname}</span>
         </div>
 
         {isAuthenticated && user ? (
           <>
             <div className="flex justify-between border-t border-dashed border-border pt-1">
-              <span className="text-muted-foreground">User ID:</span>
-              <span className="truncate max-w-[160px] text-zinc-300" title={user.sub}>
+              <span className="text-muted-foreground">User ID</span>
+              <span className="max-w-[160px] truncate text-foreground" title={user.sub}>
                 {user.sub}
               </span>
             </div>
 
             <div className="flex justify-between">
-              <span className="text-muted-foreground">Email:</span>
-              <span className="truncate max-w-[160px] text-zinc-300" title={user.email}>
+              <span className="text-muted-foreground">Email</span>
+              <span className="max-w-[160px] truncate text-foreground" title={user.email}>
                 {user.email}
               </span>
             </div>
 
             <div className="flex justify-between">
-              <span className="text-muted-foreground">Role:</span>
-              <span className="rounded bg-primary/20 px-1 py-[2px] font-bold text-primary">
+              <span className="text-muted-foreground">Role</span>
+              <span className="rounded bg-primary/10 px-1 py-0.5 font-medium text-primary">
                 {user.role}
               </span>
             </div>
 
             <div className="flex justify-between border-t border-dashed border-border pt-1">
-              <span className="text-muted-foreground">Token TTL:</span>
+              <span className="text-muted-foreground">Token TTL</span>
               <span
-                className={`font-bold ${
+                className={cn(
+                  "font-medium",
                   secondsLeft !== null && secondsLeft < 60
-                    ? "text-rose-500 animate-pulse"
-                    : "text-emerald-500"
-                }`}
+                    ? "animate-pulse text-destructive"
+                    : "text-success"
+                )}
               >
                 {secondsLeft !== null
                   ? secondsLeft > 0
@@ -147,26 +153,28 @@ export const AuthDebugPanel: React.FC = () => {
             </div>
 
             <div className="flex justify-between">
-              <span className="text-muted-foreground">Cookie Status:</span>
-              <span className="text-emerald-500">HTTPOnly Secure</span>
+              <span className="text-muted-foreground">Cookie status</span>
+              <span className="text-success">HTTPOnly secure</span>
             </div>
 
-            <div className="mt-3 flex gap-2">
-              <button
+            <div className="mt-3">
+              <Button
+                variant="secondary"
+                size="sm"
+                className="w-full font-mono text-xs"
                 onClick={handleManualRefresh}
-                disabled={isRefreshing}
-                className="flex-1 rounded bg-secondary py-[6px] text-center font-bold text-secondary-foreground hover:bg-zinc-700 disabled:opacity-50"
+                loading={isRefreshing}
               >
-                {isRefreshing ? "Refreshing..." : "Trigger Silent Refresh"}
-              </button>
+                {isRefreshing ? "Refreshing…" : "Trigger silent refresh"}
+              </Button>
             </div>
           </>
         ) : (
-          <div className="rounded bg-rose-950/20 p-2 text-center text-rose-400">
+          <div className="rounded-md bg-destructive/10 p-2 text-center text-destructive">
             No active session detected. Please log in to inspect JWT variables.
           </div>
         )}
       </div>
     </div>
-  );
-};
+  )
+}

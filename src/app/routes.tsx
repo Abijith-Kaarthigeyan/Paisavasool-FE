@@ -19,6 +19,7 @@ import { ReviewQueuePage } from "@/features/matching/pages/ReviewQueuePage"
 import { CustomerListPage } from "@/features/customers/pages/CustomerListPage"
 import { CustomerDetailPage } from "@/features/customers/pages/CustomerDetailPage"
 import React from "react"
+import { RouteContentSkeleton } from "@/components/layouts/RouteContentSkeleton"
 
 const CollectionsDashboardPage = React.lazy(() => import("@/features/collections/pages/CollectionsDashboardPage"));
 const OpenCasesPage = React.lazy(() => import("@/features/collections/pages/OpenCasesPage"));
@@ -40,20 +41,9 @@ const WaitingCustomerPage = React.lazy(() => import("@/features/disputes/pages/W
 const WaitingInternalTeamPage = React.lazy(() => import("@/features/disputes/pages/WaitingInternalTeamPage"));
 const DisputeDetailPage = React.lazy(() => import("@/features/disputes/pages/DisputeDetailPage"));
 
-const LoadingFallback = () => (
-  <div className="flex h-screen w-screen items-center justify-center bg-gray-50 dark:bg-gray-950">
-    <div className="flex flex-col items-center space-y-4">
-      <div className="h-10 w-10 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
-      <p className="text-xs font-semibold text-muted-foreground animate-pulse">
-        Loading view...
-      </p>
-    </div>
-  </div>
-);
-
 export const AppRoutes = () => {
   return (
-    <Suspense fallback={<LoadingFallback />}>
+    <Suspense fallback={<RouteContentSkeleton />}>
       <Routes>
         {/* Public Routes */}
         <Route path="/login" element={<LoginPage />} />

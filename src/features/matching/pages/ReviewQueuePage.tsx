@@ -6,574 +6,619 @@ import { customerService } from "@/features/customers/services/customerService"
 import { useCustomerDetail } from "@/features/customers/hooks/useCustomers"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Skeleton } from "@/components/ui/skeleton"
+import { TableSkeleton } from "@/components/ui/skeleton"
+import { PageHeader } from "@/components/ui/page-header"
+import { EmptyState } from "@/components/ui/empty-state"
+import { Button } from "@/components/ui/button"
+import { Label } from "@/components/ui/label"
+import { Input } from "@/components/ui/input"
+import { ConfidenceMeter } from "@/components/ui/confidence-meter"
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetFooter } from "@/components/ui/sheet"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
 import { useToast } from "@/components/ui/toast"
-import { 
-  AlertTriangle, 
-  CheckCircle
-} from "lucide-react"
+import {
+  MATCHING_REVIEW_STATUS_VARIANT,
+  getStatusVariant,
+  getConfidenceBadgeVariant,
+} from "@/lib/design-tokens"
+import { cn } from "@/lib/utils"
+import { AlertTriangle, CheckCircle, HelpCircle } from "lucide-react"
 
 export const ReviewQueuePage: React.FC = () => {
-  const { toast } = useToast();
-  const [selectedReview, setSelectedReview] = useState<any | null>(null);
-  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
-  
-  // Confirmation state
-  const [confirmAction, setConfirmAction] = useState<"approve" | "reject" | null>(null);
-  const [isConfirmOpen, setIsConfirmOpen] = useState(false);
+  const { toast } = useToast()
+  const [selectedReview, setSelectedReview] = useState<any | null>(null)
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false)
 
-  // Fetch reviews queue
-  const { data: reviews = [], isLoading, isError } = usePaymentReviews();
+  const [confirmAction, setConfirmAction] = useState<"approve" | "reject" | null>(null)
+  const [isConfirmOpen, setIsConfirmOpen] = useState(false)
 
-  // Mutation hooks
-  const approveMutation = useApproveReview();
-  const rejectMutation = useRejectReview();
+  const { data: reviews = [], isLoading, isError } = usePaymentReviews()
+
+  const approveMutation = useApproveReview()
+  const rejectMutation = useRejectReview()
 
   const handleRowClick = (reviewItem: any) => {
-    setSelectedReview(reviewItem);
-    setIsDrawerOpen(true);
-  };
+    setSelectedReview(reviewItem)
+    setIsDrawerOpen(true)
+  }
 
   const handleActionConfirm = () => {
-    if (!selectedReview) return;
-    setIsConfirmOpen(false);
+    if (!selectedReview) return
+    setIsConfirmOpen(false)
 
     if (confirmAction === "approve") {
-      // In the drawer, we execute local allocations check
-      const resolvedCustId = selectedCustomerId;
-      
+      const resolvedCustId = selectedCustomerId
+
       const payload = {
         resolved_customer_id: resolvedCustId && resolvedCustId !== "" ? resolvedCustId : null,
-        explicit_allocations: selectedAllocations.map(a => ({
+        explicit_allocations: selectedAllocations.map((a) => ({
           invoice_id: a.invoice_id,
           amount: parseFloat(a.amount.toString()),
         })),
-      };
+      }
 
       approveMutation.mutate(
         { id: selectedReview.id, data: payload },
         {
           onSuccess: () => {
             toast({
-              title: "Review Approved",
+              title: "Review approved",
               description: "Payment match resolved and settled successfully.",
               type: "success",
-            });
-            setIsDrawerOpen(false);
-            resetAllocations();
+            })
+            setIsDrawerOpen(false)
+            resetAllocations()
           },
-          onError: (err: any) => {
+          onError: (err: unknown) => {
+            const detail = (err as { response?: { data?: { detail?: string } } }).response?.data?.detail
             toast({
-              title: "Approval Failed",
-              description: err.response?.data?.detail || "Failed to approve payment match.",
+              title: "Approval failed",
+              description: detail || "Failed to approve payment match.",
               type: "error",
-            });
+            })
           },
         }
-      );
+      )
     } else if (confirmAction === "reject") {
       rejectMutation.mutate(selectedReview.id, {
         onSuccess: () => {
           toast({
-            title: "Review Rejected",
+            title: "Review rejected",
             description: "Payment match has been rejected. Upload marked as FAILED.",
             type: "success",
-          });
-          setIsDrawerOpen(false);
-          resetAllocations();
+          })
+          setIsDrawerOpen(false)
+          resetAllocations()
         },
-        onError: (err: any) => {
+        onError: (err: unknown) => {
+          const detail = (err as { response?: { data?: { detail?: string } } }).response?.data?.detail
           toast({
-            title: "Rejection Failed",
-            description: err.response?.data?.detail || "Failed to reject payment match.",
+            title: "Rejection failed",
+            description: detail || "Failed to reject payment match.",
             type: "error",
-          });
+          })
         },
-      });
+      })
     }
-  };
+  }
 
-  // Drawer allocations state
-  const [selectedCustomerId, setSelectedCustomerId] = useState<string>("");
-  const [customerCodeInput, setCustomerCodeInput] = useState<string>("");
-  const [selectedAllocations, setSelectedAllocations] = useState<Array<{ invoice_id: string; invoice_number: string; amount: number }>>([]);
-  const [allocationInputs, setAllocationInputs] = useState<Record<string, string>>({});
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string>("")
+  const [customerCodeInput, setCustomerCodeInput] = useState<string>("")
+  const [selectedAllocations, setSelectedAllocations] = useState<
+    Array<{ invoice_id: string; invoice_number: string; amount: number }>
+  >([])
+  const [allocationInputs, setAllocationInputs] = useState<Record<string, string>>({})
 
   const resetAllocations = () => {
-    setSelectedCustomerId("");
-    setCustomerCodeInput("");
-    setSelectedAllocations([]);
-    setAllocationInputs({});
-  };
+    setSelectedCustomerId("")
+    setCustomerCodeInput("")
+    setSelectedAllocations([])
+    setAllocationInputs({})
+  }
 
   const handleCustomerCodeChange = (val: string) => {
-    setCustomerCodeInput(val);
-    setSelectedAllocations([]);
-    setAllocationInputs({});
-  };
+    setCustomerCodeInput(val)
+    setSelectedAllocations([])
+    setAllocationInputs({})
+  }
 
-  // Fetch payment details for selected review item
   const { data: paymentDetails, isLoading: isPaymentLoading } = usePaymentDetails(
     selectedReview?.payment_id
-  );
+  )
 
-  // Fetch customer details if a customer_id is assigned (e.g. loaded from backend review details)
   const { data: matchedCustomerDetail } = useCustomerDetail(
     paymentDetails?.customer_id || undefined
-  );
+  )
 
-  // Set default customer ID and code when paymentDetails and matchedCustomerDetail load
   useEffect(() => {
     if (paymentDetails?.customer_id) {
-      setSelectedCustomerId(paymentDetails.customer_id);
+      setSelectedCustomerId(paymentDetails.customer_id)
       if (matchedCustomerDetail?.customer?.customer_code) {
-        setCustomerCodeInput(matchedCustomerDetail.customer.customer_code);
+        setCustomerCodeInput(matchedCustomerDetail.customer.customer_code)
       }
     } else {
-      setSelectedCustomerId("");
-      setCustomerCodeInput("");
+      setSelectedCustomerId("")
+      setCustomerCodeInput("")
     }
-  }, [paymentDetails, matchedCustomerDetail]);
+  }, [paymentDetails, matchedCustomerDetail])
 
-  // Query customers dynamically when customerCodeInput is modified
-  const trimmedCode = customerCodeInput.trim();
+  const trimmedCode = customerCodeInput.trim()
   const { data: searchedCustomers, isFetching: isSearchingCustomer } = useQuery({
     queryKey: ["customers", { customer_code: trimmedCode }],
     queryFn: () => customerService.getCustomers({ customer_code: trimmedCode }),
     enabled: trimmedCode.length >= 3,
-  });
+  })
 
-  // Find the resolved customer matching the input
   const resolvedCustomer = searchedCustomers?.find(
     (c) => c.customer_code.toLowerCase() === trimmedCode.toLowerCase()
-  );
+  )
 
-  // Update selectedCustomerId based on code match
   useEffect(() => {
     if (resolvedCustomer) {
-      setSelectedCustomerId(resolvedCustomer.id);
+      setSelectedCustomerId(resolvedCustomer.id)
     } else {
-      // Keep selectedCustomerId if the input matches the pre-loaded customer code
       if (
         matchedCustomerDetail?.customer?.customer_code.toLowerCase() ===
         trimmedCode.toLowerCase()
       ) {
-        setSelectedCustomerId(paymentDetails?.customer_id || "");
+        setSelectedCustomerId(paymentDetails?.customer_id || "")
       } else {
-        setSelectedCustomerId("");
+        setSelectedCustomerId("")
       }
     }
-  }, [resolvedCustomer, trimmedCode, matchedCustomerDetail, paymentDetails]);
+  }, [resolvedCustomer, trimmedCode, matchedCustomerDetail, paymentDetails])
 
-  // Fetch open invoices for resolved customer
   const { data: customerInvoices = [], isLoading: isCustomerInvoicesLoading } = useInvoices(
     selectedCustomerId ? { customer_id: selectedCustomerId } : undefined
-  );
+  )
 
-  // Candidate invoices for allocation (open + disputed)
   const allocatableInvoices = customerInvoices.filter(
     (inv) =>
       (inv.status === "PENDING" ||
         inv.status === "PARTIALLY_PAID" ||
         inv.status === "DISPUTED") &&
       inv.outstanding_amount > 0
-  );
+  )
 
-  const totalAllocated = selectedAllocations.reduce((sum, a) => sum + a.amount, 0);
-  const remainingToAllocate = paymentDetails ? paymentDetails.payment_amount - totalAllocated : 0;
+  const totalAllocated = selectedAllocations.reduce((sum, a) => sum + a.amount, 0)
+  const remainingToAllocate = paymentDetails
+    ? paymentDetails.payment_amount - totalAllocated
+    : 0
 
-  const handleCheckboxToggle = (invoice: any) => {
-    const exists = selectedAllocations.some(a => a.invoice_id === invoice.id);
+  const handleCheckboxToggle = (invoice: {
+    id: string
+    invoice_number: string
+    outstanding_amount: number
+  }) => {
+    const exists = selectedAllocations.some((a) => a.invoice_id === invoice.id)
     if (exists) {
-      setSelectedAllocations(prev => prev.filter(a => a.invoice_id !== invoice.id));
-      const inputs = { ...allocationInputs };
-      delete inputs[invoice.id];
-      setAllocationInputs(inputs);
+      setSelectedAllocations((prev) => prev.filter((a) => a.invoice_id !== invoice.id))
+      const inputs = { ...allocationInputs }
+      delete inputs[invoice.id]
+      setAllocationInputs(inputs)
     } else {
-      // Allocate outstanding or remaining, whichever is smaller
-      const defaultAlloc = Math.min(invoice.outstanding_amount, remainingToAllocate > 0 ? remainingToAllocate : 0);
-      setSelectedAllocations(prev => [...prev, { invoice_id: invoice.id, invoice_number: invoice.invoice_number, amount: defaultAlloc }]);
-      setAllocationInputs(prev => ({ ...prev, [invoice.id]: defaultAlloc.toString() }));
+      const defaultAlloc = Math.min(
+        invoice.outstanding_amount,
+        remainingToAllocate > 0 ? remainingToAllocate : 0
+      )
+      setSelectedAllocations((prev) => [
+        ...prev,
+        {
+          invoice_id: invoice.id,
+          invoice_number: invoice.invoice_number,
+          amount: defaultAlloc,
+        },
+      ])
+      setAllocationInputs((prev) => ({ ...prev, [invoice.id]: defaultAlloc.toString() }))
     }
-  };
+  }
 
   const handleAmountChange = (invoiceId: string, value: string) => {
-    setAllocationInputs(prev => ({ ...prev, [invoiceId]: value }));
-    const numeric = parseFloat(value) || 0;
+    setAllocationInputs((prev) => ({ ...prev, [invoiceId]: value }))
+    const numeric = parseFloat(value) || 0
 
-    setSelectedAllocations(prev =>
-      prev.map(a => (a.invoice_id === invoiceId ? { ...a, amount: numeric } : a))
-    );
-  };
-
-  const getStatusBadgeVariant = (status: string) => {
-    if (status === "APPROVED") return "success";
-    if (status === "REJECTED") return "destructive";
-    return "warning";
-  };
+    setSelectedAllocations((prev) =>
+      prev.map((a) => (a.invoice_id === invoiceId ? { ...a, amount: numeric } : a))
+    )
+  }
 
   return (
-    <div className="space-y-6">
-      {/* Page Header */}
-      <header className="border-b border-border pb-5">
-        <h1 className="text-2xl font-bold tracking-tight text-foreground m-0">
-          Payment Matching Human Reviews
-        </h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Review wire payments flagged with ambiguous matching scores, select correct customer records, and explicitly allocate cash receipts to invoices.
-        </p>
-      </header>
+    <div className="space-y-8">
+      <PageHeader
+        title="Payment matching reviews"
+        description="Review wire payments flagged with ambiguous matching scores, select correct customer records, and explicitly allocate cash receipts to invoices."
+      />
 
-      {/* Review Queue Table Card */}
-      <Card className="border-border shadow-xs">
+      <Card>
         <CardContent className="p-0">
           {isLoading ? (
-            <div className="p-6 space-y-4">
-              <Skeleton className="h-10 w-full" />
-              <Skeleton className="h-20 w-full" />
+            <div className="p-4">
+              <TableSkeleton rows={6} columns={5} />
             </div>
           ) : isError ? (
-            <div className="p-12 text-center text-rose-500 font-semibold bg-rose-500/5 border-rose-500/20 border rounded-lg">
-              Failed to load pending payment reviews. Verify AR service microservice is active.
-            </div>
+            <EmptyState
+              icon={<HelpCircle className="h-6 w-6 text-destructive" />}
+              title="Failed to load review queue"
+              description="Verify the AR service microservice is active and responsive."
+            />
           ) : reviews.length === 0 ? (
-            <div className="text-center py-16 text-muted-foreground font-semibold flex flex-col items-center">
-              <CheckCircle className="h-10 w-10 text-emerald-500 mb-3" />
-              Human review queue is currently empty. All matches resolved automatically.
-            </div>
+            <EmptyState
+              icon={<CheckCircle className="h-6 w-6 text-success" />}
+              title="Review queue is empty"
+              description="All payment matches have been resolved automatically."
+            />
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm">
-                <thead>
-                  <tr className="border-b border-border text-muted-foreground uppercase text-xs font-semibold bg-slate-50/50 dark:bg-zinc-900/10">
-                    <th className="py-3 px-4">Payment Receipt</th>
-                    <th className="py-3 px-4">Confidence</th>
-                    <th className="py-3 px-4">Review Reason</th>
-                    <th className="py-3 px-4">Uploaded At</th>
-                    <th className="py-3 px-4 text-right">Status</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
-                  {reviews.map((rev) => (
-                    <tr
-                      key={rev.id}
-                      onClick={() => handleRowClick(rev)}
-                      className={`hover:bg-slate-50/50 dark:hover:bg-zinc-900/40 cursor-pointer transition-colors ${
-                        selectedReview?.id === rev.id ? "bg-primary/5" : ""
-                      }`}
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Payment receipt</TableHead>
+                  <TableHead>Confidence</TableHead>
+                  <TableHead>Review reason</TableHead>
+                  <TableHead>Uploaded at</TableHead>
+                  <TableHead className="text-right">Status</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {reviews.map((rev) => (
+                  <TableRow
+                    key={rev.id}
+                    className={cn(
+                      "cursor-pointer",
+                      selectedReview?.id === rev.id && "bg-primary/5"
+                    )}
+                    onClick={() => handleRowClick(rev)}
+                  >
+                    <TableCell className="font-medium text-muted-foreground">
+                      Wire transfer
+                    </TableCell>
+                    <TableCell className="min-w-[160px]">
+                      <ConfidenceMeter value={rev.confidence} size="sm" showValue />
+                      {rev.suggested_customer_name && (
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          Suggested: {rev.suggested_customer_name} ({rev.suggested_customer_code})
+                        </p>
+                      )}
+                    </TableCell>
+                    <TableCell
+                      className="max-w-[320px] truncate text-muted-foreground"
+                      title={rev.review_reason}
                     >
-                      <td className="py-3.5 px-4 text-muted-foreground font-semibold">
-                        Wire Transfer
-                      </td>
-                      <td className="py-3.5 px-4 font-semibold text-foreground">
-                        <div className="flex flex-col">
-                          <span className={rev.confidence >= 90 ? "text-emerald-600 dark:text-emerald-400 font-bold" : "text-amber-600 dark:text-amber-500 font-bold"}>
-                            {rev.confidence.toFixed(1)}% Match
-                          </span>
-                          {rev.suggested_customer_name && (
-                            <span className="text-[10px] text-muted-foreground font-normal mt-0.5">
-                              to {rev.suggested_customer_name} ({rev.suggested_customer_code})
-                            </span>
-                          )}
-                        </div>
-                      </td>
-                      <td className="py-3.5 px-4 text-muted-foreground truncate max-w-[320px]" title={rev.review_reason}>
-                        {rev.review_reason}
-                      </td>
-                      <td className="py-3.5 px-4 text-muted-foreground">
-                        {new Date(rev.created_at).toLocaleDateString()}
-                      </td>
-                      <td className="py-3.5 px-4 text-right">
-                        <Badge variant={getStatusBadgeVariant(rev.status)} className="text-[10px] py-0.5 px-2.5 uppercase font-bold tracking-wider">
-                          {rev.status}
-                        </Badge>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                      {rev.review_reason}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {new Date(rev.created_at).toLocaleDateString()}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Badge
+                        variant={getStatusVariant(MATCHING_REVIEW_STATUS_VARIANT, rev.status)}
+                        shape="pill"
+                      >
+                        {rev.status}
+                      </Badge>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           )}
         </CardContent>
       </Card>
 
-      {/* Review Details Drawer Sheet */}
       <Sheet open={isDrawerOpen} onOpenChange={setIsDrawerOpen}>
         <SheetContent className="overflow-y-auto pb-10">
           <SheetHeader>
-            <SheetTitle>Payment Match Resolution</SheetTitle>
+            <SheetTitle>Payment match resolution</SheetTitle>
             <SheetDescription>Verify bank wire metadata and allocate cash amounts.</SheetDescription>
           </SheetHeader>
 
           {isPaymentLoading ? (
             <div className="space-y-4 py-6">
-              <Skeleton className="h-10 w-full" />
-              <Skeleton className="h-40 w-full" />
+              <TableSkeleton rows={2} columns={1} />
             </div>
           ) : paymentDetails ? (
             <div className="space-y-6 pt-4 text-sm">
-              {/* Payment Summary Info */}
-              <div className="grid grid-cols-2 gap-4 bg-slate-50 dark:bg-zinc-900/50 p-4 rounded-xl border border-border">
+              {selectedReview?.confidence !== undefined && (
+                <ConfidenceMeter
+                  value={selectedReview.confidence}
+                  label="Match confidence"
+                  size="md"
+                />
+              )}
+
+              <div className="grid grid-cols-2 gap-4 rounded-lg border border-border bg-muted/30 p-4">
                 <div className="flex flex-col">
-                  <span className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">Original Customer extracted</span>
-                  <span className="font-bold text-foreground mt-0.5">{paymentDetails.customer_name_original}</span>
-                </div>
-                <div className="flex flex-col">
-                  <span className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">Payment Amount</span>
-                  <span className="font-extrabold text-foreground mt-0.5 text-base text-primary">
-                    {paymentDetails.currency} {paymentDetails.payment_amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                  <span className="text-xs font-medium text-muted-foreground">
+                    Original customer extracted
+                  </span>
+                  <span className="mt-0.5 font-medium text-foreground">
+                    {paymentDetails.customer_name_original}
                   </span>
                 </div>
                 <div className="flex flex-col">
-                  <span className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">Payment Date</span>
-                  <span className="font-semibold text-foreground mt-0.5">
+                  <span className="text-xs font-medium text-muted-foreground">Payment amount</span>
+                  <span className="mt-0.5 text-base font-semibold tabular-nums text-primary">
+                    {paymentDetails.currency}{" "}
+                    {paymentDetails.payment_amount.toLocaleString(undefined, {
+                      minimumFractionDigits: 2,
+                    })}
+                  </span>
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-xs font-medium text-muted-foreground">Payment date</span>
+                  <span className="mt-0.5 font-medium text-foreground">
                     {new Date(paymentDetails.payment_date).toLocaleDateString()}
-                  </span>
-                </div>
-                <div className="flex flex-col">
-                  <span className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">Confidence Score</span>
-                  <span className="font-semibold text-foreground mt-0.5 flex items-center gap-1.5">
-                    <Badge variant={selectedReview?.confidence >= 90 ? "success" : "warning"} className="py-0 px-2 uppercase font-bold text-[10px]">
-                      {selectedReview?.confidence.toFixed(1)}% Match
-                    </Badge>
                   </span>
                 </div>
               </div>
 
-              {/* Suggestion Card */}
-              {/* Suggestion Card */}
-              {selectedReview?.suggested_candidates && selectedReview.suggested_candidates.length > 0 ? (
+              {selectedReview?.suggested_candidates &&
+              selectedReview.suggested_candidates.length > 0 ? (
                 <div className="space-y-2">
-                  <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider block">Match Suggestions (Top 5 Candidates)</span>
-                  <div className="space-y-2.5 max-h-[280px] overflow-y-auto pr-1">
-                    {selectedReview.suggested_candidates.map((cand: any) => {
-                      const isSelected = selectedCustomerId === cand.customer_id;
+                  <span className="block text-xs font-medium text-muted-foreground">
+                    Match suggestions (top candidates)
+                  </span>
+                  <div className="max-h-[280px] space-y-2.5 overflow-y-auto pr-1">
+                    {selectedReview.suggested_candidates.map((cand: {
+                      customer_id: string
+                      customer_name: string
+                      customer_code: string
+                      confidence: number
+                    }) => {
+                      const isSelected = selectedCustomerId === cand.customer_id
                       return (
                         <div
                           key={cand.customer_id}
-                          className={`border rounded-xl p-3.5 flex flex-col gap-2 transition-all ${
+                          className={cn(
+                            "flex flex-col gap-2 rounded-lg border p-3.5 transition-colors",
                             isSelected
-                              ? "bg-primary/5 border-primary"
-                              : "bg-card hover:bg-slate-50/50 border-border"
-                          }`}
+                              ? "border-primary bg-primary/5"
+                              : "border-border bg-card hover:bg-muted/40"
+                          )}
                         >
-                          <div className="flex justify-between items-center text-xs">
+                          <div className="flex items-center justify-between gap-2 text-xs">
                             <div>
-                              <p className="font-bold text-foreground">{cand.customer_name}</p>
-                              <p className="font-mono text-[10px] text-muted-foreground mt-0.5">{cand.customer_code}</p>
+                              <p className="font-medium text-foreground">{cand.customer_name}</p>
+                              <p className="mt-0.5 font-mono text-xs text-muted-foreground">
+                                {cand.customer_code}
+                              </p>
                             </div>
-                            <div className="flex items-center gap-2">
+                            <div className="flex shrink-0 items-center gap-2">
                               <Badge
-                                variant={cand.confidence >= 90 ? "success" : "warning"}
-                                className="py-0 px-2 uppercase font-bold text-[9px]"
+                                variant={getConfidenceBadgeVariant(cand.confidence)}
+                                shape="pill"
                               >
-                                {cand.confidence.toFixed(1)}% Match
+                                {cand.confidence.toFixed(1)}%
                               </Badge>
                               {isSelected ? (
-                                <span className="text-xs text-emerald-600 dark:text-emerald-400 font-bold flex items-center gap-1 shrink-0 ml-1">
-                                  ✓ Selected
-                                </span>
+                                <span className="text-xs font-medium text-success">Selected</span>
                               ) : (
-                                <button
+                                <Button
                                   type="button"
+                                  variant="primary"
+                                  size="sm"
                                   onClick={() => {
-                                    setSelectedCustomerId(cand.customer_id);
-                                    setCustomerCodeInput(cand.customer_code);
+                                    setSelectedCustomerId(cand.customer_id)
+                                    setCustomerCodeInput(cand.customer_code)
                                   }}
-                                  className="bg-primary text-primary-foreground hover:bg-primary/95 rounded-lg px-2.5 py-1.5 text-xs font-semibold shadow-xs transition-all shrink-0"
                                 >
-                                  Use Suggestion
-                                </button>
+                                  Use suggestion
+                                </Button>
                               )}
                             </div>
                           </div>
+                          <ConfidenceMeter value={cand.confidence} size="sm" showValue={false} />
                         </div>
-                      );
+                      )
                     })}
                   </div>
                 </div>
               ) : (
                 selectedReview?.suggested_customer_name && (
-                  <div className="bg-primary/5 border border-primary/20 rounded-xl p-3.5 flex flex-col gap-2">
-                    <div className="flex justify-between items-center">
-                      <span className="text-xs font-bold text-primary uppercase tracking-wider">Top Match Candidate</span>
-                      <Badge variant={selectedReview.confidence >= 90 ? "success" : "warning"} className="py-0 px-2 uppercase font-bold text-[9px]">
-                        {selectedReview.confidence.toFixed(1)}% Match
+                  <div className="space-y-3 rounded-lg border border-primary/20 bg-primary/5 p-3.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-medium text-primary">Top match candidate</span>
+                      <Badge
+                        variant={getConfidenceBadgeVariant(selectedReview.confidence)}
+                        shape="pill"
+                      >
+                        {selectedReview.confidence.toFixed(1)}%
                       </Badge>
                     </div>
-                    <div className="flex justify-between items-center text-xs">
+                    <div className="flex items-center justify-between text-xs">
                       <div>
-                        <p className="font-bold text-foreground">{selectedReview.suggested_customer_name}</p>
-                        <p className="font-mono text-[10px] text-muted-foreground mt-0.5">{selectedReview.suggested_customer_code}</p>
+                        <p className="font-medium text-foreground">
+                          {selectedReview.suggested_customer_name}
+                        </p>
+                        <p className="mt-0.5 font-mono text-xs text-muted-foreground">
+                          {selectedReview.suggested_customer_code}
+                        </p>
                       </div>
                       {selectedCustomerId !== selectedReview.suggested_customer_id ? (
-                        <button
+                        <Button
                           type="button"
+                          variant="primary"
+                          size="sm"
                           onClick={() => {
-                            setSelectedCustomerId(selectedReview.suggested_customer_id);
-                            setCustomerCodeInput(selectedReview.suggested_customer_code);
+                            setSelectedCustomerId(selectedReview.suggested_customer_id)
+                            setCustomerCodeInput(selectedReview.suggested_customer_code)
                           }}
-                          className="bg-primary text-primary-foreground hover:bg-primary/95 rounded-lg px-3 py-1.5 text-xs font-semibold shadow-sm transition-all"
                         >
-                          Use Suggestion
-                        </button>
+                          Use suggestion
+                        </Button>
                       ) : (
-                        <span className="text-xs text-emerald-600 dark:text-emerald-400 font-bold flex items-center gap-1">
-                          ✓ Selected
-                        </span>
+                        <span className="text-xs font-medium text-success">Selected</span>
                       )}
                     </div>
                   </div>
                 )
               )}
 
-              {/* Resolved Customer Assignment Selector */}
               <div className="space-y-2">
-                <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                  Resolved Customer Code
-                </label>
+                <Label htmlFor="customer-code">Resolved customer code</Label>
                 <div className="relative">
-                  <input
-                    type="text"
+                  <Input
+                    id="customer-code"
                     value={customerCodeInput}
                     onChange={(e) => handleCustomerCodeChange(e.target.value)}
-                    placeholder="Enter customer code (e.g. CUST-000001)..."
-                    className="w-full rounded-lg border border-input bg-background p-2 font-mono text-xs focus:ring-1 focus:ring-primary focus:outline-hidden text-foreground uppercase"
+                    placeholder="Enter customer code (e.g. CUST-000001)…"
+                    className="font-mono uppercase"
                   />
                   {isSearchingCustomer && (
                     <div className="absolute right-3 top-2.5">
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
+                      <div className="h-4 w-4 animate-spin rounded-full border-b-2 border-primary" />
                     </div>
                   )}
                 </div>
-                {/* Status messages for premium feel */}
                 {selectedCustomerId ? (
-                  <p className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold mt-1">
-                    ✓ Customer resolved: {
-                      (resolvedCustomer?.customer_name) || 
-                      (matchedCustomerDetail?.customer?.customer_name)
-                    }
+                  <p className="text-xs font-medium text-success">
+                    Customer resolved:{" "}
+                    {resolvedCustomer?.customer_name ||
+                      matchedCustomerDetail?.customer?.customer_name}
                   </p>
                 ) : customerCodeInput.trim().length >= 3 ? (
-                  <p className="text-[10px] text-rose-500 font-semibold animate-pulse mt-1">
-                    ✗ No active customer found with code "{customerCodeInput}"
+                  <p className="text-xs font-medium text-destructive">
+                    No active customer found with code &ldquo;{customerCodeInput}&rdquo;
                   </p>
                 ) : (
-                  <p className="text-[10px] text-muted-foreground mt-1">
+                  <p className="text-xs text-muted-foreground">
                     Enter customer code to query candidate invoices.
                   </p>
                 )}
               </div>
 
-              {/* Match candidate Invoices Selection */}
               <div className="space-y-3">
-                <div className="flex justify-between items-center border-b border-border pb-2">
-                  <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground">Candidate Invoices Allocation</label>
+                <div className="flex items-center justify-between border-b border-border pb-2">
+                  <Label>Candidate invoices allocation</Label>
                   {selectedCustomerId && (
-                    <Badge variant={allocatableInvoices.length > 0 ? "outline" : "destructive"} className="text-[10px] py-0 px-2.5 font-bold">
-                      {allocatableInvoices.length} Candidate Invoices
+                    <Badge
+                      variant={allocatableInvoices.length > 0 ? "outline" : "destructive"}
+                      shape="pill"
+                    >
+                      {allocatableInvoices.length} candidate invoices
                     </Badge>
                   )}
                 </div>
 
                 {isCustomerInvoicesLoading ? (
-                  <div className="space-y-2">
-                    <Skeleton className="h-8 w-full" />
-                    <Skeleton className="h-8 w-full" />
-                  </div>
+                  <TableSkeleton rows={2} columns={1} />
                 ) : !selectedCustomerId ? (
-                  <div className="text-center py-6 text-xs text-muted-foreground italic bg-slate-50/30 rounded-lg border">
-                    Set a Customer reference to view open matching candidates.
-                  </div>
+                  <EmptyState
+                    title="Select a customer"
+                    description="Set a customer reference to view open matching candidates."
+                    className="py-6"
+                  />
                 ) : allocatableInvoices.length === 0 ? (
-                  <div className="text-center py-6 text-xs text-rose-500 font-semibold bg-rose-50/30 rounded-lg border border-rose-500/25">
-                    No open or disputed invoices found for this Customer in the billing registry.
-                  </div>
+                  <EmptyState
+                    title="No open invoices"
+                    description="No open or disputed invoices found for this customer in the billing registry."
+                    className="py-6"
+                  />
                 ) : (
-                  <div className="space-y-3 max-h-[250px] overflow-y-auto pr-1">
+                  <div className="max-h-[250px] space-y-3 overflow-y-auto pr-1">
                     {allocatableInvoices.map((inv) => {
-                      const isChecked = selectedAllocations.some(a => a.invoice_id === inv.id);
+                      const isChecked = selectedAllocations.some((a) => a.invoice_id === inv.id)
                       return (
                         <div
                           key={inv.id}
-                          className={`flex items-center justify-between p-3 rounded-lg border transition-colors ${
-                            isChecked ? "border-primary bg-primary/5" : "border-border bg-card hover:bg-slate-50/50"
-                          }`}
+                          className={cn(
+                            "flex items-center justify-between rounded-lg border p-3 transition-colors",
+                            isChecked
+                              ? "border-primary bg-primary/5"
+                              : "border-border bg-card hover:bg-muted/40"
+                          )}
                         >
                           <div className="flex items-center space-x-3">
                             <input
                               type="checkbox"
                               checked={isChecked}
                               onChange={() => handleCheckboxToggle(inv)}
-                              className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                              className="h-4 w-4 rounded border-input text-primary focus:ring-ring/30"
                             />
                             <div>
                               <div className="flex items-center gap-2">
-                                <p className="text-xs font-bold text-foreground">{inv.invoice_number}</p>
+                                <p className="text-sm font-medium text-foreground">
+                                  {inv.invoice_number}
+                                </p>
                                 {inv.status === "DISPUTED" && (
-                                  <Badge variant="warning" className="text-[9px] py-0 px-1.5 uppercase font-bold">
+                                  <Badge variant="warning" shape="pill">
                                     Disputed
                                   </Badge>
                                 )}
                               </div>
-                              <p className="text-[10px] text-muted-foreground mt-0.5">
-                                Outstanding: {inv.currency} {inv.outstanding_amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                              <p className="mt-0.5 text-xs tabular-nums text-muted-foreground">
+                                Outstanding: {inv.currency}{" "}
+                                {inv.outstanding_amount.toLocaleString(undefined, {
+                                  minimumFractionDigits: 2,
+                                })}
                               </p>
                             </div>
                           </div>
 
                           {isChecked && (
                             <div className="flex items-center space-x-2">
-                              <span className="text-xs text-muted-foreground font-semibold">{inv.currency}</span>
-                              <input
+                              <span className="text-xs text-muted-foreground">{inv.currency}</span>
+                              <Input
                                 type="number"
                                 step="any"
                                 value={allocationInputs[inv.id] || ""}
                                 onChange={(e) => handleAmountChange(inv.id, e.target.value)}
-                                className="w-24 rounded border border-input bg-background p-1 text-xs text-right text-foreground font-mono focus:ring-1 focus:ring-primary focus:outline-hidden"
+                                className="w-24 text-right font-mono tabular-nums"
                               />
                             </div>
                           )}
                         </div>
-                      );
+                      )
                     })}
                   </div>
                 )}
               </div>
 
-              {/* Allocations summary status */}
-              <div className="border-t border-border pt-4 space-y-2.5">
-                <div className="flex justify-between text-xs font-bold">
-                  <span className="text-muted-foreground">Total Cash Allocating:</span>
-                  <span className="text-foreground font-mono">
-                    {paymentDetails.currency} {totalAllocated.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+              <div className="space-y-2.5 border-t border-border pt-4">
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Total cash allocating</span>
+                  <span className="font-medium tabular-nums text-foreground">
+                    {paymentDetails.currency}{" "}
+                    {totalAllocated.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                   </span>
                 </div>
-                <div className="flex justify-between text-xs font-bold">
-                  <span className="text-muted-foreground">Remaining Unallocated:</span>
-                  <span className={`font-mono ${
-                    remainingToAllocate < -0.01 ? "text-rose-500 font-extrabold animate-pulse" : "text-emerald-600 dark:text-emerald-400"
-                  }`}>
-                    {paymentDetails.currency} {remainingToAllocate.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Remaining unallocated</span>
+                  <span
+                    className={cn(
+                      "font-medium tabular-nums",
+                      remainingToAllocate < -0.01 ? "text-destructive" : "text-success"
+                    )}
+                  >
+                    {paymentDetails.currency}{" "}
+                    {remainingToAllocate.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                   </span>
                 </div>
 
                 {remainingToAllocate > 0.01 && (
-                  <div className="rounded-lg bg-amber-50 dark:bg-amber-950/20 border border-amber-500/25 p-3 text-xs text-amber-700 dark:text-amber-400 flex items-start gap-2">
-                    <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+                  <div className="flex items-start gap-2 rounded-lg border border-warning/25 bg-warning-muted p-3 text-xs text-warning-foreground">
+                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
                     <span>
-                      <strong>Under-allocation:</strong> Remaining balance of {paymentDetails.currency} {remainingToAllocate.toLocaleString()} will generate a **Customer Credit** upon approval.
+                      <strong>Under-allocation:</strong> Remaining balance of {paymentDetails.currency}{" "}
+                      {remainingToAllocate.toLocaleString()} will generate a customer credit upon
+                      approval.
                     </span>
                   </div>
                 )}
 
                 {remainingToAllocate < -0.01 && (
-                  <div className="rounded-lg bg-rose-50 dark:bg-rose-950/20 border border-rose-500/25 p-3 text-xs text-rose-500 flex items-start gap-2 animate-pulse">
-                    <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+                  <div className="flex items-start gap-2 rounded-lg border border-destructive/25 bg-destructive/10 p-3 text-xs text-destructive">
+                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
                     <span>
-                      <strong>Error:</strong> Allocated amount exceeds total cash receipt. Please correct invoice allocations.
+                      <strong>Error:</strong> Allocated amount exceeds total cash receipt. Please
+                      correct invoice allocations.
                     </span>
                   </div>
                 )}
@@ -581,75 +626,70 @@ export const ReviewQueuePage: React.FC = () => {
             </div>
           ) : null}
 
-          {/* Drawer Actions */}
           <SheetFooter>
             {selectedReview?.status === "PENDING" && (
-              <div className="flex justify-end space-x-3 w-full">
-                <button
+              <div className="flex w-full justify-end gap-3">
+                <Button
                   type="button"
+                  variant="danger"
+                  size="sm"
                   onClick={() => {
-                    setConfirmAction("reject");
-                    setIsConfirmOpen(true);
+                    setConfirmAction("reject")
+                    setIsConfirmOpen(true)
                   }}
                   disabled={rejectMutation.isPending || approveMutation.isPending}
-                  className="flex-1 sm:flex-initial rounded-lg border border-destructive bg-transparent hover:bg-destructive hover:text-destructive-foreground transition-colors px-4 py-2.5 text-xs font-bold text-destructive"
                 >
-                  Reject Match
-                </button>
-                <button
+                  Reject match
+                </Button>
+                <Button
                   type="button"
+                  variant="primary"
+                  size="sm"
                   onClick={() => {
-                    setConfirmAction("approve");
-                    setIsConfirmOpen(true);
+                    setConfirmAction("approve")
+                    setIsConfirmOpen(true)
                   }}
                   disabled={
-                    rejectMutation.isPending || 
-                    approveMutation.isPending || 
-                    remainingToAllocate < -0.01 || 
+                    rejectMutation.isPending ||
+                    approveMutation.isPending ||
+                    remainingToAllocate < -0.01 ||
                     !selectedCustomerId
                   }
-                  className="flex-1 sm:flex-initial rounded-lg bg-primary px-4 py-2.5 text-xs font-bold text-primary-foreground hover:bg-primary/95 transition-colors disabled:opacity-50"
                 >
-                  Approve Allocation
-                </button>
+                  Approve allocation
+                </Button>
               </div>
             )}
           </SheetFooter>
         </SheetContent>
       </Sheet>
 
-      {/* Confirmation Dialog */}
       <Dialog open={isConfirmOpen} onOpenChange={setIsConfirmOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Confirm Review Settlement</DialogTitle>
+            <DialogTitle>Confirm review settlement</DialogTitle>
             <DialogDescription>
               {confirmAction === "approve"
                 ? `Confirm cash settlement for this customer. Allocations total is ${paymentDetails?.currency} ${totalAllocated.toLocaleString()}.`
-                : "Are you sure you want to reject this payment receipt match? The ingestion status will be marked as FAILED."
-              }
+                : "Are you sure you want to reject this payment receipt match? The ingestion status will be marked as FAILED."}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <button
-              onClick={() => setIsConfirmOpen(false)}
-              className="rounded-lg border border-border bg-card px-4 py-2 text-xs font-bold text-foreground hover:bg-muted transition-colors"
-            >
+            <Button variant="secondary" size="sm" onClick={() => setIsConfirmOpen(false)}>
               Cancel
-            </button>
-            <button
+            </Button>
+            <Button
+              variant={confirmAction === "approve" ? "success" : "danger"}
+              size="sm"
               onClick={handleActionConfirm}
-              className={`rounded-lg px-4 py-2 text-xs font-bold text-white transition-colors ${
-                confirmAction === "approve" ? "bg-emerald-600 hover:bg-emerald-700" : "bg-destructive hover:bg-destructive/90"
-              }`}
             >
-              {confirmAction === "approve" ? "Confirm Settlement" : "Confirm Rejection"}
-            </button>
+              {confirmAction === "approve" ? "Confirm settlement" : "Confirm rejection"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
-  );
-};
+  )
+}
 
-export default ReviewQueuePage;
+export default ReviewQueuePage

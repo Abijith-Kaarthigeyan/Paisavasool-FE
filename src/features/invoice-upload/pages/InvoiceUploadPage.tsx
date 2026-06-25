@@ -5,105 +5,117 @@ import { RootState } from "@/app/store"
 import { useInvoiceUpload } from "../hooks/useInvoiceUpload"
 import { UploadDropzone } from "../components/UploadDropzone"
 import { UploadProgress } from "../components/UploadProgress"
-import { ChevronRight, Home, Upload, History } from "lucide-react"
 import { resetUploadState } from "../slices/invoiceUploadSlice"
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card"
+import { PageHeader } from "@/components/ui/page-header"
+import { Button } from "@/components/ui/button"
+import { ChevronRight, Home, Upload, History } from "lucide-react"
 
 export const InvoiceUploadPage: React.FC = () => {
-  const navigate = useNavigate();
-  const dispatch = useDispatch();
-  const { user } = useSelector((state: RootState) => state.auth);
+  const navigate = useNavigate()
+  const dispatch = useDispatch()
+  const { user } = useSelector((state: RootState) => state.auth)
 
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const { uploadFile, isLoading } = useInvoiceUpload();
+  const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const { uploadFile, isLoading } = useInvoiceUpload()
 
-  // Redirect link depending on active user role
   const getDashboardPath = () => {
-    if (!user) return "/login";
-    if (user.role === "ADMIN") return "/admin";
-    if (user.role === "FINANCE_MANAGER") return "/manager";
-    return "/associate";
-  };
+    if (!user) return "/login"
+    if (user.role === "ADMIN") return "/admin"
+    if (user.role === "FINANCE_MANAGER") return "/manager"
+    return "/associate"
+  }
 
   const handleFileSelect = async (file: File) => {
-    setSelectedFile(file);
+    setSelectedFile(file)
     try {
-      const data = await uploadFile(file);
-      // Wait 1.5 seconds on success and redirect to batch details
+      const data = await uploadFile(file)
       setTimeout(() => {
-        dispatch(resetUploadState());
-        navigate(`/invoice-upload/batches/${data.batch_id}`);
-      }, 1500);
+        dispatch(resetUploadState())
+        navigate(`/invoice-upload/batches/${data.batch_id}`)
+      }, 1500)
     } catch (err) {
-      console.error("Upload process failed", err);
+      console.error("Upload process failed", err)
     }
-  };
+  }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 p-6 font-sans">
-      <div className="mx-auto max-w-4xl space-y-6">
-        
-        {/* Breadcrumb Navigation */}
-        <nav className="flex items-center space-x-2 text-xs text-muted-foreground bg-card px-4 py-2.5 rounded-lg border border-border w-fit shadow-xs">
-          <Link to={getDashboardPath()} className="flex items-center gap-1 hover:text-primary transition-colors">
-            <Home className="h-3.5 w-3.5" />
-            <span>Dashboard</span>
-          </Link>
-          <ChevronRight className="h-3.5 w-3.5" />
-          <span className="font-semibold text-foreground">Invoice Upload</span>
-        </nav>
+    <div className="mx-auto max-w-4xl space-y-8">
+      <nav
+        className="flex w-fit items-center gap-2 rounded-lg border border-border bg-card px-4 py-2 text-xs text-muted-foreground"
+        aria-label="Breadcrumb"
+      >
+        <Link
+          to={getDashboardPath()}
+          className="flex items-center gap-1 transition-colors hover:text-foreground"
+        >
+          <Home className="h-3.5 w-3.5" aria-hidden />
+          <span>Dashboard</span>
+        </Link>
+        <ChevronRight className="h-3.5 w-3.5" aria-hidden />
+        <span className="font-medium text-foreground">Invoice upload</span>
+      </nav>
 
-        {/* Header section */}
-        <header className="flex items-center justify-between border-b border-border pb-4">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight text-foreground m-0">
-              Invoice Upload Center
-            </h1>
-            <p className="text-sm text-muted-foreground mt-1">
-              Upload single PDF invoices or bulk ZIP archives to trigger AI ingestion pipelines.
-            </p>
-          </div>
-          <Link
-            to={getDashboardPath()}
-            className="rounded bg-secondary border border-border px-4 py-2 text-xs font-semibold text-secondary-foreground hover:bg-secondary/80 transition-colors"
-          >
-            Back to Dashboard
-          </Link>
-        </header>
+      <PageHeader
+        title="Invoice upload center"
+        description="Upload single PDF invoices or bulk ZIP archives to trigger AI ingestion pipelines."
+        actions={
+          <Button variant="secondary" size="sm" onClick={() => navigate(getDashboardPath())}>
+            Back to dashboard
+          </Button>
+        }
+      />
 
-        {/* Upload Container Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="md:col-span-2 space-y-6">
-            
-            {/* Upload Zone Card */}
-            <div className="rounded-xl border border-border bg-card p-6 shadow-sm space-y-4">
-              <h2 className="text-sm font-bold text-foreground uppercase tracking-wider flex items-center gap-2">
-                <Upload className="h-4 w-4 text-primary" /> Select Invoice File
-              </h2>
-              <UploadDropzone
-                onFileSelect={handleFileSelect}
-                isUploading={isLoading}
-              />
-            </div>
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
+        <div className="space-y-6 md:col-span-2">
+          <Card>
+            <CardHeader className="border-b border-border pb-4">
+              <CardTitle className="flex items-center gap-2 text-base font-semibold">
+                <Upload className="h-4 w-4 text-primary" aria-hidden />
+                Select invoice file
+              </CardTitle>
+              <CardDescription>
+                Drag and drop a PDF or ZIP archive to begin ingestion.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="pt-4">
+              <UploadDropzone onFileSelect={handleFileSelect} isUploading={isLoading} />
+            </CardContent>
+          </Card>
 
-            {/* In-progress Upload Item */}
-            <UploadProgress fileName={selectedFile ? selectedFile.name : null} />
-          </div>
-
-          {/* Quick Info Sidebar */}
-          <div className="rounded-xl border border-border bg-card p-6 shadow-sm h-fit space-y-4">
-            <h2 className="text-sm font-bold text-foreground uppercase tracking-wider flex items-center gap-2 border-b border-border pb-2">
-              <History className="h-4 w-4 text-primary" /> Processing Guide
-            </h2>
-            <ul className="text-xs space-y-3 text-muted-foreground leading-relaxed pl-4 list-disc">
-              <li>Upload individual <strong>Text PDFs</strong> only. Scanned or image-based PDFs will be skipped.</li>
-              <li>Bulk uploads must be packed inside a <strong>ZIP archive</strong>.</li>
-              <li>A single invoice failure will <strong>not</strong> roll back the entire batch. Succeeded files persist; failed ones go to review queue.</li>
-              <li>Extracted records default to <strong>INR</strong> if currency is not specified.</li>
-            </ul>
-          </div>
+          <UploadProgress fileName={selectedFile ? selectedFile.name : null} />
         </div>
 
+        <Card className="h-fit">
+          <CardHeader className="border-b border-border pb-4">
+            <CardTitle className="flex items-center gap-2 text-base font-semibold">
+              <History className="h-4 w-4 text-primary" aria-hidden />
+              Processing guide
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-4">
+            <ul className="list-disc space-y-3 pl-4 text-sm leading-relaxed text-muted-foreground">
+              <li>
+                Upload individual <strong className="text-foreground">text PDFs</strong> only.
+                Scanned or image-based PDFs will be skipped.
+              </li>
+              <li>
+                Bulk uploads must be packed inside a{" "}
+                <strong className="text-foreground">ZIP archive</strong>.
+              </li>
+              <li>
+                A single invoice failure will <strong className="text-foreground">not</strong>{" "}
+                roll back the entire batch. Succeeded files persist; failed ones go to review
+                queue.
+              </li>
+              <li>
+                Extracted records default to <strong className="text-foreground">INR</strong> if
+                currency is not specified.
+              </li>
+            </ul>
+          </CardContent>
+        </Card>
       </div>
     </div>
-  );
-};
+  )
+}

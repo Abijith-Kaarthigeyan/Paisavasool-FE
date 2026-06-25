@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from "react"
-import { useParams, Link } from "react-router-dom"
+import { useParams, useNavigate } from "react-router-dom"
 import {
   useInvoiceDetails,
   useInvoiceItems,
@@ -9,8 +9,22 @@ import {
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
+import { PageHeader } from "@/components/ui/page-header"
+import { EmptyState } from "@/components/ui/empty-state"
+import { Button } from "@/components/ui/button"
+import { Label } from "@/components/ui/label"
+import { Select } from "@/components/ui/select"
 import {
-  ArrowLeft,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
+import { INVOICE_STATUS_VARIANT, getStatusVariant } from "@/lib/design-tokens"
+import {
+  ChevronLeft,
   Calendar,
   User,
   HelpCircle,
@@ -19,25 +33,26 @@ import {
 } from "lucide-react"
 
 export const InvoiceDetailPage: React.FC = () => {
-  const { id } = useParams<{ id: string }>();
-  const [selectedVersion, setSelectedVersion] = useState<number | "current">("current");
+  const { id } = useParams<{ id: string }>()
+  const navigate = useNavigate()
+  const [selectedVersion, setSelectedVersion] = useState<number | "current">("current")
 
-  const { data: invoice, isLoading: isDetailsLoading, error: detailsError } = useInvoiceDetails(id);
-  const { data: liveItems = [], isLoading: isItemsLoading } = useInvoiceItems(id);
-  const { data: versions = [] } = useInvoiceVersions(id);
+  const { data: invoice, isLoading: isDetailsLoading, error: detailsError } = useInvoiceDetails(id)
+  const { data: liveItems = [], isLoading: isItemsLoading } = useInvoiceItems(id)
+  const { data: versions = [] } = useInvoiceVersions(id)
 
   const viewingHistorical =
-    selectedVersion !== "current" && selectedVersion !== invoice?.current_version;
+    selectedVersion !== "current" && selectedVersion !== invoice?.current_version
 
   const { data: historicalVersion, isLoading: isHistoricalLoading } = useInvoiceVersion(
     id,
     viewingHistorical ? (selectedVersion as number) : null
-  );
+  )
 
   const displaySnapshot = useMemo(() => {
-    if (!viewingHistorical || !historicalVersion) return null;
-    return historicalVersion.invoice_snapshot;
-  }, [viewingHistorical, historicalVersion]);
+    if (!viewingHistorical || !historicalVersion) return null
+    return historicalVersion.invoice_snapshot
+  }, [viewingHistorical, historicalVersion])
 
   const displayItems = useMemo(() => {
     if (viewingHistorical && historicalVersion) {
@@ -49,299 +64,324 @@ export const InvoiceDetailPage: React.FC = () => {
         unit_price: Number(item.unit_price ?? 0),
         amount: Number(item.amount ?? 0),
         created_at: historicalVersion.created_at || "",
-      }));
+      }))
     }
-    return liveItems;
-  }, [viewingHistorical, historicalVersion, liveItems, id]);
+    return liveItems
+  }, [viewingHistorical, historicalVersion, liveItems, id])
 
   const headerInvoiceNumber = viewingHistorical
     ? String(displaySnapshot?.invoice_number ?? invoice?.invoice_number)
-    : invoice?.invoice_number;
+    : invoice?.invoice_number
 
   const headerStatus = viewingHistorical
     ? String(displaySnapshot?.status ?? "HISTORICAL")
-    : invoice?.status;
+    : invoice?.status
 
   const currency = viewingHistorical
     ? String(displaySnapshot?.currency ?? invoice?.currency ?? "INR")
-    : invoice?.currency ?? "INR";
+    : invoice?.currency ?? "INR"
 
   const subtotal = viewingHistorical
     ? Number(displaySnapshot?.subtotal_amount ?? 0)
-    : invoice?.subtotal_amount ?? 0;
+    : invoice?.subtotal_amount ?? 0
 
   const tax = viewingHistorical
     ? Number(displaySnapshot?.tax_amount ?? 0)
-    : invoice?.tax_amount ?? 0;
+    : invoice?.tax_amount ?? 0
 
   const total = viewingHistorical
     ? Number(displaySnapshot?.total_amount ?? 0)
-    : invoice?.total_amount ?? 0;
+    : invoice?.total_amount ?? 0
 
   const outstanding = viewingHistorical
     ? Number(displaySnapshot?.outstanding_amount ?? 0)
-    : invoice?.outstanding_amount ?? 0;
+    : invoice?.outstanding_amount ?? 0
 
   const invoiceDate = viewingHistorical
     ? String(displaySnapshot?.invoice_date ?? "")
-    : invoice?.invoice_date ?? "";
+    : invoice?.invoice_date ?? ""
 
   const dueDate = viewingHistorical
     ? String(displaySnapshot?.due_date ?? "")
-    : invoice?.due_date ?? "";
-
-  const getStatusBadgeVariant = (status: string | undefined) => {
-    if (!status) return "outline";
-    switch (status) {
-      case "PAID": return "success";
-      case "PARTIALLY_PAID": return "info";
-      case "PENDING": return "default";
-      case "OVERDUE": return "destructive";
-      case "DISPUTED": return "warning";
-      default: return "outline";
-    }
-  };
+    : invoice?.due_date ?? ""
 
   if (isDetailsLoading) {
     return (
-      <div className="space-y-6 max-w-4xl mx-auto animate-pulse">
-        <Skeleton className="h-8 w-40" />
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="mx-auto max-w-4xl space-y-6">
+        <Skeleton className="h-10 w-48" />
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
           <Skeleton className="h-48 w-full" />
           <Skeleton className="h-48 w-full" />
         </div>
         <Skeleton className="h-64 w-full" />
       </div>
-    );
+    )
   }
 
   if (detailsError || !invoice) {
     return (
-      <div className="max-w-md mx-auto text-center py-16 space-y-4">
-        <HelpCircle className="h-12 w-12 text-destructive mx-auto" />
-        <h3 className="text-lg font-bold text-foreground">Invoice Not Found</h3>
-        <p className="text-sm text-muted-foreground">The requested invoice details could not be loaded.</p>
-        <Link to="/invoices" className="inline-flex items-center gap-1.5 text-xs font-bold text-primary hover:underline">
-          <ArrowLeft className="h-4 w-4" /> Back to Invoices
-        </Link>
+      <div className="mx-auto max-w-md py-16">
+        <EmptyState
+          icon={<HelpCircle className="h-6 w-6 text-destructive" />}
+          title="Invoice not found"
+          description="The requested invoice details could not be loaded."
+          action={
+            <Button variant="ghost" size="sm" onClick={() => navigate("/invoices")}>
+              <ChevronLeft className="h-4 w-4" aria-hidden />
+              Back to invoices
+            </Button>
+          }
+        />
       </div>
-    );
+    )
   }
 
-  const currentVersion = invoice.current_version ?? 1;
+  const currentVersion = invoice.current_version ?? 1
 
   return (
-    <div className="space-y-6 max-w-4xl mx-auto">
-      <header className="flex flex-col sm:flex-row sm:items-center sm:justify-between border-b border-border pb-5 gap-4">
-        <div className="space-y-1">
-          <div className="flex items-center gap-2">
-            <Link to="/invoices" className="text-muted-foreground hover:text-foreground">
-              <ArrowLeft className="h-5 w-5" />
-            </Link>
-            <h1 className="text-2xl font-bold tracking-tight text-foreground m-0">
-              Invoice #{headerInvoiceNumber}
-            </h1>
-          </div>
-          <div className="flex items-center gap-2 pl-7">
-            <Badge variant="outline" className="text-[10px] uppercase">
+    <div className="mx-auto max-w-4xl space-y-8">
+      <PageHeader
+        title={`Invoice #${headerInvoiceNumber}`}
+        description={
+          viewingHistorical
+            ? "Historical snapshot (read-only)"
+            : "Invoice details, line items, and amendment history."
+        }
+        meta={
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge variant="outline" shape="pill">
               Version {viewingHistorical ? selectedVersion : currentVersion}
             </Badge>
             {viewingHistorical && (
-              <span className="text-[10px] text-amber-600 font-semibold uppercase">
-                Historical snapshot (read-only)
-              </span>
+              <Badge variant="warning" shape="pill">
+                Historical view
+              </Badge>
             )}
           </div>
-        </div>
-        <div className="flex items-center gap-2">
-          {versions.length > 0 && (
-            <select
-              value={selectedVersion === "current" ? String(currentVersion) : String(selectedVersion)}
-              onChange={(e) => {
-                const val = Number(e.target.value);
-                setSelectedVersion(val === currentVersion ? "current" : val);
-              }}
-              className="text-xs rounded-md border border-input bg-background px-2 py-1.5"
+        }
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="ghost" size="sm" onClick={() => navigate("/invoices")}>
+              <ChevronLeft className="h-4 w-4" aria-hidden />
+              Back
+            </Button>
+            {versions.length > 0 && (
+              <div className="w-36 space-y-1">
+                <Label htmlFor="version-select" className="sr-only">
+                  Version
+                </Label>
+                <Select
+                  id="version-select"
+                  value={
+                    selectedVersion === "current"
+                      ? String(currentVersion)
+                      : String(selectedVersion)
+                  }
+                  onChange={(e) => {
+                    const val = Number(e.target.value)
+                    setSelectedVersion(val === currentVersion ? "current" : val)
+                  }}
+                >
+                  {versions.map((v) => (
+                    <option key={v.version_number} value={v.version_number}>
+                      v{v.version_number}
+                      {v.is_current ? " (current)" : ""}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+            )}
+            <Badge
+              variant={getStatusVariant(INVOICE_STATUS_VARIANT, headerStatus)}
+              shape="pill"
             >
-              {versions.map((v) => (
-                <option key={v.version_number} value={v.version_number}>
-                  v{v.version_number}
-                  {v.is_current ? " (current)" : ""}
-                </option>
-              ))}
-            </select>
-          )}
-          <Badge variant={getStatusBadgeVariant(headerStatus)} className="text-xs uppercase px-3 py-1 font-bold tracking-wider">
-            {headerStatus}
-          </Badge>
-        </div>
-      </header>
+              {headerStatus?.replace(/_/g, " ")}
+            </Badge>
+          </div>
+        }
+      />
 
       {versions.length > 1 && (
-        <Card className="border-border shadow-xs">
-          <CardHeader className="pb-3 border-b border-border mb-4">
-            <CardTitle className="text-sm font-bold uppercase tracking-wider flex items-center gap-2">
-              <History className="h-4 w-4 text-primary" /> Amendment History
+        <Card>
+          <CardHeader className="border-b border-border pb-4">
+            <CardTitle className="flex items-center gap-2 text-base font-semibold">
+              <History className="h-4 w-4 text-primary" aria-hidden />
+              Amendment history
             </CardTitle>
           </CardHeader>
-          <CardContent className="pt-0">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead>
-                  <tr className="border-b border-border text-muted-foreground uppercase">
-                    <th className="py-2 pr-3">Version</th>
-                    <th className="py-2 pr-3">When</th>
-                    <th className="py-2 pr-3">Reason</th>
-                    <th className="py-2 pr-3">Source</th>
-                    <th className="py-2 pr-3">By</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {versions.map((v) => (
-                    <tr
-                      key={v.version_number}
-                      className="border-b border-border/60 hover:bg-slate-50/30 cursor-pointer"
-                      onClick={() =>
-                        setSelectedVersion(v.is_current ? "current" : v.version_number)
-                      }
-                    >
-                      <td className="py-2 pr-3 font-mono font-bold">
-                        v{v.version_number}
-                        {v.is_current ? " *" : ""}
-                      </td>
-                      <td className="py-2 pr-3">
-                        {new Date(v.created_at).toLocaleString()}
-                      </td>
-                      <td className="py-2 pr-3">{v.change_reason || "—"}</td>
-                      <td className="py-2 pr-3">{v.change_source}</td>
-                      <td className="py-2 pr-3">{v.created_by || "—"}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+          <CardContent className="p-0">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Version</TableHead>
+                  <TableHead>When</TableHead>
+                  <TableHead>Reason</TableHead>
+                  <TableHead>Source</TableHead>
+                  <TableHead>By</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {versions.map((v) => (
+                  <TableRow
+                    key={v.version_number}
+                    className="cursor-pointer"
+                    onClick={() =>
+                      setSelectedVersion(v.is_current ? "current" : v.version_number)
+                    }
+                  >
+                    <TableCell className="font-medium tabular-nums">
+                      v{v.version_number}
+                      {v.is_current ? " *" : ""}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {new Date(v.created_at).toLocaleString()}
+                    </TableCell>
+                    <TableCell>{v.change_reason || "—"}</TableCell>
+                    <TableCell>{v.change_source}</TableCell>
+                    <TableCell>{v.created_by || "—"}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           </CardContent>
         </Card>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <Card className="border-border shadow-xs">
-          <CardHeader className="pb-3 border-b border-border mb-4">
-            <CardTitle className="text-sm font-bold uppercase tracking-wider flex items-center gap-2">
-              <Calendar className="h-4 w-4 text-primary" /> Invoice Schedule
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+        <Card>
+          <CardHeader className="border-b border-border pb-4">
+            <CardTitle className="flex items-center gap-2 text-base font-semibold">
+              <Calendar className="h-4 w-4 text-primary" aria-hidden />
+              Invoice schedule
             </CardTitle>
           </CardHeader>
-          <CardContent className="pt-0 space-y-3 text-sm">
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Invoice Date:</span>
-              <span className="font-semibold text-foreground">
+          <CardContent className="space-y-3 pt-4 text-sm leading-relaxed">
+            <div className="flex justify-between gap-4">
+              <span className="text-muted-foreground">Invoice date</span>
+              <span className="font-medium text-foreground">
                 {invoiceDate ? new Date(invoiceDate).toLocaleDateString() : "—"}
               </span>
             </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Due Date:</span>
-              <span className="font-semibold text-foreground">
+            <div className="flex justify-between gap-4">
+              <span className="text-muted-foreground">Due date</span>
+              <span className="font-medium text-foreground">
                 {dueDate ? new Date(dueDate).toLocaleDateString() : "—"}
               </span>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="border-border shadow-xs">
-          <CardHeader className="pb-3 border-b border-border mb-4">
-            <CardTitle className="text-sm font-bold uppercase tracking-wider flex items-center gap-2">
-              <User className="h-4 w-4 text-primary" /> Customer Account
+        <Card>
+          <CardHeader className="border-b border-border pb-4">
+            <CardTitle className="flex items-center gap-2 text-base font-semibold">
+              <User className="h-4 w-4 text-primary" aria-hidden />
+              Customer account
             </CardTitle>
           </CardHeader>
-          <CardContent className="pt-0 space-y-3 text-sm">
+          <CardContent className="space-y-3 pt-4 text-sm leading-relaxed">
             {invoice.customer ? (
               <>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Name:</span>
-                  <span className="font-semibold text-foreground">{invoice.customer.customer_name}</span>
+                <div className="flex justify-between gap-4">
+                  <span className="text-muted-foreground">Name</span>
+                  <span className="font-medium text-foreground">
+                    {invoice.customer.customer_name}
+                  </span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Customer Code:</span>
-                  <span className="font-semibold text-foreground font-mono text-xs">{invoice.customer.customer_code}</span>
+                <div className="flex justify-between gap-4">
+                  <span className="text-muted-foreground">Customer code</span>
+                  <span className="font-mono text-xs font-medium text-foreground">
+                    {invoice.customer.customer_code}
+                  </span>
                 </div>
               </>
             ) : (
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Billing Currency:</span>
-                <span className="font-semibold text-foreground">{currency}</span>
+              <div className="flex justify-between gap-4">
+                <span className="text-muted-foreground">Billing currency</span>
+                <span className="font-medium text-foreground">{currency}</span>
               </div>
             )}
           </CardContent>
         </Card>
       </div>
 
-      <Card className="border-border shadow-xs">
-        <CardHeader className="pb-3 border-b border-border mb-4">
-          <CardTitle className="text-sm font-bold uppercase tracking-wider flex items-center gap-2">
-            <FileSpreadsheet className="h-4 w-4 text-primary" /> Line Items
+      <Card>
+        <CardHeader className="border-b border-border pb-4">
+          <CardTitle className="flex items-center gap-2 text-base font-semibold">
+            <FileSpreadsheet className="h-4 w-4 text-primary" aria-hidden />
+            Line items
           </CardTitle>
         </CardHeader>
-        <CardContent className="pt-0">
+        <CardContent className="p-0 pt-0">
           {isItemsLoading || (viewingHistorical && isHistoricalLoading) ? (
-            <div className="space-y-3">
+            <div className="space-y-3 p-4">
               <Skeleton className="h-8 w-full" />
               <Skeleton className="h-8 w-full" />
             </div>
           ) : displayItems.length === 0 ? (
-            <div className="text-center py-10 text-muted-foreground text-xs">No line items.</div>
+            <EmptyState
+              title="No line items"
+              description="This invoice has no line items to display."
+              className="py-8"
+            />
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm">
-                <thead>
-                  <tr className="border-b border-border text-muted-foreground uppercase text-xs font-semibold">
-                    <th className="py-2.5 px-3">Description</th>
-                    <th className="py-2.5 px-3 text-right">Quantity</th>
-                    <th className="py-2.5 px-3 text-right">Unit Price</th>
-                    <th className="py-2.5 px-3 text-right">Line Total</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
-                  {displayItems.map((item) => (
-                    <tr key={item.id} className="hover:bg-slate-50/20">
-                      <td className="py-3 px-3 font-medium text-foreground">{item.description}</td>
-                      <td className="py-3 px-3 text-right text-muted-foreground font-mono">{item.quantity.toLocaleString()}</td>
-                      <td className="py-3 px-3 text-right text-muted-foreground font-mono">
-                        {currency} {item.unit_price.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                      </td>
-                      <td className="py-3 px-3 text-right font-bold text-foreground font-mono">
-                        {currency} {item.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Description</TableHead>
+                  <TableHead className="text-right">Quantity</TableHead>
+                  <TableHead className="text-right">Unit price</TableHead>
+                  <TableHead className="text-right">Line total</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {displayItems.map((item) => (
+                  <TableRow key={item.id}>
+                    <TableCell className="font-medium text-foreground">
+                      {item.description}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums text-muted-foreground">
+                      {item.quantity.toLocaleString()}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums text-muted-foreground">
+                      {currency}{" "}
+                      {item.unit_price.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                    </TableCell>
+                    <TableCell className="text-right font-medium tabular-nums text-foreground">
+                      {currency}{" "}
+                      {item.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           )}
 
-          <div className="border-t border-border mt-6 pt-4 flex justify-end">
-            <div className="w-full max-w-sm space-y-3 text-sm">
+          <div className="border-t border-border px-4 py-4">
+            <div className="ml-auto w-full max-w-sm space-y-3 text-sm">
               <div className="flex justify-between">
-                <span className="text-muted-foreground">Subtotal:</span>
-                <span className="font-semibold text-foreground font-mono">
-                  {currency} {subtotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                <span className="text-muted-foreground">Subtotal</span>
+                <span className="font-medium tabular-nums text-foreground">
+                  {currency}{" "}
+                  {subtotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                 </span>
               </div>
               <div className="flex justify-between">
-                <span className="text-muted-foreground">Taxes:</span>
-                <span className="font-semibold text-foreground font-mono">
+                <span className="text-muted-foreground">Taxes</span>
+                <span className="font-medium tabular-nums text-foreground">
                   {currency} {tax.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                 </span>
               </div>
               <div className="flex justify-between border-b border-border pb-3">
-                <span className="font-bold text-foreground">Total Invoice Amount:</span>
-                <span className="font-bold text-foreground font-mono">
+                <span className="font-semibold text-foreground">Total invoice amount</span>
+                <span className="font-semibold tabular-nums text-foreground">
                   {currency} {total.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                 </span>
               </div>
               <div className="flex justify-between pt-1">
-                <span className="font-bold text-rose-500">Outstanding:</span>
-                <span className="font-bold text-rose-500 font-mono">
-                  {currency} {outstanding.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                <span className="font-semibold text-destructive">Outstanding</span>
+                <span className="font-semibold tabular-nums text-destructive">
+                  {currency}{" "}
+                  {outstanding.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                 </span>
               </div>
             </div>
@@ -349,7 +389,7 @@ export const InvoiceDetailPage: React.FC = () => {
         </CardContent>
       </Card>
     </div>
-  );
-};
+  )
+}
 
-export default InvoiceDetailPage;
+export default InvoiceDetailPage

@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useCallback } from "react"
 import { AlertCircle, CheckCircle, Info, X } from "lucide-react"
+import { cn } from "@/lib/utils"
 
 export type ToastType = "success" | "error" | "info" | "warning";
 
@@ -18,6 +19,20 @@ interface ToastContextProps {
 }
 
 const ToastContext = createContext<ToastContextProps | null>(null);
+
+const toastAccentStyles: Record<ToastType, string> = {
+  success: "border-l-success bg-card",
+  error: "border-l-destructive bg-card",
+  warning: "border-l-warning bg-card",
+  info: "border-l-primary bg-card",
+}
+
+const toastIconStyles: Record<ToastType, string> = {
+  success: "text-success",
+  error: "text-destructive",
+  warning: "text-warning",
+  info: "text-primary",
+}
 
 export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [toasts, setToasts] = useState<ToastItem[]>([]);
@@ -43,38 +58,45 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   return (
     <ToastContext.Provider value={{ toast, dismiss, toasts }}>
       {children}
-      {/* Toast container */}
-      <div className="fixed bottom-4 right-4 z-50 flex flex-col space-y-2 w-full max-w-sm">
-        {toasts.map((t) => (
-          <div
-            key={t.id}
-            className={`flex items-start p-4 rounded-xl border shadow-lg bg-card animate-in slide-in-from-bottom duration-250 ${
-              t.type === "success" ? "border-emerald-500/30 text-emerald-800 dark:text-emerald-400 bg-emerald-500/5" :
-              t.type === "error" ? "border-destructive/30 text-destructive bg-destructive/5" :
-              t.type === "warning" ? "border-amber-500/30 text-amber-800 dark:text-amber-400 bg-amber-500/5" :
-              "border-border text-foreground"
-            }`}
-          >
-            <div className="flex-shrink-0 mt-0.5 mr-3">
-              {t.type === "success" && <CheckCircle className="h-5 w-5 text-emerald-500" />}
-              {t.type === "error" && <AlertCircle className="h-5 w-5 text-destructive" />}
-              {t.type === "warning" && <AlertCircle className="h-5 w-5 text-amber-500" />}
-              {t.type === "info" && <Info className="h-5 w-5 text-primary" />}
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold">{t.title}</p>
-              {t.description && (
-                <p className="mt-1 text-xs text-muted-foreground line-clamp-2">{t.description}</p>
+      <div
+        className="fixed top-4 right-4 z-50 flex w-full max-w-sm flex-col space-y-2"
+        aria-live="polite"
+        aria-relevant="additions"
+      >
+        {toasts.map((t) => {
+          const type = t.type ?? "info"
+          return (
+            <div
+              key={t.id}
+              role="status"
+              className={cn(
+                "flex items-start border border-border border-l-4 p-4 animate-in slide-in-from-top duration-200",
+                toastAccentStyles[type]
               )}
-            </div>
-            <button
-              onClick={() => dismiss(t.id)}
-              className="flex-shrink-0 ml-4 text-muted-foreground hover:text-foreground opacity-60 hover:opacity-100"
             >
-              <X className="h-4 w-4" />
-            </button>
-          </div>
-        ))}
+              <div className="mr-3 mt-0.5 shrink-0" aria-hidden>
+                {type === "success" && <CheckCircle className={cn("h-5 w-5", toastIconStyles[type])} />}
+                {type === "error" && <AlertCircle className={cn("h-5 w-5", toastIconStyles[type])} />}
+                {type === "warning" && <AlertCircle className={cn("h-5 w-5", toastIconStyles[type])} />}
+                {type === "info" && <Info className={cn("h-5 w-5", toastIconStyles[type])} />}
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-medium text-foreground">{t.title}</p>
+                {t.description && (
+                  <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{t.description}</p>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={() => dismiss(t.id)}
+                aria-label="Dismiss"
+                className="ml-4 shrink-0 rounded-sm text-muted-foreground opacity-60 transition-opacity hover:text-foreground hover:opacity-100 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring/30 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+              >
+                <X className="h-4 w-4" aria-hidden />
+              </button>
+            </div>
+          )
+        })}
       </div>
     </ToastContext.Provider>
   );

@@ -1,76 +1,82 @@
 import React from "react"
-import { useParams, Link } from "react-router-dom"
+import { useParams, useNavigate } from "react-router-dom"
 import { useBatchStatus } from "../hooks/useInvoices"
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
+import { PageHeader } from "@/components/ui/page-header"
+import { EmptyState } from "@/components/ui/empty-state"
+import { Button } from "@/components/ui/button"
+import { KpiCard, KpiGrid } from "@/components/ui/kpi-card"
+import { AiAgentCard } from "@/components/ui/ai-agent-card"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
+import { BATCH_STATUS_VARIANT, getStatusVariant } from "@/lib/design-tokens"
 import {
   CheckCircle,
   XCircle,
   Loader2,
-  ArrowLeft,
+  ChevronLeft,
   Calendar,
   Layers,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
 } from "lucide-react"
 
 export const BatchDetailsPage: React.FC = () => {
-  const { id } = useParams<{ id: string }>();
-
-  const [expandedFiles, setExpandedFiles] = React.useState<Record<string, boolean>>({});
+  const { id } = useParams<{ id: string }>()
+  const navigate = useNavigate()
+  const [expandedFiles, setExpandedFiles] = React.useState<Record<string, boolean>>({})
 
   const toggleExpand = (fileId: string) => {
-    setExpandedFiles((prev) => ({ ...prev, [fileId]: !prev[fileId] }));
-  };
+    setExpandedFiles((prev) => ({ ...prev, [fileId]: !prev[fileId] }))
+  }
 
-  // Fetch status details (polled automatically every 2s until completed)
-  const { data: batch, isLoading: isBatchLoading, error: batchError } = useBatchStatus(id);
-
-
+  const { data: batch, isLoading: isBatchLoading, error: batchError } = useBatchStatus(id)
 
   const failedFiles = React.useMemo(() => {
-    if (!batch || !batch.files) return [];
-    return batch.files.filter((f: any) => f.status === "FAILED");
-  }, [batch]);
+    if (!batch || !batch.files) return []
+    return batch.files.filter((f: { status: string }) => f.status === "FAILED")
+  }, [batch])
 
   const parseErrorMessage = (errorMsg: string | null) => {
-    if (!errorMsg) return { reason: "Unknown error occurred.", rawText: "" };
+    if (!errorMsg) return { reason: "Unknown error occurred.", rawText: "" }
     try {
       if (errorMsg.trim().startsWith("{")) {
-        const parsed = JSON.parse(errorMsg);
+        const parsed = JSON.parse(errorMsg)
         return {
           reason: parsed.reason || "Extraction failed.",
           rawText: parsed.raw_text || "",
-        };
+        }
       }
-    } catch (e) {
+    } catch {
       // Fallback if it's not JSON
     }
-    return { reason: errorMsg, rawText: "" };
-  };
-
-  const getBatchStatusVariant = (status: string | undefined) => {
-    switch (status) {
-      case "COMPLETED": return "success";
-      case "PARTIAL_SUCCESS": return "info";
-      case "PROCESSING": return "default";
-      case "UPLOADED": return "secondary";
-      case "FAILED": return "destructive";
-      default: return "outline";
-    }
-  };
+    return { reason: errorMsg, rawText: "" }
+  }
 
   const formatStatus = (status: string | undefined) => {
-    if (!status) return "";
-    return status.replace("_", " ");
-  };
+    if (!status) return ""
+    return status.replace(/_/g, " ")
+  }
+
+  const isProcessing = batch?.status === "UPLOADED" || batch?.status === "PROCESSING"
+  const processedPercent =
+    batch && batch.total_files > 0
+      ? Math.round((batch.processed_files / batch.total_files) * 100)
+      : 0
 
   if (isBatchLoading) {
     return (
-      <div className="space-y-6 max-w-5xl mx-auto animate-pulse">
-        <Skeleton className="h-8 w-48" />
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="mx-auto max-w-5xl space-y-6">
+        <Skeleton className="h-10 w-48" />
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <Skeleton className="h-24 w-full" />
           <Skeleton className="h-24 w-full" />
           <Skeleton className="h-24 w-full" />
@@ -78,189 +84,197 @@ export const BatchDetailsPage: React.FC = () => {
         </div>
         <Skeleton className="h-64 w-full" />
       </div>
-    );
+    )
   }
 
   if (batchError || !batch) {
     return (
-      <div className="max-w-md mx-auto text-center py-12 space-y-4">
-        <XCircle className="h-12 w-12 text-rose-500 mx-auto" />
-        <h3 className="text-lg font-bold text-foreground">Failed to Load Batch</h3>
-        <p className="text-sm text-muted-foreground">The batch details could not be found. It may be deleted or does not exist.</p>
-        <Link to="/invoice-upload" className="inline-flex items-center gap-1.5 text-xs font-bold text-primary hover:underline">
-          <ArrowLeft className="h-4 w-4" /> Back to Upload Center
-        </Link>
+      <div className="mx-auto max-w-md py-12">
+        <EmptyState
+          icon={<XCircle className="h-6 w-6 text-destructive" />}
+          title="Failed to load batch"
+          description="The batch details could not be found. It may be deleted or does not exist."
+          action={
+            <Button variant="ghost" size="sm" onClick={() => navigate("/invoice-upload")}>
+              <ChevronLeft className="h-4 w-4" aria-hidden />
+              Back to upload center
+            </Button>
+          }
+        />
       </div>
-    );
+    )
   }
 
   return (
-    <div className="space-y-6 max-w-5xl mx-auto">
-      {/* Page Header */}
-      <header className="flex flex-col sm:flex-row sm:items-center sm:justify-between border-b border-border pb-5 gap-4">
-        <div className="space-y-1">
+    <div className="mx-auto max-w-5xl space-y-8">
+      <PageHeader
+        title="Batch ingestion details"
+        description="Track AI extraction progress and review failed file ingestions."
+        actions={
           <div className="flex items-center gap-2">
-            <Link to="/invoice-upload" className="text-muted-foreground hover:text-foreground">
-              <ArrowLeft className="h-5 w-5" />
-            </Link>
-            <h1 className="text-2xl font-bold tracking-tight text-foreground m-0">
-              Batch Ingestion Details
-            </h1>
+            <Button variant="ghost" size="sm" onClick={() => navigate("/invoice-upload")}>
+              <ChevronLeft className="h-4 w-4" aria-hidden />
+              Back
+            </Button>
+            <Badge
+              variant={getStatusVariant(BATCH_STATUS_VARIANT, batch.status)}
+              shape="pill"
+            >
+              {formatStatus(batch.status)}
+            </Badge>
           </div>
-        </div>
-        <div>
-          <Badge variant={getBatchStatusVariant(batch.status)} className="text-xs uppercase px-3 py-1 font-bold tracking-wider">
-            {formatStatus(batch.status)}
-          </Badge>
-        </div>
-      </header>
+        }
+      />
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="p-5 flex items-center justify-between">
-            <div className="space-y-1">
-              <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Total Invoices</span>
-              <p className="text-2xl font-bold text-foreground">{batch.total_files}</p>
-            </div>
-            <div className="p-2.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-500">
-              <Layers className="h-5 w-5" />
-            </div>
+      <KpiGrid columns={4}>
+        <KpiCard
+          label="Total invoices"
+          value={batch.total_files}
+          icon={<Layers className="h-5 w-5" />}
+        />
+        <KpiCard
+          label="Successful ingestion"
+          value={batch.success_count}
+          icon={<CheckCircle className="h-5 w-5" />}
+          iconTone="success"
+        />
+        <KpiCard
+          label="Failed ingestion"
+          value={batch.failed_count}
+          icon={<XCircle className="h-5 w-5" />}
+          iconTone="destructive"
+        />
+        <KpiCard
+          label="Uploaded at"
+          value={
+            <span className="text-sm font-medium">
+              {new Date(batch.uploaded_at).toLocaleString(undefined, {
+                dateStyle: "short",
+                timeStyle: "short",
+              })}
+            </span>
+          }
+          icon={<Calendar className="h-5 w-5" />}
+          iconTone="info"
+        />
+      </KpiGrid>
+
+      {isProcessing && (
+        <AiAgentCard
+          agentName="Invoice extraction agent"
+          stage={`Processing file ${batch.processed_files} of ${batch.total_files}`}
+          stageLabel="Extraction stage"
+          progress={processedPercent}
+          status="running"
+        />
+      )}
+
+      {failedFiles.length > 0 && (
+        <Card className="border-destructive/20">
+          <CardHeader className="border-b border-border pb-4">
+            <CardTitle className="flex items-center gap-2 text-base font-semibold text-destructive">
+              <XCircle className="h-4 w-4" aria-hidden />
+              Failed ingestion details
+            </CardTitle>
+            <CardDescription>
+              Files that could not be processed during ingestion.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="p-0">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>File name</TableHead>
+                  <TableHead>Failure reason</TableHead>
+                  <TableHead>Raw parsed text</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {failedFiles.map((file: { id: string; file_name: string; error_message: string | null }) => {
+                  const { reason, rawText } = parseErrorMessage(file.error_message)
+                  const isExpanded = !!expandedFiles[file.id]
+                  return (
+                    <React.Fragment key={file.id}>
+                      <TableRow>
+                        <TableCell
+                          className="max-w-[240px] truncate font-medium"
+                          title={file.file_name}
+                        >
+                          {file.file_name}
+                        </TableCell>
+                        <TableCell className="text-destructive">{formatStatus(reason)}</TableCell>
+                        <TableCell>
+                          {rawText ? (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 px-2 text-primary"
+                              onClick={() => toggleExpand(file.id)}
+                            >
+                              {isExpanded ? (
+                                <>
+                                  Hide raw text <ChevronUp className="h-3.5 w-3.5" aria-hidden />
+                                </>
+                              ) : (
+                                <>
+                                  Show raw text ({rawText.length} chars){" "}
+                                  <ChevronDown className="h-3.5 w-3.5" aria-hidden />
+                                </>
+                              )}
+                            </Button>
+                          ) : (
+                            <span className="text-xs italic text-muted-foreground">
+                              No raw text available
+                            </span>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                      {isExpanded && rawText && (
+                        <TableRow>
+                          <TableCell colSpan={3} className="bg-muted/30 p-4">
+                            <div className="space-y-2">
+                              <span className="text-xs font-medium text-muted-foreground">
+                                Raw extracted content
+                              </span>
+                              <pre className="max-h-60 overflow-y-auto rounded-md border border-border bg-background p-3 text-xs leading-relaxed whitespace-pre-wrap">
+                                {rawText}
+                              </pre>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </React.Fragment>
+                  )
+                })}
+              </TableBody>
+            </Table>
           </CardContent>
         </Card>
+      )}
 
-        <Card>
-          <CardContent className="p-5 flex items-center justify-between">
-            <div className="space-y-1">
-              <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Successful Ingestion</span>
-              <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{batch.success_count}</p>
-            </div>
-            <div className="p-2.5 rounded-lg bg-emerald-500/10 text-emerald-500">
-              <CheckCircle className="h-5 w-5" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-5 flex items-center justify-between">
-            <div className="space-y-1">
-              <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Failed Ingestion</span>
-              <p className="text-2xl font-bold text-rose-600 dark:text-rose-400">{batch.failed_count}</p>
-            </div>
-            <div className="p-2.5 rounded-lg bg-rose-500/10 text-rose-500">
-              <XCircle className="h-5 w-5" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-5 flex items-center justify-between">
-            <div className="space-y-1">
-              <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Uploaded At</span>
-              <p className="text-sm font-semibold text-foreground mt-1 flex items-center gap-1.5">
-                <Calendar className="h-4 w-4 text-slate-400" />
-                {new Date(batch.uploaded_at).toLocaleString(undefined, { dateStyle: "short", timeStyle: "short" })}
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Uploading Status Overlay Info */}
-      {(batch.status === "UPLOADED" || batch.status === "PROCESSING") && (
-        <Card className="border-amber-500/20 bg-amber-500/5 text-amber-800 dark:text-amber-400">
-          <CardContent className="p-4 flex items-center gap-3">
-            <Loader2 className="h-5 w-5 animate-spin text-amber-500" />
-            <p className="text-sm font-semibold m-0">
-              AI model is currently extracting line items from this batch ({batch.processed_files}/{batch.total_files} files complete). Updates occur automatically.
+      {!isProcessing && failedFiles.length === 0 && batch.status === "COMPLETED" && (
+        <Card className="border-success/20 bg-success-muted/30">
+          <CardContent className="flex items-center gap-3 p-4">
+            <CheckCircle className="h-5 w-5 shrink-0 text-success" aria-hidden />
+            <p className="text-sm text-foreground">
+              All {batch.total_files} invoice(s) were successfully parsed and registered.
             </p>
           </CardContent>
         </Card>
       )}
 
-
-
-      {/* Failed Ingestion Details Table */}
-      {failedFiles.length > 0 && (
-        <Card className="border-rose-500/20 shadow-xs">
-          <CardHeader className="pb-3 border-b border-rose-500/20 bg-rose-50/10 dark:bg-rose-950/5 mb-4">
-            <CardTitle className="text-sm font-bold uppercase tracking-wider flex items-center gap-2 text-rose-600 dark:text-rose-400">
-              <XCircle className="h-4 w-4" /> Failed Ingestion Details
-            </CardTitle>
-            <CardDescription className="text-rose-500/80">
-              Files that could not be processed during ingestion.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="pt-0">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm">
-                <thead>
-                  <tr className="border-b border-border text-muted-foreground uppercase text-xs font-semibold">
-                    <th className="py-3 px-3">File Name</th>
-                    <th className="py-3 px-3">Failure Reason</th>
-                    <th className="py-3 px-3">Raw Parsed Text</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
-                  {failedFiles.map((file: any) => {
-                    const { reason, rawText } = parseErrorMessage(file.error_message);
-                    const isExpanded = !!expandedFiles[file.id];
-                    return (
-                      <React.Fragment key={file.id}>
-                        <tr className="hover:bg-slate-50/50 dark:hover:bg-zinc-900/40 transition-colors">
-                          <td className="py-3 px-3 font-semibold text-foreground max-w-[240px] truncate" title={file.file_name}>
-                            {file.file_name}
-                          </td>
-                          <td className="py-3 px-3 text-rose-600 dark:text-rose-400 font-semibold text-xs uppercase tracking-wide">
-                            {formatStatus(reason)}
-                          </td>
-                          <td className="py-3 px-3">
-                            {rawText ? (
-                              <button
-                                onClick={() => toggleExpand(file.id)}
-                                className="inline-flex items-center gap-1.5 text-xs font-bold text-primary hover:underline hover:cursor-pointer"
-                              >
-                                {isExpanded ? (
-                                  <>
-                                    Hide Raw Text <ChevronUp className="h-3.5 w-3.5" />
-                                  </>
-                                ) : (
-                                  <>
-                                    Show Raw Text ({rawText.length} chars){" "}
-                                    <ChevronDown className="h-3.5 w-3.5" />
-                                  </>
-                                )}
-                              </button>
-                            ) : (
-                              <span className="text-xs text-muted-foreground italic">No raw text available</span>
-                            )}
-                          </td>
-                        </tr>
-                        {isExpanded && rawText && (
-                          <tr>
-                            <td colSpan={3} className="bg-slate-50/40 dark:bg-zinc-950/20 p-4 border-t border-b border-border">
-                              <div className="space-y-2">
-                                <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
-                                  Raw Extracted Content
-                                </span>
-                                <pre className="max-h-60 overflow-y-auto rounded-lg border border-border bg-slate-100 dark:bg-zinc-900 p-3.5 text-xs font-mono text-foreground whitespace-pre-wrap leading-relaxed shadow-inner">
-                                  {rawText}
-                                </pre>
-                              </div>
-                            </td>
-                          </tr>
-                        )}
-                      </React.Fragment>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+      {!isProcessing && batch.status === "PARTIAL_SUCCESS" && (
+        <Card className="border-warning/20 bg-warning-muted/30">
+          <CardContent className="flex items-center gap-3 p-4">
+            <Loader2 className="h-5 w-5 shrink-0 text-warning" aria-hidden />
+            <p className="text-sm text-foreground">
+              {batch.success_count} succeeded and {batch.failed_count} were sent for review.
+            </p>
           </CardContent>
         </Card>
       )}
     </div>
-  );
-};
+  )
+}
 
-export default BatchDetailsPage;
+export default BatchDetailsPage

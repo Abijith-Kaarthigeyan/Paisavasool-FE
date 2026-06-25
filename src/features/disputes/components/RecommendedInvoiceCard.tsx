@@ -1,4 +1,12 @@
 import React from "react"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
 
 interface RecommendedInvoiceCardProps {
   invoice: Record<string, unknown>
@@ -43,97 +51,92 @@ export const RecommendedInvoiceCard: React.FC<RecommendedInvoiceCardProps> = ({
   const outstanding = pick(invoice, ["outstanding_amount", "outstanding"])
 
   return (
-    <div className="rounded-lg border border-border bg-white dark:bg-zinc-950/20 overflow-hidden text-xs">
-      <div className="px-4 py-3 border-b border-border bg-slate-50/80 dark:bg-zinc-900/40">
-        <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-          Recommended Invoice Changes
+    <div className="overflow-hidden rounded-lg border border-border bg-card text-sm">
+      <div className="border-b border-border bg-muted/30 px-4 py-3">
+        <p className="text-xs font-medium text-muted-foreground">
+          Recommended invoice changes
         </p>
-        <p className="font-bold text-foreground text-sm mt-0.5">
+        <p className="mt-0.5 text-base font-semibold text-foreground">
           {invoiceNumber ? String(invoiceNumber) : "Invoice amendment"}
         </p>
         {customerName && (
-          <p className="text-muted-foreground mt-0.5">{String(customerName)}</p>
+          <p className="mt-0.5 text-sm text-muted-foreground">{String(customerName)}</p>
         )}
       </div>
 
-      <div className="p-4 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 gap-3 p-4 md:grid-cols-3 lg:grid-cols-4">
         <div>
-          <span className="text-muted-foreground block text-[10px]">Invoice Number</span>
-          <span className="font-semibold">{invoiceNumber ? String(invoiceNumber) : "—"}</span>
+          <span className="block text-xs text-muted-foreground">Invoice number</span>
+          <span className="font-medium">{invoiceNumber ? String(invoiceNumber) : "—"}</span>
         </div>
         <div>
-          <span className="text-muted-foreground block text-[10px]">Issue Date</span>
-          <span className="font-semibold">{formatDate(issueDate)}</span>
+          <span className="block text-xs text-muted-foreground">Issue date</span>
+          <span className="font-medium">{formatDate(issueDate)}</span>
         </div>
         <div>
-          <span className="text-muted-foreground block text-[10px]">Due Date</span>
-          <span className="font-semibold">{formatDate(dueDate)}</span>
+          <span className="block text-xs text-muted-foreground">Due date</span>
+          <span className="font-medium">{formatDate(dueDate)}</span>
         </div>
         <div>
-          <span className="text-muted-foreground block text-[10px]">Subtotal</span>
-          <span className="font-mono font-semibold">{currency(subtotal)}</span>
+          <span className="block text-xs text-muted-foreground">Subtotal</span>
+          <span className="font-medium tabular-nums">{currency(subtotal)}</span>
         </div>
         <div>
-          <span className="text-muted-foreground block text-[10px]">Tax</span>
-          <span className="font-mono font-semibold">{currency(tax)}</span>
+          <span className="block text-xs text-muted-foreground">Tax</span>
+          <span className="font-medium tabular-nums">{currency(tax)}</span>
         </div>
         <div>
-          <span className="text-muted-foreground block text-[10px]">Total</span>
-          <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400">
-            {currency(total)}
-          </span>
+          <span className="block text-xs text-muted-foreground">Total</span>
+          <span className="font-semibold tabular-nums text-success">{currency(total)}</span>
         </div>
         <div>
-          <span className="text-muted-foreground block text-[10px]">Outstanding</span>
-          <span className="font-mono font-semibold">{currency(outstanding)}</span>
+          <span className="block text-xs text-muted-foreground">Outstanding</span>
+          <span className="font-medium tabular-nums">{currency(outstanding)}</span>
         </div>
       </div>
 
       <div className="px-4 pb-4">
-        <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-2">
-          Products / Line Items
-        </p>
+        <p className="mb-2 text-xs font-medium text-muted-foreground">Line items</p>
         {items.length > 0 ? (
-          <div className="overflow-x-auto rounded-lg border border-border">
-            <table className="w-full text-left">
-              <thead className="bg-slate-50 dark:bg-zinc-900/40 text-[10px] uppercase text-muted-foreground">
-                <tr>
-                  <th className="px-3 py-2 font-bold">Product</th>
-                  <th className="px-3 py-2 font-bold text-right">Quantity</th>
-                  <th className="px-3 py-2 font-bold text-right">Unit Price</th>
-                  <th className="px-3 py-2 font-bold text-right">Amount</th>
-                </tr>
-              </thead>
-              <tbody>
+          <div className="overflow-hidden rounded-lg border border-border">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Product</TableHead>
+                  <TableHead className="text-right">Quantity</TableHead>
+                  <TableHead className="text-right">Unit price</TableHead>
+                  <TableHead className="text-right">Amount</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {items.map((item, index) => {
                   const row = item as Record<string, unknown>
                   const description =
-                    pick(row, ["description", "product_name", "name", "product"]) ||
-                    "Item"
+                    pick(row, ["description", "product_name", "name", "product"]) || "Item"
                   const quantity = pick(row, ["quantity", "qty"])
                   const unitPrice = pick(row, ["unit_price", "rate", "price"])
                   const amount = pick(row, ["amount", "total", "line_total"])
 
                   return (
-                    <tr key={index} className="border-t border-border">
-                      <td className="px-3 py-2 text-foreground">{String(description)}</td>
-                      <td className="px-3 py-2 text-right font-mono">
+                    <TableRow key={index}>
+                      <TableCell>{String(description)}</TableCell>
+                      <TableCell className="text-right tabular-nums">
                         {quantity != null ? String(quantity) : "—"}
-                      </td>
-                      <td className="px-3 py-2 text-right font-mono">
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums">
                         {currency(unitPrice)}
-                      </td>
-                      <td className="px-3 py-2 text-right font-mono font-semibold">
+                      </TableCell>
+                      <TableCell className="text-right font-medium tabular-nums">
                         {currency(amount)}
-                      </td>
-                    </tr>
+                      </TableCell>
+                    </TableRow>
                   )
                 })}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
           </div>
         ) : (
-          <p className="text-muted-foreground italic">No line items provided.</p>
+          <p className="text-sm italic text-muted-foreground">No line items provided.</p>
         )}
       </div>
     </div>

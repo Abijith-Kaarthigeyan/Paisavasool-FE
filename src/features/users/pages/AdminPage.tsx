@@ -161,7 +161,7 @@ export const AdminPage: React.FC = () => {
   const managers = users.filter((u) => u.role.role_name === "FINANCE_MANAGER" && u.is_active);
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 p-6 font-sans">
+    <div className="min-h-screen bg-background p-6 font-sans">
       <div className="mx-auto max-w-7xl space-y-6">
         {/* Header */}
         <header className="flex items-center justify-between border-b border-border pb-4">
@@ -194,7 +194,7 @@ export const AdminPage: React.FC = () => {
         </header>
 
         {actionError && (
-          <div className="rounded-md bg-rose-50 dark:bg-rose-950/20 p-4 text-rose-700 dark:text-rose-400 text-sm">
+          <div className="rounded-md bg-destructive/10 p-4 text-sm text-destructive">
             <span className="font-bold">Error: </span>
             {actionError}
           </div>
@@ -209,7 +209,7 @@ export const AdminPage: React.FC = () => {
                 <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
               </div>
             ) : fetchError ? (
-              <div className="text-rose-500 text-center py-8">
+              <div className="py-8 text-center text-destructive">
                 Failed to retrieve users list. Verify the auth microservice is running.
               </div>
             ) : (
@@ -229,7 +229,7 @@ export const AdminPage: React.FC = () => {
                       <tr
                         key={userItem.id}
                         onClick={() => setSelectedUser(userItem)}
-                        className={`hover:bg-zinc-100 dark:hover:bg-zinc-900 cursor-pointer transition-colors ${
+                        className={`cursor-pointer transition-colors hover:bg-muted ${
                           selectedUser?.id === userItem.id ? "bg-primary/5" : ""
                         }`}
                       >
@@ -246,8 +246,8 @@ export const AdminPage: React.FC = () => {
                           <span
                             className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
                               userItem.is_active
-                                ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/20 dark:text-emerald-400"
-                                : "bg-rose-50 text-rose-700 dark:bg-rose-950/20 dark:text-rose-400"
+                                ? "bg-success-muted text-success"
+                                : "bg-destructive/10 text-destructive"
                             }`}
                           >
                             {userItem.is_active ? "Active" : "Inactive"}
@@ -263,7 +263,7 @@ export const AdminPage: React.FC = () => {
                           <button
                             onClick={() => toggleUserStatus(userItem)}
                             className={`text-xs font-semibold hover:underline ${
-                              userItem.is_active ? "text-rose-500" : "text-emerald-500"
+                              userItem.is_active ? "text-destructive" : "text-success"
                             }`}
                           >
                             {userItem.is_active ? "Deactivate" : "Activate"}
@@ -312,7 +312,7 @@ export const AdminPage: React.FC = () => {
                     <span className="text-muted-foreground">Status:</span>
                     <span
                       className={`font-semibold ${
-                        selectedUser.is_active ? "text-emerald-500" : "text-rose-500"
+                        selectedUser.is_active ? "text-success" : "text-destructive"
                       }`}
                     >
                       {selectedUser.is_active ? "Active" : "Inactive"}
@@ -353,7 +353,7 @@ export const AdminPage: React.FC = () => {
                     className="mt-1 w-full rounded border border-input bg-background p-2 text-sm text-foreground focus:ring-1 focus:ring-primary"
                   />
                   {createErrors.first_name && (
-                    <span className="text-xs text-rose-500">{createErrors.first_name.message}</span>
+                    <span className="text-xs text-destructive">{createErrors.first_name.message}</span>
                   )}
                 </div>
 
@@ -365,7 +365,7 @@ export const AdminPage: React.FC = () => {
                     className="mt-1 w-full rounded border border-input bg-background p-2 text-sm text-foreground focus:ring-1 focus:ring-primary"
                   />
                   {createErrors.last_name && (
-                    <span className="text-xs text-rose-500">{createErrors.last_name.message}</span>
+                    <span className="text-xs text-destructive">{createErrors.last_name.message}</span>
                   )}
                 </div>
 
@@ -377,7 +377,7 @@ export const AdminPage: React.FC = () => {
                     className="mt-1 w-full rounded border border-input bg-background p-2 text-sm text-foreground focus:ring-1 focus:ring-primary"
                   />
                   {createErrors.email && (
-                    <span className="text-xs text-rose-500">{createErrors.email.message}</span>
+                    <span className="text-xs text-destructive">{createErrors.email.message}</span>
                   )}
                 </div>
 
@@ -389,7 +389,7 @@ export const AdminPage: React.FC = () => {
                     className="mt-1 w-full rounded border border-input bg-background p-2 text-sm text-foreground focus:ring-1 focus:ring-primary"
                   />
                   {createErrors.password && (
-                    <span className="text-xs text-rose-500">{createErrors.password.message}</span>
+                    <span className="text-xs text-destructive">{createErrors.password.message}</span>
                   )}
                 </div>
 
@@ -420,7 +420,7 @@ export const AdminPage: React.FC = () => {
                       ))}
                     </select>
                     {createErrors.manager_id && (
-                      <span className="text-xs text-rose-500">{createErrors.manager_id.message}</span>
+                      <span className="text-xs text-destructive">{createErrors.manager_id.message}</span>
                     )}
                   </div>
                 )}
@@ -504,7 +504,7 @@ export const AdminPage: React.FC = () => {
                     type="checkbox"
                     id="is_active"
                     {...registerEdit("is_active")}
-                    className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                    className="h-4 w-4 rounded border-input text-primary focus:ring-ring/30"
                   />
                   <label htmlFor="is_active" className="text-sm font-semibold text-foreground">
                     User Active Status

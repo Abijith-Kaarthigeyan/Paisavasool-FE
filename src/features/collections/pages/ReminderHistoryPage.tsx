@@ -1,203 +1,200 @@
-import React, { useState, useMemo } from "react"
+import React, { useMemo, useState } from "react"
 import { useReminderHistory } from "../hooks/useCollections"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Skeleton } from "@/components/ui/skeleton"
+import { TableSkeleton } from "@/components/ui/skeleton"
 import { Pagination } from "@/components/ui/pagination"
-import { Search, RefreshCw, Mail, ArrowUpDown } from "lucide-react"
-
-const getReminderStatusVariant = (status: string) => {
-  switch (status) {
-    case "SENT": return "success";
-    case "PENDING": return "default";
-    case "FAILED": return "destructive";
-    case "CANCELLED": return "outline";
-    default: return "outline";
-  }
-};
+import { PageHeader } from "@/components/ui/page-header"
+import { FilterBar } from "@/components/ui/filter-bar"
+import { EmptyState } from "@/components/ui/empty-state"
+import { Button } from "@/components/ui/button"
+import { Label } from "@/components/ui/label"
+import { Select } from "@/components/ui/select"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
+import { REMINDER_STATUS_VARIANT, getStatusVariant } from "@/lib/design-tokens"
+import { ArrowUpDown, Mail, RefreshCw } from "lucide-react"
 
 export const ReminderHistoryPage: React.FC = () => {
-  const { data: reminders = [], isLoading, isError, refetch } = useReminderHistory();
+  const { data: reminders = [], isLoading, isError, refetch } = useReminderHistory()
 
-  const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState("");
-  const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10;
-
-  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
+  const [searchTerm, setSearchTerm] = useState("")
+  const [statusFilter, setStatusFilter] = useState("")
+  const [currentPage, setCurrentPage] = useState(1)
+  const itemsPerPage = 10
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc")
 
   const filteredReminders = useMemo(() => {
     return reminders
       .filter((r) => {
-        const term = searchTerm.toLowerCase();
+        const term = searchTerm.toLowerCase()
         const matchesSearch =
           r.subject.toLowerCase().includes(term) ||
           r.sent_to.toLowerCase().includes(term) ||
           r.body.toLowerCase().includes(term) ||
-          r.id.toLowerCase().includes(term);
+          r.id.toLowerCase().includes(term)
 
-        const matchesStatus = !statusFilter || r.status === statusFilter;
-        return matchesSearch && matchesStatus;
+        const matchesStatus = !statusFilter || r.status === statusFilter
+        return matchesSearch && matchesStatus
       })
       .sort((a, b) => {
-        const dateA = new Date(a.created_at).getTime();
-        const dateB = new Date(b.created_at).getTime();
-        return sortDirection === "asc" ? dateA - dateB : dateB - dateA;
-      });
-  }, [reminders, searchTerm, statusFilter, sortDirection]);
+        const dateA = new Date(a.created_at).getTime()
+        const dateB = new Date(b.created_at).getTime()
+        return sortDirection === "asc" ? dateA - dateB : dateB - dateA
+      })
+  }, [reminders, searchTerm, statusFilter, sortDirection])
 
-  // Paginated Subset
-  const totalItems = filteredReminders.length;
-  const totalPages = Math.max(1, Math.ceil(totalItems / itemsPerPage));
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const paginatedReminders = filteredReminders.slice(startIndex, startIndex + itemsPerPage);
+  const totalItems = filteredReminders.length
+  const totalPages = Math.max(1, Math.ceil(totalItems / itemsPerPage))
+  const startIndex = (currentPage - 1) * itemsPerPage
+  const paginatedReminders = filteredReminders.slice(startIndex, startIndex + itemsPerPage)
+
+  const hasActiveFilters = !!searchTerm || !!statusFilter
+
+  const clearFilters = () => {
+    setSearchTerm("")
+    setStatusFilter("")
+    setCurrentPage(1)
+  }
 
   const toggleSortDirection = () => {
-    setSortDirection(sortDirection === "asc" ? "desc" : "asc");
-  };
+    setSortDirection(sortDirection === "asc" ? "desc" : "asc")
+  }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <header className="flex flex-col sm:flex-row sm:items-center sm:justify-between border-b border-border pb-5 gap-4">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground m-0">
-            Reminder History Logs
-          </h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Browse corporate communication dispatches, check dunning letters status, and view alert subject lines.
-          </p>
-        </div>
-        <button
-          onClick={() => refetch()}
-          className="flex items-center gap-1.5 self-start sm:self-center rounded-lg border border-border bg-card px-3.5 py-2 text-xs font-bold text-foreground hover:bg-muted transition-colors shadow-xs"
-        >
-          <RefreshCw className="h-3.5 w-3.5" /> Refresh History
-        </button>
-      </header>
+    <div className="space-y-6 animate-in fade-in duration-150">
+      <PageHeader
+        title="Reminder history"
+        description="Browse dunning dispatches, check letter status, and view alert subject lines."
+        actions={
+          <Button variant="secondary" size="sm" onClick={() => refetch()}>
+            <RefreshCw className="h-3.5 w-3.5" aria-hidden />
+            Refresh history
+          </Button>
+        }
+      />
 
-      {/* Filters */}
-      <Card className="border-border shadow-xs">
-        <CardContent className="p-4 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="flex flex-1 items-center space-x-2 border border-input rounded-lg bg-background px-3 py-1.5 w-full max-w-md">
-            <Search className="h-4 w-4 text-muted-foreground" />
-            <input
-              type="text"
-              placeholder="Search by subject, email, or content..."
-              value={searchTerm}
-              onChange={(e) => {
-                setSearchTerm(e.target.value);
-                setCurrentPage(1);
-              }}
-              className="w-full text-xs text-foreground bg-transparent focus:outline-hidden"
-            />
-          </div>
-
-          <select
-            value={statusFilter}
-            onChange={(e) => {
-              setStatusFilter(e.target.value);
-              setCurrentPage(1);
+      <Card>
+        <CardContent className="space-y-4 p-4">
+          <FilterBar
+            searchValue={searchTerm}
+            onSearchChange={(value) => {
+              setSearchTerm(value)
+              setCurrentPage(1)
             }}
-            className="rounded-lg border border-input bg-background p-1.5 text-xs font-semibold focus:outline-hidden text-foreground w-full sm:w-44"
-          >
-            <option value="">All Statuses</option>
-            <option value="SENT">SENT</option>
-            <option value="PENDING">PENDING</option>
-            <option value="FAILED">FAILED</option>
-            <option value="CANCELLED">CANCELLED</option>
-          </select>
+            searchPlaceholder="Search by subject, email, or content…"
+            showClear={hasActiveFilters}
+            onClear={clearFilters}
+          />
+          <div className="max-w-xs space-y-1.5">
+            <Label htmlFor="filter-reminder-status">Status</Label>
+            <Select
+              id="filter-reminder-status"
+              value={statusFilter}
+              onChange={(e) => {
+                setStatusFilter(e.target.value)
+                setCurrentPage(1)
+              }}
+            >
+              <option value="">All statuses</option>
+              <option value="SENT">Sent</option>
+              <option value="PENDING">Pending</option>
+              <option value="FAILED">Failed</option>
+              <option value="CANCELLED">Cancelled</option>
+            </Select>
+          </div>
         </CardContent>
       </Card>
 
-      {/* Main Grid Table */}
-      <Card className="border-border shadow-xs">
+      <Card>
         <CardContent className="p-0">
           {isLoading ? (
-            <div className="p-6 space-y-4">
-              <Skeleton className="h-10 w-full" />
-              <Skeleton className="h-24 w-full" />
-              <Skeleton className="h-24 w-full" />
-            </div>
+            <TableSkeleton rows={8} columns={5} />
           ) : isError ? (
-            <div className="p-12 text-center space-y-4">
-              <Mail className="h-12 w-12 text-destructive mx-auto" />
-              <h3 className="text-base font-bold text-foreground">Failed to Load Reminder Logs</h3>
-              <p className="text-xs text-muted-foreground max-w-sm mx-auto">
-                Unable to retrieve the dunning reminder histories from the backend server.
-              </p>
-              <button
-                onClick={() => refetch()}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-xs font-bold text-primary-foreground hover:bg-primary/95 transition-colors"
-              >
-                Retry Fetch
-              </button>
-            </div>
+            <EmptyState
+              icon={<Mail className="h-6 w-6 text-destructive" />}
+              title="Failed to load reminder logs"
+              description="Unable to retrieve dunning reminder history from the server."
+              action={
+                <Button size="sm" onClick={() => refetch()}>
+                  Retry
+                </Button>
+              }
+            />
           ) : paginatedReminders.length === 0 ? (
-            <div className="p-12 text-center space-y-3">
-              <Mail className="h-10 w-10 text-slate-300 mx-auto" />
-              <p className="text-sm text-muted-foreground font-semibold">
-                No reminders have been generated or scheduled yet.
-              </p>
-            </div>
+            <EmptyState
+              title="No reminders found"
+              description="No reminders have been generated or scheduled yet."
+            />
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm">
-                <thead>
-                  <tr className="border-b border-border text-muted-foreground uppercase text-[10px] font-bold bg-slate-50/50 dark:bg-zinc-900/10">
-                    <th className="py-3 px-4">Subject</th>
-                    <th className="py-3 px-4">Sent To</th>
-                    <th className="py-3 px-4 text-center">Reminder #</th>
-                    <th className="py-3 px-4 text-center">Status</th>
-                    <th className="py-3 px-4 text-right">
-                      <button
-                        onClick={toggleSortDirection}
-                        className="flex items-center justify-end gap-1 hover:text-foreground text-[10px] font-bold w-full"
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Subject</TableHead>
+                  <TableHead>Sent to</TableHead>
+                  <TableHead className="text-center">Reminder #</TableHead>
+                  <TableHead className="text-center">Status</TableHead>
+                  <TableHead className="text-right">
+                    <button
+                      type="button"
+                      onClick={toggleSortDirection}
+                      aria-sort={sortDirection === "asc" ? "ascending" : "descending"}
+                      className="ml-auto inline-flex items-center gap-1 hover:text-foreground"
+                    >
+                      Generated date
+                      <ArrowUpDown className="h-3 w-3" aria-hidden />
+                    </button>
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {paginatedReminders.map((r) => (
+                  <TableRow key={r.id}>
+                    <TableCell className="max-w-[250px] truncate font-medium" title={r.subject}>
+                      {r.subject}
+                    </TableCell>
+                    <TableCell className="max-w-[180px] truncate font-mono text-xs text-muted-foreground">
+                      {r.sent_to}
+                    </TableCell>
+                    <TableCell className="text-center font-mono text-xs tabular-nums">
+                      #{r.reminder_number}
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <Badge
+                        variant={getStatusVariant(REMINDER_STATUS_VARIANT, r.status)}
+                        shape="pill"
                       >
-                        Generated Date <ArrowUpDown className="h-3 w-3" />
-                      </button>
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
-                  {paginatedReminders.map((r) => (
-                    <tr key={r.id} className="hover:bg-slate-50/50 dark:hover:bg-zinc-900/40">
-                      <td className="py-3 px-4 font-semibold text-foreground truncate max-w-[250px]" title={r.subject}>
-                        {r.subject}
-                      </td>
-                      <td className="py-3 px-4 text-muted-foreground font-semibold font-mono text-xs truncate max-w-[180px]">
-                        {r.sent_to}
-                      </td>
-                      <td className="py-3 px-4 text-center font-mono text-xs font-semibold">
-                        #{r.reminder_number}
-                      </td>
-                      <td className="py-3 px-4 text-center">
-                        <Badge variant={getReminderStatusVariant(r.status)} className="text-[10px] py-0 px-2 uppercase font-bold">
-                          {r.status}
-                        </Badge>
-                      </td>
-                      <td className="py-3 px-4 text-right text-xs text-muted-foreground">
-                        {new Date(r.created_at).toLocaleString()}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                        {r.status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums text-muted-foreground">
+                      {new Date(r.created_at).toLocaleString()}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           )}
         </CardContent>
       </Card>
 
-      {/* Pagination controls */}
       {!isLoading && !isError && totalPages > 1 && (
         <Pagination
           currentPage={currentPage}
           totalPages={totalPages}
           onPageChange={setCurrentPage}
+          totalItems={totalItems}
+          pageSize={itemsPerPage}
         />
       )}
     </div>
-  );
-};
+  )
+}
 
-export default ReminderHistoryPage;
+export default ReminderHistoryPage

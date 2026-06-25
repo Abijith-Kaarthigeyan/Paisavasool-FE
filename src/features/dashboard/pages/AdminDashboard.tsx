@@ -7,22 +7,45 @@ import { userService } from "@/features/users/services/userService"
 import { UserResponse } from "@/types"
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog"
 import { useToast } from "@/components/ui/toast"
-import { 
-  Users, 
-  UserCheck, 
-  UserX, 
-  ShieldAlert, 
-  Briefcase, 
-  Plus, 
-  Edit2, 
-  Power, 
+import { PageHeader } from "@/components/ui/page-header"
+import { KpiCard, KpiGrid } from "@/components/ui/kpi-card"
+import { EmptyState } from "@/components/ui/empty-state"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Select } from "@/components/ui/select"
+import { TableSkeleton } from "@/components/ui/skeleton"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
+import { USER_ROLE_VARIANT, getStatusVariant } from "@/lib/design-tokens"
+import {
+  Users,
+  UserCheck,
+  UserX,
+  ShieldAlert,
+  Briefcase,
+  Plus,
+  Edit2,
+  Power,
   PowerOff,
-  User 
+  User,
 } from "lucide-react"
 
-// Form schemas
 const createUserSchema = z.object({
   first_name: z.string().min(1, "First name is required"),
   last_name: z.string().min(1, "Last name is required"),
@@ -30,73 +53,67 @@ const createUserSchema = z.object({
   password: z.string().min(8, "Password must be at least 8 characters"),
   role: z.enum(["ADMIN", "FINANCE_MANAGER", "FINANCE_ASSOCIATE"] as const),
   manager_id: z.string().uuid().or(z.literal("")).optional(),
-});
+})
 
-type CreateUserForm = z.infer<typeof createUserSchema>;
+type CreateUserForm = z.infer<typeof createUserSchema>
 
 export const AdminDashboard: React.FC = () => {
-  const queryClient = useQueryClient();
-  const { toast } = useToast();
+  const queryClient = useQueryClient()
+  const { toast } = useToast()
 
-  const getRoleBadgeVariant = (role: string) => {
-    switch (role) {
-      case "ADMIN": return "destructive";
-      case "FINANCE_MANAGER": return "success";
-      case "FINANCE_ASSOCIATE": return "default";
-      default: return "outline";
-    }
-  };
+  const [selectedUser, setSelectedUser] = useState<UserResponse | null>(null)
+  const [isCreateOpen, setIsCreateOpen] = useState(false)
+  const [isEditOpen, setIsEditOpen] = useState(false)
+  const [actionError, setActionError] = useState<string | null>(null)
 
-  const [selectedUser, setSelectedUser] = useState<UserResponse | null>(null);
-  const [isCreateOpen, setIsCreateOpen] = useState(false);
-  const [isEditOpen, setIsEditOpen] = useState(false);
-  const [actionError, setActionError] = useState<string | null>(null);
-
-  // Fetch users list
   const { data: users = [], isLoading, error: fetchError } = useQuery<UserResponse[]>({
     queryKey: ["users"],
     queryFn: userService.listUsers,
-  });
+  })
 
-  // Create User Mutation
   const createUserMutation = useMutation({
     mutationFn: userService.createUser,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["users"] });
-      setIsCreateOpen(false);
-      resetCreate();
-      setActionError(null);
+      queryClient.invalidateQueries({ queryKey: ["users"] })
+      setIsCreateOpen(false)
+      resetCreate()
+      setActionError(null)
       toast({
         title: "User created",
         description: "The new user profile has been created successfully.",
         type: "success",
-      });
+      })
     },
-    onError: (err: any) => {
-      setActionError(err.response?.data?.error?.message || err.response?.data?.detail || "Failed to create user.");
+    onError: (err: unknown) => {
+      const axiosErr = err as { response?: { data?: { error?: { message?: string }; detail?: string } } }
+      setActionError(
+        axiosErr.response?.data?.error?.message || axiosErr.response?.data?.detail || "Failed to create user."
+      )
     },
-  });
+  })
 
-  // Update User Mutation
   const updateUserMutation = useMutation({
-    mutationFn: ({ id, data }: { id: string; data: any }) => userService.updateUser(id, data),
+    mutationFn: ({ id, data }: { id: string; data: Record<string, unknown> }) =>
+      userService.updateUser(id, data),
     onSuccess: (updatedUser) => {
-      queryClient.invalidateQueries({ queryKey: ["users"] });
-      setSelectedUser(updatedUser);
-      setIsEditOpen(false);
-      setActionError(null);
+      queryClient.invalidateQueries({ queryKey: ["users"] })
+      setSelectedUser(updatedUser)
+      setIsEditOpen(false)
+      setActionError(null)
       toast({
         title: "User updated",
         description: "The user profile details have been updated successfully.",
         type: "success",
-      });
+      })
     },
-    onError: (err: any) => {
-      setActionError(err.response?.data?.error?.message || err.response?.data?.detail || "Failed to update user.");
+    onError: (err: unknown) => {
+      const axiosErr = err as { response?: { data?: { error?: { message?: string }; detail?: string } } }
+      setActionError(
+        axiosErr.response?.data?.error?.message || axiosErr.response?.data?.detail || "Failed to update user."
+      )
     },
-  });
+  })
 
-  // Forms setup
   const {
     register: registerCreate,
     handleSubmit: handleSubmitCreate,
@@ -113,9 +130,9 @@ export const AdminDashboard: React.FC = () => {
       role: "FINANCE_ASSOCIATE",
       manager_id: "",
     },
-  });
+  })
 
-  const selectedRoleCreate = watchCreate("role");
+  const selectedRoleCreate = watchCreate("role")
 
   const {
     register: registerEdit,
@@ -130,9 +147,9 @@ export const AdminDashboard: React.FC = () => {
       manager_id: "",
       is_active: true,
     },
-  });
+  })
 
-  const selectedRoleEdit = watchEdit("role");
+  const selectedRoleEdit = watchEdit("role")
 
   const handleOpenEdit = (user: UserResponse) => {
     resetEdit({
@@ -141,285 +158,274 @@ export const AdminDashboard: React.FC = () => {
       role: user.role.role_name,
       manager_id: user.manager_id || "",
       is_active: user.is_active,
-    });
-    setIsEditOpen(true);
-    setActionError(null);
-  };
+    })
+    setIsEditOpen(true)
+    setActionError(null)
+  }
 
   const onCreateSubmit = (data: CreateUserForm) => {
-    setActionError(null);
+    setActionError(null)
     const payload = {
       ...data,
       manager_id: data.manager_id && data.manager_id !== "" ? data.manager_id : null,
-    };
-    createUserMutation.mutate(payload);
-  };
+    }
+    createUserMutation.mutate(payload)
+  }
 
-  const onEditSubmit = (data: any) => {
-    if (!selectedUser) return;
-    setActionError(null);
+  const onEditSubmit = (data: Partial<CreateUserForm> & { is_active?: boolean }) => {
+    if (!selectedUser) return
+    setActionError(null)
     const payload = {
       first_name: data.first_name,
       last_name: data.last_name,
       role: data.role,
       manager_id: data.manager_id && data.manager_id !== "" ? data.manager_id : null,
       is_active: data.is_active,
-    };
-    updateUserMutation.mutate({ id: selectedUser.id, data: payload });
-  };
+    }
+    updateUserMutation.mutate({ id: selectedUser.id, data: payload })
+  }
 
   const toggleUserStatus = (user: UserResponse) => {
     updateUserMutation.mutate({
       id: user.id,
       data: { is_active: !user.is_active },
-    });
-  };
+    })
+  }
 
-  // KPI summaries calculations
-  const totalUsers = users.length;
-  const activeUsers = users.filter((u) => u.is_active).length;
-  const inactiveUsers = totalUsers - activeUsers;
-  const financeManagers = users.filter((u) => u.role.role_name === "FINANCE_MANAGER").length;
-  const financeAssociates = users.filter((u) => u.role.role_name === "FINANCE_ASSOCIATE").length;
+  const totalUsers = users.length
+  const activeUsers = users.filter((u) => u.is_active).length
+  const inactiveUsers = totalUsers - activeUsers
+  const financeManagers = users.filter((u) => u.role.role_name === "FINANCE_MANAGER").length
+  const financeAssociates = users.filter((u) => u.role.role_name === "FINANCE_ASSOCIATE").length
 
-  const activeManagersList = users.filter((u) => u.role.role_name === "FINANCE_MANAGER" && u.is_active);
+  const activeManagersList = users.filter(
+    (u) => u.role.role_name === "FINANCE_MANAGER" && u.is_active
+  )
 
   return (
-    <div className="space-y-6">
-      {/* Page Header */}
-      <header className="flex flex-col sm:flex-row sm:items-center sm:justify-between border-b border-border pb-5 gap-4">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground m-0">
-            System Administration
-          </h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Manage user profiles, assign organizational reporting hierarchies, and configure roles.
-          </p>
-        </div>
-        <div>
-          <button
+    <div className="space-y-8">
+      <PageHeader
+        title="System administration"
+        description="Manage user profiles, assign organizational reporting hierarchies, and configure roles."
+        actions={
+          <Button
+            variant="primary"
+            size="sm"
             onClick={() => {
-              resetCreate();
-              setIsCreateOpen(true);
-              setActionError(null);
+              resetCreate()
+              setIsCreateOpen(true)
+              setActionError(null)
             }}
-            className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-xs font-bold text-primary-foreground hover:bg-primary/95 transition-colors shadow-xs"
           >
-            <Plus className="h-4 w-4" /> Create User
-          </button>
-        </div>
-      </header>
+            <Plus className="h-4 w-4" aria-hidden />
+            Create user
+          </Button>
+        }
+      />
 
-      {/* User Summary KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-        <Card className="hover:shadow-xs transition-shadow">
-          <CardContent className="p-5 flex items-center justify-between">
-            <div className="space-y-1">
-              <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Total Users</span>
-              <p className="text-2xl font-bold text-foreground">{isLoading ? "..." : totalUsers}</p>
-            </div>
-            <div className="p-2.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
-              <Users className="h-5 w-5" />
-            </div>
-          </CardContent>
-        </Card>
+      <KpiGrid columns={5}>
+        <KpiCard
+          label="Total users"
+          value={totalUsers}
+          icon={<Users className="h-5 w-5" />}
+          loading={isLoading}
+        />
+        <KpiCard
+          label="Active users"
+          value={activeUsers}
+          icon={<UserCheck className="h-5 w-5" />}
+          iconTone="success"
+          loading={isLoading}
+        />
+        <KpiCard
+          label="Inactive users"
+          value={inactiveUsers}
+          icon={<UserX className="h-5 w-5" />}
+          iconTone="destructive"
+          loading={isLoading}
+        />
+        <KpiCard
+          label="Managers"
+          value={financeManagers}
+          icon={<ShieldAlert className="h-5 w-5" />}
+          iconTone="primary"
+          loading={isLoading}
+        />
+        <KpiCard
+          label="Associates"
+          value={financeAssociates}
+          icon={<Briefcase className="h-5 w-5" />}
+          iconTone="warning"
+          loading={isLoading}
+        />
+      </KpiGrid>
 
-        <Card className="hover:shadow-xs transition-shadow">
-          <CardContent className="p-5 flex items-center justify-between">
-            <div className="space-y-1">
-              <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Active Users</span>
-              <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{isLoading ? "..." : activeUsers}</p>
-            </div>
-            <div className="p-2.5 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
-              <UserCheck className="h-5 w-5" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="hover:shadow-xs transition-shadow">
-          <CardContent className="p-5 flex items-center justify-between">
-            <div className="space-y-1">
-              <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Inactive Users</span>
-              <p className="text-2xl font-bold text-rose-600 dark:text-rose-400">{isLoading ? "..." : inactiveUsers}</p>
-            </div>
-            <div className="p-2.5 rounded-lg bg-rose-500/10 text-rose-600 dark:text-rose-400">
-              <UserX className="h-5 w-5" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="hover:shadow-xs transition-shadow">
-          <CardContent className="p-5 flex items-center justify-between">
-            <div className="space-y-1">
-              <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Managers</span>
-              <p className="text-2xl font-bold text-primary">{isLoading ? "..." : financeManagers}</p>
-            </div>
-            <div className="p-2.5 rounded-lg bg-primary/10 text-primary">
-              <ShieldAlert className="h-5 w-5" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="hover:shadow-xs transition-shadow">
-          <CardContent className="p-5 flex items-center justify-between">
-            <div className="space-y-1">
-              <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Associates</span>
-              <p className="text-2xl font-bold text-amber-600 dark:text-amber-400">{isLoading ? "..." : financeAssociates}</p>
-            </div>
-            <div className="p-2.5 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400">
-              <Briefcase className="h-5 w-5" />
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Main Grid: User List + User Details */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* User Table Card */}
-        <Card className="lg:col-span-2 shadow-xs border-border">
-          <CardHeader className="pb-3 border-b border-border mb-4">
-            <CardTitle>User Accounts Directory</CardTitle>
-            <CardDescription>View, edit profiles, and activate/deactivate access states.</CardDescription>
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        <Card className="lg:col-span-2">
+          <CardHeader className="mb-4 border-b border-border pb-3">
+            <CardTitle>User accounts directory</CardTitle>
+            <CardDescription>View, edit profiles, and activate or deactivate access.</CardDescription>
           </CardHeader>
           <CardContent className="pt-0">
             {isLoading ? (
-              <div className="flex h-60 items-center justify-center">
-                <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
-              </div>
+              <TableSkeleton rows={6} columns={5} />
             ) : fetchError ? (
-              <div className="text-center py-12 text-rose-500 font-semibold border rounded-lg bg-rose-500/5 border-rose-500/20">
-                Failed to load user directory. Please ensure the Auth microservice is running.
-              </div>
+              <EmptyState
+                title="Failed to load users"
+                description="Please ensure the Auth microservice is running."
+              />
             ) : users.length === 0 ? (
-              <div className="text-center py-12 text-muted-foreground border border-dashed rounded-lg">
-                No users found.
-              </div>
+              <EmptyState
+                title="No users found"
+                description="Create a user to get started."
+              />
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-sm">
-                  <thead>
-                    <tr className="border-b border-border text-muted-foreground uppercase text-[10px] font-bold tracking-widest">
-                      <th className="pb-3 px-3">Name</th>
-                      <th className="pb-3 px-3">Email</th>
-                      <th className="pb-3 px-3">Role</th>
-                      <th className="pb-3 px-3">Status</th>
-                      <th className="pb-3 px-3 text-right">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border">
-                    {users.map((userItem) => (
-                      <tr
-                        key={userItem.id}
-                        onClick={() => setSelectedUser(userItem)}
-                        className={`hover:bg-slate-50/50 dark:hover:bg-zinc-900/40 cursor-pointer transition-colors ${
-                          selectedUser?.id === userItem.id ? "bg-primary/5 hover:bg-primary/5" : ""
-                        }`}
-                      >
-                        <td className="py-3 px-3 font-semibold text-foreground">
-                          {userItem.first_name} {userItem.last_name}
-                        </td>
-                        <td className="py-3 px-3 text-muted-foreground font-mono text-xs">{userItem.email}</td>
-                        <td className="py-3 px-3">
-                          <Badge variant={getRoleBadgeVariant(userItem.role.role_name)} className="text-[10px] uppercase py-0 px-2 font-bold">
-                            {userItem.role.role_name.replace("_", " ")}
-                          </Badge>
-                        </td>
-                        <td className="py-3 px-3">
-                          <Badge variant={userItem.is_active ? "success" : "destructive"} className="text-[10px] py-0 px-2 font-bold">
-                            {userItem.is_active ? "Active" : "Inactive"}
-                          </Badge>
-                        </td>
-                        <td className="py-3 px-3 text-right" onClick={(e) => e.stopPropagation()}>
-                          <div className="flex justify-end gap-3">
-                            <button
-                              onClick={() => handleOpenEdit(userItem)}
-                              className="inline-flex items-center gap-1 text-xs font-bold text-primary hover:underline"
-                            >
-                              <Edit2 className="h-3 w-3" /> Edit
-                            </button>
-                            <button
-                              onClick={() => toggleUserStatus(userItem)}
-                              className={`inline-flex items-center gap-1 text-xs font-bold hover:underline ${
-                                userItem.is_active ? "text-destructive" : "text-emerald-600 dark:text-emerald-400"
-                              }`}
-                            >
-                              {userItem.is_active ? (
-                                <>
-                                  <PowerOff className="h-3 w-3" /> Deactivate
-                                </>
-                              ) : (
-                                <>
-                                  <Power className="h-3 w-3" /> Activate
-                                </>
-                              )}
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Email</TableHead>
+                    <TableHead>Role</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {users.map((userItem) => (
+                    <TableRow
+                      key={userItem.id}
+                      data-state={selectedUser?.id === userItem.id ? "selected" : undefined}
+                      className="cursor-pointer"
+                      onClick={() => setSelectedUser(userItem)}
+                    >
+                      <TableCell className="font-medium text-foreground">
+                        {userItem.first_name} {userItem.last_name}
+                      </TableCell>
+                      <TableCell className="font-mono text-xs text-muted-foreground">
+                        {userItem.email}
+                      </TableCell>
+                      <TableCell>
+                        <Badge
+                          variant={getStatusVariant(USER_ROLE_VARIANT, userItem.role.role_name)}
+                          shape="pill"
+                        >
+                          {userItem.role.role_name.replace(/_/g, " ")}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Badge
+                          variant={userItem.is_active ? "success" : "destructive"}
+                          shape="pill"
+                        >
+                          {userItem.is_active ? "Active" : "Inactive"}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex justify-end gap-2">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleOpenEdit(userItem)}
+                          >
+                            <Edit2 className="h-3 w-3" aria-hidden />
+                            Edit
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className={
+                              userItem.is_active
+                                ? "text-destructive hover:text-destructive"
+                                : "text-success hover:text-success"
+                            }
+                            onClick={() => toggleUserStatus(userItem)}
+                          >
+                            {userItem.is_active ? (
+                              <>
+                                <PowerOff className="h-3 w-3" aria-hidden />
+                                Deactivate
+                              </>
+                            ) : (
+                              <>
+                                <Power className="h-3 w-3" aria-hidden />
+                                Activate
+                              </>
+                            )}
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
             )}
           </CardContent>
         </Card>
 
-        {/* User Details Sidebar */}
-        <Card className="shadow-xs border-border h-fit">
-          <CardHeader className="pb-3 border-b border-border mb-4">
-            <CardTitle>Selected Profile Info</CardTitle>
+        <Card className="h-fit">
+          <CardHeader className="mb-4 border-b border-border pb-3">
+            <CardTitle>Selected profile</CardTitle>
             <CardDescription>Audit metadata and organizational structure.</CardDescription>
           </CardHeader>
           <CardContent className="pt-0">
             {selectedUser ? (
               <div className="space-y-4">
                 <div className="flex items-center gap-3">
-                  <div className="h-11 w-11 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-500 font-bold text-lg">
-                    {selectedUser.first_name[0]}{selectedUser.last_name[0]}
+                  <div className="flex h-11 w-11 items-center justify-center rounded-full bg-muted text-lg font-semibold text-muted-foreground">
+                    {selectedUser.first_name[0]}
+                    {selectedUser.last_name[0]}
                   </div>
                   <div>
-                    <h3 className="font-bold text-base text-foreground leading-tight">
+                    <h3 className="text-base font-semibold leading-tight text-foreground">
                       {selectedUser.first_name} {selectedUser.last_name}
                     </h3>
                   </div>
                 </div>
 
-                <div className="border-t border-border pt-4 space-y-3 text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Email:</span>
-                    <span className="font-semibold text-foreground font-mono text-xs">{selectedUser.email}</span>
+                <div className="space-y-3 border-t border-border pt-4 text-sm">
+                  <div className="flex justify-between gap-2">
+                    <span className="text-muted-foreground">Email</span>
+                    <span className="truncate font-mono text-xs font-medium text-foreground">
+                      {selectedUser.email}
+                    </span>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">System Role:</span>
-                    <Badge variant={getRoleBadgeVariant(selectedUser.role.role_name)} className="uppercase font-bold text-[10px]">
-                      {selectedUser.role.role_name.replace("_", " ")}
+                  <div className="flex justify-between items-center">
+                    <span className="text-muted-foreground">System role</span>
+                    <Badge
+                      variant={getStatusVariant(USER_ROLE_VARIANT, selectedUser.role.role_name)}
+                      shape="pill"
+                    >
+                      {selectedUser.role.role_name.replace(/_/g, " ")}
                     </Badge>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Reporting Manager:</span>
-                    <span className="font-semibold text-foreground text-xs">
+                  <div className="flex justify-between gap-2">
+                    <span className="text-muted-foreground">Reporting manager</span>
+                    <span className="text-right text-xs font-medium text-foreground">
                       {selectedUser.manager_id ? (
-                        users.find(u => u.id === selectedUser.manager_id)
-                          ? `${users.find(u => u.id === selectedUser.manager_id)?.first_name} ${users.find(u => u.id === selectedUser.manager_id)?.last_name}`
-                          : "Assigned Manager"
+                        users.find((u) => u.id === selectedUser.manager_id)
+                          ? `${users.find((u) => u.id === selectedUser.manager_id)?.first_name} ${users.find((u) => u.id === selectedUser.manager_id)?.last_name}`
+                          : "Assigned manager"
                       ) : (
-                        "None (Direct)"
+                        "None (direct)"
                       )}
                     </span>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Account Status:</span>
-                    <Badge variant={selectedUser.is_active ? "success" : "destructive"} className="text-[10px] font-bold">
+                  <div className="flex justify-between items-center">
+                    <span className="text-muted-foreground">Account status</span>
+                    <Badge
+                      variant={selectedUser.is_active ? "success" : "destructive"}
+                      shape="pill"
+                    >
                       {selectedUser.is_active ? "Active" : "Inactive"}
                     </Badge>
                   </div>
                 </div>
 
-                <div className="border-t border-border pt-4 space-y-2 text-[11px] font-mono text-muted-foreground bg-slate-50/50 dark:bg-zinc-900/40 p-3 rounded-lg">
+                <div className="space-y-2 rounded-lg border border-border bg-muted/50 p-3 font-mono text-[11px] text-muted-foreground">
                   <div>Created: {new Date(selectedUser.created_at).toLocaleString()}</div>
                   <div>Updated: {new Date(selectedUser.updated_at).toLocaleString()}</div>
                   <div>
-                    Last Login:{" "}
+                    Last login:{" "}
                     {selectedUser.last_login_at
                       ? new Date(selectedUser.last_login_at).toLocaleString()
                       : "Never logged in"}
@@ -427,142 +433,120 @@ export const AdminDashboard: React.FC = () => {
                 </div>
               </div>
             ) : (
-              <div className="text-center py-16 text-muted-foreground">
-                <User className="h-8 w-8 mx-auto text-muted-foreground opacity-50 mb-3" />
-                Select a user from the directory to review profile metadata and lineage.
-              </div>
+              <EmptyState
+                icon={<User className="h-6 w-6" />}
+                title="No user selected"
+                description="Select a user from the directory to review profile metadata."
+              />
             )}
           </CardContent>
         </Card>
       </div>
 
-      {/* Create User Modal Dialog */}
       <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Create User Profile</DialogTitle>
+            <DialogTitle>Create user profile</DialogTitle>
             <DialogDescription>Register a new system user and assign roles.</DialogDescription>
           </DialogHeader>
-          
+
           {actionError && (
-            <div className="rounded-md bg-rose-50 dark:bg-rose-950/20 p-3 text-rose-700 dark:text-rose-400 text-xs font-semibold mb-4 border border-rose-500/20">
+            <div className="mb-4 rounded-md border border-destructive/20 bg-destructive/10 p-3 text-xs font-medium text-destructive">
               {actionError}
             </div>
           )}
 
           <form onSubmit={handleSubmitCreate(onCreateSubmit)} className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground">First Name</label>
-                <input
-                  type="text"
-                  {...registerCreate("first_name")}
-                  className="mt-1.5 w-full rounded-lg border border-input bg-background p-2 text-sm text-foreground focus:ring-1 focus:ring-primary focus:outline-hidden"
-                />
+              <div className="space-y-1.5">
+                <Label htmlFor="create-first-name">First name</Label>
+                <Input id="create-first-name" type="text" {...registerCreate("first_name")} />
                 {createErrors.first_name && (
-                  <span className="text-xs text-rose-500 mt-1 block">{createErrors.first_name.message}</span>
+                  <span className="mt-1 block text-xs text-destructive">
+                    {createErrors.first_name.message}
+                  </span>
                 )}
               </div>
-
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground">Last Name</label>
-                <input
-                  type="text"
-                  {...registerCreate("last_name")}
-                  className="mt-1.5 w-full rounded-lg border border-input bg-background p-2 text-sm text-foreground focus:ring-1 focus:ring-primary focus:outline-hidden"
-                />
+              <div className="space-y-1.5">
+                <Label htmlFor="create-last-name">Last name</Label>
+                <Input id="create-last-name" type="text" {...registerCreate("last_name")} />
                 {createErrors.last_name && (
-                  <span className="text-xs text-rose-500 mt-1 block">{createErrors.last_name.message}</span>
+                  <span className="mt-1 block text-xs text-destructive">
+                    {createErrors.last_name.message}
+                  </span>
                 )}
               </div>
             </div>
 
-            <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground">Email Address</label>
-              <input
-                type="email"
-                {...registerCreate("email")}
-                className="mt-1.5 w-full rounded-lg border border-input bg-background p-2 text-sm text-foreground focus:ring-1 focus:ring-primary focus:outline-hidden"
-              />
+            <div className="space-y-1.5">
+              <Label htmlFor="create-email">Email address</Label>
+              <Input id="create-email" type="email" {...registerCreate("email")} />
               {createErrors.email && (
-                <span className="text-xs text-rose-500 mt-1 block">{createErrors.email.message}</span>
+                <span className="mt-1 block text-xs text-destructive">
+                  {createErrors.email.message}
+                </span>
               )}
             </div>
 
-            <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground">Initial Password</label>
-              <input
-                type="password"
-                {...registerCreate("password")}
-                className="mt-1.5 w-full rounded-lg border border-input bg-background p-2 text-sm text-foreground focus:ring-1 focus:ring-primary focus:outline-hidden"
-              />
+            <div className="space-y-1.5">
+              <Label htmlFor="create-password">Initial password</Label>
+              <Input id="create-password" type="password" {...registerCreate("password")} />
               {createErrors.password && (
-                <span className="text-xs text-rose-500 mt-1 block">{createErrors.password.message}</span>
+                <span className="mt-1 block text-xs text-destructive">
+                  {createErrors.password.message}
+                </span>
               )}
             </div>
 
-            <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground">Access Role</label>
-              <select
-                {...registerCreate("role")}
-                className="mt-1.5 w-full rounded-lg border border-input bg-background p-2 text-sm text-foreground focus:ring-1 focus:ring-primary focus:outline-hidden font-semibold"
-              >
-                <option value="ADMIN">ADMIN</option>
-                <option value="FINANCE_MANAGER">FINANCE_MANAGER</option>
-                <option value="FINANCE_ASSOCIATE">FINANCE_ASSOCIATE</option>
-              </select>
+            <div className="space-y-1.5">
+              <Label htmlFor="create-role">Access role</Label>
+              <Select id="create-role" {...registerCreate("role")}>
+                <option value="ADMIN">Admin</option>
+                <option value="FINANCE_MANAGER">Finance manager</option>
+                <option value="FINANCE_ASSOCIATE">Finance associate</option>
+              </Select>
             </div>
 
             {selectedRoleCreate === "FINANCE_ASSOCIATE" && (
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground">Reporting Manager</label>
-                <select
-                  {...registerCreate("manager_id")}
-                  className="mt-1.5 w-full rounded-lg border border-input bg-background p-2 text-sm text-foreground focus:ring-1 focus:ring-primary focus:outline-hidden font-semibold"
-                >
-                  <option value="">Select a Manager (Or None)</option>
+              <div className="space-y-1.5">
+                <Label htmlFor="create-manager">Reporting manager</Label>
+                <Select id="create-manager" {...registerCreate("manager_id")}>
+                  <option value="">Select a manager (or none)</option>
                   {activeManagersList.map((m) => (
                     <option key={m.id} value={m.id}>
                       {m.first_name} {m.last_name}
                     </option>
                   ))}
-                </select>
+                </Select>
                 {createErrors.manager_id && (
-                  <span className="text-xs text-rose-500 mt-1 block">{createErrors.manager_id.message}</span>
+                  <span className="mt-1 block text-xs text-destructive">
+                    {createErrors.manager_id.message}
+                  </span>
                 )}
               </div>
             )}
 
             <DialogFooter>
-              <button
-                type="button"
-                onClick={() => setIsCreateOpen(false)}
-                className="rounded-lg bg-secondary px-4 py-2 text-xs font-bold text-secondary-foreground hover:bg-secondary/85 transition-colors border border-border"
-              >
+              <Button type="button" variant="secondary" size="sm" onClick={() => setIsCreateOpen(false)}>
                 Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={createUserMutation.isPending}
-                className="rounded-lg bg-primary px-4 py-2 text-xs font-bold text-primary-foreground hover:bg-primary/95 transition-colors disabled:opacity-50"
-              >
-                {createUserMutation.isPending ? "Saving..." : "Create User"}
-              </button>
+              </Button>
+              <Button type="submit" variant="primary" size="sm" loading={createUserMutation.isPending}>
+                {createUserMutation.isPending ? "Saving…" : "Create user"}
+              </Button>
             </DialogFooter>
           </form>
         </DialogContent>
       </Dialog>
 
-      {/* Edit User Modal Dialog */}
       <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Edit User Profile</DialogTitle>
+            <DialogTitle>Edit user profile</DialogTitle>
             <DialogDescription>Modify reporting structure or role allocations.</DialogDescription>
           </DialogHeader>
 
           {actionError && (
-            <div className="rounded-md bg-rose-50 dark:bg-rose-950/20 p-3 text-rose-700 dark:text-rose-400 text-xs font-semibold mb-4 border border-rose-500/20">
+            <div className="mb-4 rounded-md border border-destructive/20 bg-destructive/10 p-3 text-xs font-medium text-destructive">
               {actionError}
             </div>
           )}
@@ -570,88 +554,65 @@ export const AdminDashboard: React.FC = () => {
           {selectedUser && (
             <form onSubmit={handleSubmitEdit(onEditSubmit)} className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground">First Name</label>
-                  <input
-                    type="text"
-                    {...registerEdit("first_name")}
-                    className="mt-1.5 w-full rounded-lg border border-input bg-background p-2 text-sm text-foreground focus:ring-1 focus:ring-primary focus:outline-hidden"
-                  />
+                <div className="space-y-1.5">
+                  <Label htmlFor="edit-first-name">First name</Label>
+                  <Input id="edit-first-name" type="text" {...registerEdit("first_name")} />
                 </div>
-
-                <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground">Last Name</label>
-                  <input
-                    type="text"
-                    {...registerEdit("last_name")}
-                    className="mt-1.5 w-full rounded-lg border border-input bg-background p-2 text-sm text-foreground focus:ring-1 focus:ring-primary focus:outline-hidden"
-                  />
+                <div className="space-y-1.5">
+                  <Label htmlFor="edit-last-name">Last name</Label>
+                  <Input id="edit-last-name" type="text" {...registerEdit("last_name")} />
                 </div>
               </div>
 
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground">System Role</label>
-                <select
-                  {...registerEdit("role")}
-                  className="mt-1.5 w-full rounded-lg border border-input bg-background p-2 text-sm text-foreground focus:ring-1 focus:ring-primary focus:outline-hidden font-semibold"
-                >
-                  <option value="ADMIN">ADMIN</option>
-                  <option value="FINANCE_MANAGER">FINANCE_MANAGER</option>
-                  <option value="FINANCE_ASSOCIATE">FINANCE_ASSOCIATE</option>
-                </select>
+              <div className="space-y-1.5">
+                <Label htmlFor="edit-role">System role</Label>
+                <Select id="edit-role" {...registerEdit("role")}>
+                  <option value="ADMIN">Admin</option>
+                  <option value="FINANCE_MANAGER">Finance manager</option>
+                  <option value="FINANCE_ASSOCIATE">Finance associate</option>
+                </Select>
               </div>
 
               {selectedRoleEdit === "FINANCE_ASSOCIATE" && (
-                <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground">Reporting Manager</label>
-                  <select
-                    {...registerEdit("manager_id")}
-                    className="mt-1.5 w-full rounded-lg border border-input bg-background p-2 text-sm text-foreground focus:ring-1 focus:ring-primary focus:outline-hidden font-semibold"
-                  >
-                    <option value="">Select a Manager (Or None)</option>
+                <div className="space-y-1.5">
+                  <Label htmlFor="edit-manager">Reporting manager</Label>
+                  <Select id="edit-manager" {...registerEdit("manager_id")}>
+                    <option value="">Select a manager (or none)</option>
                     {activeManagersList.map((m) => (
                       <option key={m.id} value={m.id}>
                         {m.first_name} {m.last_name}
                       </option>
                     ))}
-                  </select>
+                  </Select>
                 </div>
               )}
 
-              <div className="flex items-center space-x-2 pt-2">
+              <div className="flex items-center gap-2 pt-2">
                 <input
                   type="checkbox"
                   id="is_active_edit"
                   {...registerEdit("is_active")}
-                  className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                  className="h-4 w-4 rounded border-input text-primary focus:ring-ring/30"
                 />
-                <label htmlFor="is_active_edit" className="text-xs font-bold uppercase tracking-wider text-foreground">
-                  User Account Active
-                </label>
+                <Label htmlFor="is_active_edit" className="font-normal">
+                  User account active
+                </Label>
               </div>
 
               <DialogFooter>
-                <button
-                  type="button"
-                  onClick={() => setIsEditOpen(false)}
-                  className="rounded-lg bg-secondary px-4 py-2 text-xs font-bold text-secondary-foreground hover:bg-secondary/85 transition-colors border border-border"
-                >
+                <Button type="button" variant="secondary" size="sm" onClick={() => setIsEditOpen(false)}>
                   Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={updateUserMutation.isPending}
-                  className="rounded-lg bg-primary px-4 py-2 text-xs font-bold text-primary-foreground hover:bg-primary/95 transition-colors disabled:opacity-50"
-                >
-                  {updateUserMutation.isPending ? "Saving..." : "Save Changes"}
-                </button>
+                </Button>
+                <Button type="submit" variant="primary" size="sm" loading={updateUserMutation.isPending}>
+                  {updateUserMutation.isPending ? "Saving…" : "Save changes"}
+                </Button>
               </DialogFooter>
             </form>
           )}
         </DialogContent>
       </Dialog>
     </div>
-  );
-};
+  )
+}
 
-export default AdminDashboard;
+export default AdminDashboard

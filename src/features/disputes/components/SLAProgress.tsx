@@ -1,5 +1,6 @@
 import React from "react"
 import { formatSlaStatusLabel, isTerminalDisputeStatus } from "../utils/disputeFormatters"
+import { cn } from "@/lib/utils"
 
 interface SLAProgressProps {
   percentage: number
@@ -19,35 +20,35 @@ export const SLAProgress: React.FC<SLAProgressProps> = ({
 
   const normPercent = Math.min(Math.max(percentage, 0), 100)
 
-  let colorClass = "bg-emerald-500"
-  let textClass = "text-emerald-600 dark:text-emerald-400"
+  let colorClass = "bg-success"
+  let textClass = "text-success"
   let label = formatSlaStatusLabel(status || "ON_TRACK", isPaused, disputeStatus)
 
   if (isClosed) {
-    colorClass = "bg-slate-400 dark:bg-slate-600"
-    textClass = "text-slate-600 dark:text-slate-300"
+    colorClass = "bg-muted-foreground/40"
+    textClass = "text-muted-foreground"
     label = "Closed"
   } else if (percentage >= 100 || status === "BREACHED") {
-    colorClass = "bg-rose-500"
-    textClass = "text-rose-600 dark:text-rose-400"
+    colorClass = "bg-destructive"
+    textClass = "text-destructive"
     label = formatSlaStatusLabel("BREACHED", isPaused, disputeStatus)
   } else if (percentage >= 80 || status === "AT_RISK") {
-    colorClass = "bg-amber-500"
-    textClass = "text-amber-600 dark:text-amber-400"
+    colorClass = "bg-warning"
+    textClass = "text-warning"
     label = formatSlaStatusLabel("AT_RISK", isPaused, disputeStatus)
   }
 
   return (
     <div className="w-full space-y-1">
-      <div className="flex justify-between items-center text-[10px] font-bold">
-        <span className={`${textClass} uppercase tracking-wider`}>{label}</span>
+      <div className="flex items-center justify-between text-xs font-medium">
+        <span className={cn(textClass)}>{label}</span>
         {!isClosed && (
-          <span className="text-muted-foreground font-mono">{percentage.toFixed(0)}%</span>
+          <span className="tabular-nums text-muted-foreground">{percentage.toFixed(0)}%</span>
         )}
       </div>
-      <div className="w-full h-2 rounded-full bg-slate-100 dark:bg-zinc-800 overflow-hidden">
+      <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
         <div
-          className={`h-full rounded-full transition-all duration-300 ${colorClass}`}
+          className={cn("h-full rounded-full transition-all duration-300", colorClass)}
           style={{ width: isClosed ? "100%" : `${normPercent}%` }}
         />
       </div>
@@ -55,4 +56,4 @@ export const SLAProgress: React.FC<SLAProgressProps> = ({
   )
 }
 
-export default SLAProgress;
+export default SLAProgress
