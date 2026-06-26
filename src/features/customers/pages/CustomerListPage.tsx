@@ -54,7 +54,6 @@ export const CustomerListPage: React.FC = () => {
     <div className="space-y-8">
       <PageHeader
         title="Customers directory"
-        description="View active clients, register details, and check customer credit accounts."
         actions={
           <Button variant="secondary" size="sm" onClick={() => refetch()}>
             <RefreshCw className="h-3.5 w-3.5" aria-hidden />

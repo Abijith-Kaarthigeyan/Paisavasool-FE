@@ -1,10 +1,6 @@
 import React, { useMemo } from "react"
-import { Link } from "react-router-dom"
-import { useDisputes, useReviewQueue } from "../hooks/useDisputes"
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card"
-import { Skeleton } from "@/components/ui/skeleton"
-import { Badge } from "@/components/ui/badge"
-import { KpiCard, KpiGrid } from "@/components/ui/kpi-card"
+import { useDisputes, useCases } from "../hooks/useDisputes"
+import { KpiCard } from "@/components/ui/kpi-card"
 import { ChartCard } from "@/components/ui/chart-card"
 import { PageHeader } from "@/components/ui/page-header"
 import { Button } from "@/components/ui/button"
@@ -19,37 +15,41 @@ import {
   PieChart,
   Pie,
   Cell,
-  Legend,
 } from "recharts"
-import { isTerminalDisputeStatus } from "../utils/disputeFormatters"
+import {
+  isTerminalDisputeStatus,
+  isNonClosedDispute,
+  needsAssociateInput,
+  isWaitingInternalTeamDispute,
+} from "../utils/disputeFormatters"
 import { CHART_COLORS, SLA_HEALTH_COLORS } from "@/lib/design-tokens"
+import { ChartHoverTooltip } from "@/components/ui/chart-tooltip"
 import {
   AlertTriangle,
   Clock,
   UserCheck,
-  CheckCircle,
   HelpCircle,
+  List,
   RefreshCw,
-  ArrowRight,
+  FolderOpen,
 } from "lucide-react"
+import { KpiWidgetWithLink } from "@/features/dashboard/components/KpiWidgetWithLink"
 
 export const DisputeDashboardPage: React.FC = () => {
   const { data: disputes = [], isLoading, refetch } = useDisputes();
-  const { data: reviewQueue = [], isLoading: isReviewQueueLoading } = useReviewQueue();
+  const { data: disputeCases = [], isLoading: isCasesLoading } = useCases();
 
   const metrics = useMemo(() => {
-    const today = new Date().toISOString().split("T")[0];
     return {
-      open: disputes.filter((d) => d.status === "OPEN").length,
-      inReview: disputes.filter((d) => d.status === "IN_REVIEW").length,
+      open: disputes.filter(isNonClosedDispute).length,
       waitingCustomer: disputes.filter((d) => d.status === "WAITING_CUSTOMER").length,
-      waitingInternal: disputes.filter((d) => d.status === "WAITING_INTERNAL").length,
+      waitingInternal: disputes.filter(isWaitingInternalTeamDispute).length,
       escalated: disputes.filter((d) => d.sla?.status === "BREACHED" && !isTerminalDisputeStatus(d.status)).length,
       slaBreached: disputes.filter((d) => d.sla?.status === "BREACHED" && !isTerminalDisputeStatus(d.status)).length,
-      resolvedToday: disputes.filter((d) => d.status === "RESOLVED" && d.resolved_at?.startsWith(today)).length,
-      reviewQueueCount: reviewQueue.filter((r) => r.status === "PENDING").length,
+      all: disputes.length,
+      reviewQueueCount: disputes.filter(needsAssociateInput).length,
     };
-  }, [disputes, reviewQueue]);
+  }, [disputes]);
 
   const categoryChartData = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -90,13 +90,13 @@ export const DisputeDashboardPage: React.FC = () => {
     ].filter((d) => d.value > 0);
   }, [disputes]);
 
-  const isPageLoading = isLoading || isReviewQueueLoading;
+  const isPageLoading = isLoading || isCasesLoading;
 
   return (
-    <div className="space-y-8">
+    <div className="-mx-page-side -my-3 flex h-[calc(100dvh-3.5rem)] min-h-0 flex-col gap-3 overflow-hidden px-page-side py-3">
       <PageHeader
+        className="shrink-0"
         title="Dispute Operations Center"
-        description="Monitor incoming invoice disputes, SLA tracking, AI triage classification confidence, and associate queue workloads."
         actions={
           <Button variant="secondary" size="sm" onClick={() => refetch()}>
             <RefreshCw className="h-3.5 w-3.5" aria-hidden />
@@ -105,38 +105,43 @@ export const DisputeDashboardPage: React.FC = () => {
         }
       />
 
-      <KpiGrid>
-        <KpiCard
+      <div className="grid shrink-0 grid-cols-2 gap-3 xl:grid-cols-4">
+        <KpiWidgetWithLink
           label="Open disputes"
           value={metrics.open}
           loading={isPageLoading}
           icon={<AlertTriangle className="h-5 w-5" />}
           iconTone="info"
+          to="/disputes/open"
+          linkLabel="View open disputes"
         />
-        <KpiCard
-          label="In review"
-          value={metrics.inReview}
+        <KpiWidgetWithLink
+          label="Review queue"
+          value={metrics.reviewQueueCount}
           loading={isPageLoading}
-          icon={<Clock className="h-5 w-5" />}
-          iconTone="primary"
+          icon={<HelpCircle className="h-5 w-5" />}
+          iconTone="warning"
+          to="/disputes/review-queue"
+          linkLabel="Go to view review queue"
         />
-        <KpiCard
+        <KpiWidgetWithLink
           label="Waiting customer"
           value={metrics.waitingCustomer}
           loading={isPageLoading}
           icon={<UserCheck className="h-5 w-5" />}
           iconTone="warning"
+          to="/disputes/waiting-customer"
+          linkLabel="View waiting customer"
         />
-        <KpiCard
+        <KpiWidgetWithLink
           label="Waiting team"
           value={metrics.waitingInternal}
           loading={isPageLoading}
           icon={<Clock className="h-5 w-5" />}
           iconTone="warning"
+          to="/disputes/waiting-internal"
+          linkLabel="View waiting team"
         />
-      </KpiGrid>
-
-      <KpiGrid>
         <KpiCard
           label="Escalated"
           value={metrics.escalated}
@@ -151,36 +156,41 @@ export const DisputeDashboardPage: React.FC = () => {
           icon={<AlertTriangle className="h-5 w-5" />}
           iconTone="destructive"
         />
-        <KpiCard
-          label="Resolved today"
-          value={metrics.resolvedToday}
+        <KpiWidgetWithLink
+          label="All disputes"
+          value={metrics.all}
           loading={isPageLoading}
-          icon={<CheckCircle className="h-5 w-5" />}
-          iconTone="success"
+          icon={<List className="h-5 w-5" />}
+          iconTone="primary"
+          to="/disputes/all"
+          linkLabel="View all disputes"
         />
-        <KpiCard
-          label="Review queue"
-          value={metrics.reviewQueueCount}
+        <KpiWidgetWithLink
+          label="Dispute cases"
+          value={disputeCases.length}
           loading={isPageLoading}
-          icon={<HelpCircle className="h-5 w-5" />}
-          iconTone="warning"
+          icon={<FolderOpen className="h-5 w-5" />}
+          iconTone="primary"
+          to="/disputes/cases"
+          linkLabel="View dispute cases"
         />
-      </KpiGrid>
+      </div>
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+      <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 lg:grid-cols-3">
         <ChartCard
           title="Disputes by category"
           description="Volume segmented by classification."
           loading={isPageLoading}
           empty={categoryChartData.length === 0}
-          height="h-56"
+          height="h-full"
+          className="min-h-0"
         >
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={categoryChartData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
+            <BarChart data={categoryChartData} margin={{ top: 8, right: 8, left: -12, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} />
-              <XAxis dataKey="name" fontSize={9} fontWeight={600} />
-              <YAxis fontSize={9} fontWeight={600} />
-              <Tooltip formatter={(v: number | string) => [v, "Disputes"]} />
+              <XAxis dataKey="name" hide />
+              <YAxis fontSize={9} fontWeight={600} allowDecimals={false} />
+              <Tooltip content={<ChartHoverTooltip valueLabel="disputes" />} cursor={{ fill: "hsl(var(--muted) / 0.35)" }} />
               <Bar dataKey="value" radius={[3, 3, 0, 0]}>
                 {categoryChartData.map((_entry, index) => (
                   <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
@@ -195,25 +205,26 @@ export const DisputeDashboardPage: React.FC = () => {
           description="Current workflow status allocation."
           loading={isPageLoading}
           empty={statusChartData.length === 0}
-          height="h-56"
+          height="h-full"
+          className="min-h-0"
         >
           <ResponsiveContainer width="100%" height="100%">
-            <PieChart>
+            <PieChart margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
               <Pie
                 data={statusChartData}
                 cx="50%"
                 cy="50%"
-                innerRadius={50}
-                outerRadius={75}
+                innerRadius="42%"
+                outerRadius="68%"
                 paddingAngle={3}
                 dataKey="value"
+                nameKey="name"
               >
                 {statusChartData.map((_entry, index) => (
                   <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
                 ))}
               </Pie>
-              <Tooltip formatter={(v: number | string) => [v, "Disputes"]} />
-              <Legend verticalAlign="bottom" height={36} iconSize={8} iconType="circle" wrapperStyle={{ fontSize: 10 }} />
+              <Tooltip content={<ChartHoverTooltip valueLabel="disputes" />} />
             </PieChart>
           </ResponsiveContainer>
         </ChartCard>
@@ -227,111 +238,30 @@ export const DisputeDashboardPage: React.FC = () => {
               ? { title: "No active SLA records", description: "No active dispute SLA records found." }
               : false
           }
-          height="h-56"
+          height="h-full"
+          className="min-h-0"
         >
           <ResponsiveContainer width="100%" height="100%">
-            <PieChart>
+            <PieChart margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
               <Pie
                 data={slaChartData}
                 cx="50%"
                 cy="50%"
-                innerRadius={50}
-                outerRadius={75}
+                innerRadius="42%"
+                outerRadius="68%"
                 paddingAngle={3}
                 dataKey="value"
+                nameKey="name"
               >
                 {slaChartData.map((entry, index) => (
                   <Cell key={`cell-${index}`} fill={entry.color} />
                 ))}
               </Pie>
-              <Tooltip formatter={(v: number | string) => [v, "Disputes"]} />
-              <Legend verticalAlign="bottom" height={36} iconSize={8} iconType="circle" wrapperStyle={{ fontSize: 10 }} />
+              <Tooltip content={<ChartHoverTooltip valueLabel="disputes" />} />
             </PieChart>
           </ResponsiveContainer>
         </ChartCard>
       </div>
-
-      <Card className="border-border shadow-xs">
-        <CardHeader className="mb-4 flex flex-row items-center justify-between border-b border-border pb-3">
-          <div>
-            <CardTitle>Recent Unresolved Disputes</CardTitle>
-            <CardDescription>List of active issues requiring immediate review.</CardDescription>
-          </div>
-          <Link to="/disputes/open" className="flex items-center gap-1 text-xs font-bold text-primary hover:underline">
-            View Open Disputes <ArrowRight className="h-3.5 w-3.5" />
-          </Link>
-        </CardHeader>
-        <CardContent className="pt-0">
-          {isPageLoading ? (
-            <div className="space-y-2">
-              <Skeleton className="h-8 w-full" />
-              <Skeleton className="h-8 w-full" />
-            </div>
-          ) : disputes.length === 0 ? (
-            <div className="py-8 text-center text-xs text-muted-foreground">
-              No disputes found.
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead>
-                  <tr className="border-b border-border bg-muted/50 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                    <th scope="col" className="px-2 pb-3">Dispute Number</th>
-                    <th scope="col" className="px-2 pb-3">Invoice</th>
-                    <th scope="col" className="px-2 pb-3">Category</th>
-                    <th scope="col" className="px-2 pb-3">SLA Status</th>
-                    <th scope="col" className="px-2 pb-3 text-right">Status</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
-                  {disputes
-                    .filter((d) => !isTerminalDisputeStatus(d.status))
-                    .slice(0, 5)
-                    .map((d) => (
-                      <tr
-                        key={d.id}
-                        className="cursor-pointer transition-colors hover:bg-muted/40"
-                      >
-                        <td className="px-2 py-2.5 font-semibold text-foreground">
-                          <Link to={`/disputes/${d.id}`} className="text-primary hover:underline">
-                            {d.dispute_number}
-                          </Link>
-                        </td>
-                        <td className="px-2 py-2.5 font-medium text-muted-foreground">{d.invoice_number}</td>
-                        <td className="px-2 py-2.5 text-[10px] font-semibold uppercase text-muted-foreground">
-                          {d.dispute_category}
-                        </td>
-                        <td className="px-2 py-2.5">
-                          <Badge
-                            variant={
-                              d.sla?.status === "BREACHED"
-                                ? "destructive"
-                                : d.sla?.status === "AT_RISK"
-                                ? "warning"
-                                : "success"
-                            }
-                            className="px-1.5 py-0 text-[9px] font-bold uppercase"
-                          >
-                            {d.sla?.status
-                              ? d.sla.status === "CLOSED" || isTerminalDisputeStatus(d.status)
-                                ? "Closed"
-                                : d.sla.status.replace(/_/g, " ")
-                              : "No SLA"}
-                          </Badge>
-                        </td>
-                        <td className="px-2 py-2.5 text-right">
-                          <Badge variant="outline" className="px-1.5 py-0 text-[9px] font-bold uppercase">
-                            {d.status}
-                          </Badge>
-                        </td>
-                      </tr>
-                    ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
     </div>
   )
 }

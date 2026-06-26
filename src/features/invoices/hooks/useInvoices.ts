@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query"
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { invoiceService } from "../services/invoiceService"
 
 export const useInvoices = (params?: {
@@ -63,10 +63,74 @@ export const useBatchStatus = (batchId: string | undefined) => {
     enabled: !!batchId,
     refetchInterval: (query) => {
       const state = query.state.data;
-      if (state && (state.status === "COMPLETED" || state.status === "FAILED" || state.status === "PARTIAL_SUCCESS")) {
+      if (!state) return 2000;
+      const hasPendingReview =
+        (state.pending_review_count ?? 0) > 0 ||
+        state.files?.some((f) => f.status === "PENDING_REVIEW");
+      if (
+        (state.status === "COMPLETED" ||
+          state.status === "FAILED" ||
+          state.status === "PARTIAL_SUCCESS") &&
+        !hasPendingReview
+      ) {
         return false;
       }
-      return 2000; // Poll status every 2 seconds if still UPLOADED/PROCESSING
+      return 2000;
     },
   });
+};
+
+export const useBatchReviewItems = (batchId: string | undefined) => {
+  return useQuery({
+    queryKey: ["batchReviewItems", batchId],
+    queryFn: () => invoiceService.getBatchReviewItems(batchId!),
+    enabled: !!batchId,
+    refetchInterval: 3000,
+  });
+};
+
+export const useDuplicateReviewContext = (reviewId: string | undefined) => {
+  return useQuery({
+    queryKey: ["duplicateReviewContext", reviewId],
+    queryFn: () => invoiceService.getDuplicateReviewContext(reviewId!),
+    enabled: !!reviewId,
+  });
+};
+
+export const useDuplicateReviewMutations = (batchId: string | undefined) => {
+  const queryClient = useQueryClient();
+
+  const invalidate = () => {
+    queryClient.invalidateQueries({ queryKey: ["batchStatus", batchId] });
+    queryClient.invalidateQueries({ queryKey: ["batchReviewItems", batchId] });
+    queryClient.invalidateQueries({ queryKey: ["duplicateReviewContext"] });
+    queryClient.invalidateQueries({ queryKey: ["invoices"] });
+  };
+
+  const approve = useMutation({
+    mutationFn: ({ reviewId, notes }: { reviewId: string; notes?: string }) =>
+      invoiceService.approveDuplicateReview(reviewId, notes),
+    onSuccess: invalidate,
+  });
+
+  const editAndApply = useMutation({
+    mutationFn: ({
+      reviewId,
+      amendedInvoiceJson,
+      notes,
+    }: {
+      reviewId: string;
+      amendedInvoiceJson: Record<string, unknown>;
+      notes?: string;
+    }) => invoiceService.editAndApplyDuplicateReview(reviewId, amendedInvoiceJson, notes),
+    onSuccess: invalidate,
+  });
+
+  const reject = useMutation({
+    mutationFn: ({ reviewId, notes }: { reviewId: string; notes?: string }) =>
+      invoiceService.rejectDuplicateReview(reviewId, notes),
+    onSuccess: invalidate,
+  });
+
+  return { approve, editAndApply, reject };
 };

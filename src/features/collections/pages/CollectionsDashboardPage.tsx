@@ -5,19 +5,6 @@ import { ChartCard } from "@/components/ui/chart-card"
 import { PageHeader } from "@/components/ui/page-header"
 import { Button } from "@/components/ui/button"
 import {
-  ResponsiveContainer,
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  PieChart,
-  Pie,
-  Cell,
-} from "recharts"
-import {
   FolderOpen,
   AlertTriangle,
   HeartOff,
@@ -26,7 +13,11 @@ import {
   DollarSign,
   RefreshCw,
 } from "lucide-react"
-import { CHART_COLORS } from "@/lib/design-tokens"
+import { KpiWidgetWithLink } from "@/features/dashboard/components/KpiWidgetWithLink"
+import { CommunicationsFeed } from "@/features/dashboard/components/CommunicationsFeed"
+import { AgingBucketChart } from "@/features/dashboard/components/AgingBucketChart"
+
+const CHART_HEIGHT = "h-[300px]"
 
 export const CollectionsDashboardPage: React.FC = () => {
   const {
@@ -53,26 +44,6 @@ export const CollectionsDashboardPage: React.FC = () => {
   const isLoading = isMetricsLoading || isAgingLoading;
   const isError = isMetricsError || isAgingError;
 
-  const barChartData = aging
-    ? [
-        { name: "Current", "Outstanding Amount": aging.CURRENT },
-        { name: "0-30 Days", "Outstanding Amount": aging["0-30"] },
-        { name: "31-60 Days", "Outstanding Amount": aging["31-60"] },
-        { name: "61-90 Days", "Outstanding Amount": aging["61-90"] },
-        { name: "90+ Days", "Outstanding Amount": aging["90_PLUS"] || 0 },
-      ]
-    : [];
-
-  const pieChartData = aging
-    ? [
-        { name: "Current", value: aging.CURRENT },
-        { name: "0-30 Days", value: aging["0-30"] },
-        { name: "31-60 Days", value: aging["31-60"] },
-        { name: "61-90 Days", value: aging["61-90"] },
-        { name: "90+ Days", value: aging["90_PLUS"] || 0 },
-      ].filter((d) => d.value > 0)
-    : [];
-
   const totalOutstanding = aging?.outstanding_amount || 0;
 
   const latestUpdate = Math.max(metricsUpdatedAt ?? 0, agingUpdatedAt ?? 0);
@@ -82,10 +53,10 @@ export const CollectionsDashboardPage: React.FC = () => {
       : undefined;
 
   return (
-    <div className="space-y-8">
+    <div className="-mx-page-side -my-3 flex h-[calc(100dvh-3.5rem)] min-h-0 flex-col gap-3 overflow-hidden px-page-side py-3">
       <PageHeader
+        className="shrink-0"
         title="Collections Analytics Dashboard"
-        description="Real-time aging analytics, collection efficiency rates, and case queues monitoring."
         meta={lastUpdated}
         actions={
           <Button variant="secondary" size="sm" onClick={handleRetry}>
@@ -105,16 +76,19 @@ export const CollectionsDashboardPage: React.FC = () => {
             onRetry: handleRetry,
           }}
           height="h-48"
+          className="min-h-0 flex-1"
         />
       ) : (
-        <>
-          <KpiGrid columns={6}>
-            <KpiCard
+        <div className="flex min-h-0 flex-1 flex-col gap-3">
+          <KpiGrid columns={6} className="shrink-0">
+            <KpiWidgetWithLink
               label="Open cases"
               value={metrics?.open_cases ?? 0}
               loading={isLoading}
               icon={<FolderOpen className="h-5 w-5" />}
               iconTone="info"
+              to="/collections/open"
+              linkLabel="View open cases"
             />
             <KpiCard
               label="Escalated"
@@ -123,12 +97,14 @@ export const CollectionsDashboardPage: React.FC = () => {
               icon={<AlertTriangle className="h-5 w-5" />}
               iconTone="destructive"
             />
-            <KpiCard
+            <KpiWidgetWithLink
               label="Broken promises"
               value={metrics?.broken_promises ?? 0}
               loading={isLoading}
               icon={<HeartOff className="h-5 w-5" />}
               iconTone="warning"
+              to="/collections/broken-promises"
+              linkLabel="View broken promises"
             />
             <KpiCard
               label="Effectiveness"
@@ -157,112 +133,22 @@ export const CollectionsDashboardPage: React.FC = () => {
             />
           </KpiGrid>
 
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-            <ChartCard
-              title="Aging bucket distribution"
-              description="Outstanding amount distribution grouped by invoice age days."
-              loading={isLoading}
-              empty={
-                totalOutstanding === 0
-                  ? {
-                      title: "No outstanding balances",
-                      description: "No active outstanding balances found.",
-                    }
-                  : false
-              }
-              height="h-[300px]"
-              className="lg:col-span-2"
-            >
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart
-                  data={barChartData}
-                  margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
-                >
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                  <XAxis dataKey="name" fontSize={11} fontWeight={600} />
-                  <YAxis
-                    fontSize={11}
-                    fontWeight={600}
-                    tickFormatter={(value) =>
-                      `₹${value.toLocaleString(undefined, { notation: "compact" })}`
-                    }
-                  />
-                  <Tooltip
-                    formatter={(value: number | string) => [
-                      `₹${Number(value).toLocaleString()}`,
-                      "Outstanding Amount",
-                    ]}
-                    labelStyle={{ fontWeight: "bold" }}
-                  />
-                  <Legend />
-                  <Bar
-                    dataKey="Outstanding Amount"
-                    fill={CHART_COLORS[2]}
-                    radius={[4, 4, 0, 0]}
-                    maxBarSize={60}
-                  />
-                </BarChart>
-              </ResponsiveContainer>
-            </ChartCard>
+          <div className="grid shrink-0 grid-cols-1 gap-3 lg:grid-cols-3">
+            <div className="min-h-0 lg:col-span-2">
+              <AgingBucketChart
+                aging={aging}
+                loading={isLoading}
+                className="h-full shadow-card"
+                height={CHART_HEIGHT}
+                title="Aging bucket distribution"
+              description="Outstanding balance grouped by aging bucket across open collection cases."
+              />
+            </div>
 
-            <ChartCard
-              title="Bucket percentage breakdown"
-              description="Proportion of outstanding total per aging category."
-              loading={isLoading}
-              empty={
-                totalOutstanding === 0
-                  ? { title: "No active balances", description: "No outstanding balances to display." }
-                  : false
-              }
-              height="h-[300px]"
-            >
-              <div className="flex h-full flex-col items-center justify-center">
-                <div className="h-[220px] w-full">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie
-                        data={pieChartData}
-                        cx="50%"
-                        cy="50%"
-                        innerRadius={60}
-                        outerRadius={80}
-                        paddingAngle={5}
-                        dataKey="value"
-                      >
-                        {pieChartData.map((_, index) => (
-                          <Cell
-                            key={`cell-${index}`}
-                            fill={CHART_COLORS[index % CHART_COLORS.length]}
-                          />
-                        ))}
-                      </Pie>
-                      <Tooltip
-                        formatter={(value: number | string) => [
-                          `₹${Number(value).toLocaleString()} (${((Number(value) / totalOutstanding) * 100).toFixed(1)}%)`,
-                          "Amount",
-                        ]}
-                      />
-                    </PieChart>
-                  </ResponsiveContainer>
-                </div>
-                <div className="mt-4 grid w-full grid-cols-2 gap-x-6 gap-y-2 text-xs font-semibold text-muted-foreground">
-                  {pieChartData.map((d, index) => (
-                    <div key={d.name} className="flex items-center space-x-2">
-                      <span
-                        className="h-3 w-3 shrink-0 rounded-full"
-                        style={{ backgroundColor: CHART_COLORS[index % CHART_COLORS.length] }}
-                      />
-                      <span className="truncate">
-                        {d.name}: {((d.value / totalOutstanding) * 100).toFixed(0)}%
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </ChartCard>
+            <CommunicationsFeed height={CHART_HEIGHT} maxItems={50} className="min-h-0" />
           </div>
 
-          <KpiGrid columns={5}>
+          <KpiGrid columns={5} className="mt-auto shrink-0">
             {[
               { label: "Current", amount: aging?.CURRENT ?? 0, iconTone: "success" as const },
               { label: "0-30 days", amount: aging?.["0-30"] ?? 0, iconTone: "info" as const },
@@ -287,7 +173,7 @@ export const CollectionsDashboardPage: React.FC = () => {
               />
             ))}
           </KpiGrid>
-        </>
+        </div>
       )}
     </div>
   );

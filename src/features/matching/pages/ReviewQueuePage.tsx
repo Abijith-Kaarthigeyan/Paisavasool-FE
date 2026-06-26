@@ -30,6 +30,7 @@ import {
   getConfidenceBadgeVariant,
 } from "@/lib/design-tokens"
 import { cn } from "@/lib/utils"
+import { formatCurrency } from "@/lib/formatCurrency"
 import { AlertTriangle, CheckCircle, HelpCircle } from "lucide-react"
 
 export const ReviewQueuePage: React.FC = () => {
@@ -184,6 +185,7 @@ export const ReviewQueuePage: React.FC = () => {
     (inv) =>
       (inv.status === "PENDING" ||
         inv.status === "PARTIALLY_PAID" ||
+        inv.status === "OVERDUE" ||
         inv.status === "DISPUTED") &&
       inv.outstanding_amount > 0
   )
@@ -234,7 +236,6 @@ export const ReviewQueuePage: React.FC = () => {
     <div className="space-y-8">
       <PageHeader
         title="Payment matching reviews"
-        description="Review wire payments flagged with ambiguous matching scores, select correct customer records, and explicitly allocate cash receipts to invoices."
       />
 
       <Card>
@@ -345,10 +346,7 @@ export const ReviewQueuePage: React.FC = () => {
                 <div className="flex flex-col">
                   <span className="text-xs font-medium text-muted-foreground">Payment amount</span>
                   <span className="mt-0.5 text-base font-semibold tabular-nums text-primary">
-                    {paymentDetails.currency}{" "}
-                    {paymentDetails.payment_amount.toLocaleString(undefined, {
-                      minimumFractionDigits: 2,
-                    })}
+                    {formatCurrency(paymentDetails.payment_amount)}
                   </span>
                 </div>
                 <div className="flex flex-col">
@@ -552,19 +550,21 @@ export const ReviewQueuePage: React.FC = () => {
                                     Disputed
                                   </Badge>
                                 )}
+                                {inv.status === "OVERDUE" && (
+                                  <Badge variant="destructive" shape="pill">
+                                    Overdue
+                                  </Badge>
+                                )}
                               </div>
                               <p className="mt-0.5 text-xs tabular-nums text-muted-foreground">
-                                Outstanding: {inv.currency}{" "}
-                                {inv.outstanding_amount.toLocaleString(undefined, {
-                                  minimumFractionDigits: 2,
-                                })}
+                                Outstanding: {formatCurrency(inv.outstanding_amount)}
                               </p>
                             </div>
                           </div>
 
                           {isChecked && (
                             <div className="flex items-center space-x-2">
-                              <span className="text-xs text-muted-foreground">{inv.currency}</span>
+                              <span className="text-xs text-muted-foreground">₹</span>
                               <Input
                                 type="number"
                                 step="any"
@@ -585,8 +585,7 @@ export const ReviewQueuePage: React.FC = () => {
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Total cash allocating</span>
                   <span className="font-medium tabular-nums text-foreground">
-                    {paymentDetails.currency}{" "}
-                    {totalAllocated.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                    {formatCurrency(totalAllocated)}
                   </span>
                 </div>
                 <div className="flex justify-between text-sm">
@@ -597,8 +596,7 @@ export const ReviewQueuePage: React.FC = () => {
                       remainingToAllocate < -0.01 ? "text-destructive" : "text-success"
                     )}
                   >
-                    {paymentDetails.currency}{" "}
-                    {remainingToAllocate.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                    {formatCurrency(remainingToAllocate)}
                   </span>
                 </div>
 
@@ -606,8 +604,8 @@ export const ReviewQueuePage: React.FC = () => {
                   <div className="flex items-start gap-2 rounded-lg border border-warning/25 bg-warning-muted p-3 text-xs text-warning-foreground">
                     <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
                     <span>
-                      <strong>Under-allocation:</strong> Remaining balance of {paymentDetails.currency}{" "}
-                      {remainingToAllocate.toLocaleString()} will generate a customer credit upon
+                      <strong>Under-allocation:</strong> Remaining balance of{" "}
+                      {formatCurrency(remainingToAllocate)} will generate a customer credit upon
                       approval.
                     </span>
                   </div>
@@ -670,7 +668,7 @@ export const ReviewQueuePage: React.FC = () => {
             <DialogTitle>Confirm review settlement</DialogTitle>
             <DialogDescription>
               {confirmAction === "approve"
-                ? `Confirm cash settlement for this customer. Allocations total is ${paymentDetails?.currency} ${totalAllocated.toLocaleString()}.`
+                ? `Confirm cash settlement for this customer. Allocations total is ${formatCurrency(totalAllocated)}.`
                 : "Are you sure you want to reject this payment receipt match? The ingestion status will be marked as FAILED."}
             </DialogDescription>
           </DialogHeader>

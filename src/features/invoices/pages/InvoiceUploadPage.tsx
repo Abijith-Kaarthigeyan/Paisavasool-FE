@@ -46,7 +46,6 @@ export const InvoiceUploadPage: React.FC = () => {
     <div className="mx-auto max-w-4xl space-y-8">
       <PageHeader
         title="Invoice ingestion center"
-        description="Ingest billing invoices into the Accounts Receivable pipeline."
       />
 
       <div className="grid grid-cols-1 gap-6 md:grid-cols-3">

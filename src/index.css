@@ -33,7 +33,7 @@
   --color-info-foreground: hsl(var(--info-foreground));
   --color-info-muted: hsl(var(--info-muted));
 
-  --spacing-page-x: 2rem;
+  --spacing-page-x: 4rem;
   --spacing-page-y: 1.5rem;
   --spacing-section: 2rem;
 
@@ -87,6 +87,15 @@
   --info: 217 91% 60%;
   --info-foreground: 217 91% 60%;
   --info-muted: 214 95% 93%;
+
+  /* Side gutter — horizontal padding for all app pages (via .px-page-side). */
+  --page-side-x: 1.8rem;
+}
+
+@media (min-width: 768px) {
+  :root {
+    --page-side-x: 2.4rem;
+  }
 }
 
 .dark {
@@ -148,4 +157,16 @@
 }
 .no-scrollbar::-webkit-scrollbar {
   display: none;
+}
+
+@layer utilities {
+  .px-page-side {
+    padding-left: var(--page-side-x);
+    padding-right: var(--page-side-x);
+  }
+
+  .-mx-page-side {
+    margin-left: calc(-1 * var(--page-side-x));
+    margin-right: calc(-1 * var(--page-side-x));
+  }
 }

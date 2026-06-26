@@ -44,7 +44,6 @@ export const WaitingCustomerPage: React.FC = () => {
     <div className="space-y-6 animate-in fade-in duration-150">
       <PageHeader
         title="Waiting for customer"
-        description="Disputes blocked pending billing documents, details, or confirmations from the client."
         actions={
           <Button variant="secondary" size="sm" onClick={() => refetch()}>
             <RefreshCw className="h-3.5 w-3.5" aria-hidden />

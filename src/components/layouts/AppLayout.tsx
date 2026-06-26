@@ -63,7 +63,7 @@ export const AppLayout: React.FC = () => {
 
         <main className="flex-1 overflow-y-auto bg-background">
           <Suspense fallback={<RouteContentSkeleton />}>
-            <div className="mx-auto max-w-7xl px-6 py-6 md:px-8 motion-reduce:animate-none animate-in fade-in duration-150">
+            <div className="px-page-side py-3 motion-reduce:animate-none animate-in fade-in duration-150">
               <Outlet />
             </div>
           </Suspense>

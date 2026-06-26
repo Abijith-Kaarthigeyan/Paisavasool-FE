@@ -7,17 +7,18 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { formatCurrency } from "@/lib/formatCurrency"
 
 interface RecommendedInvoiceCardProps {
   invoice: Record<string, unknown>
 }
 
-const currency = (value: unknown) => {
+const formatAmount = (value: unknown) => {
   if (typeof value === "number") {
-    return `₹${value.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+    return formatCurrency(value)
   }
   if (typeof value === "string" && value.trim() !== "" && !Number.isNaN(Number(value))) {
-    return `₹${Number(value).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+    return formatCurrency(Number(value))
   }
   return "—"
 }
@@ -79,19 +80,19 @@ export const RecommendedInvoiceCard: React.FC<RecommendedInvoiceCardProps> = ({
         </div>
         <div>
           <span className="block text-xs text-muted-foreground">Subtotal</span>
-          <span className="font-medium tabular-nums">{currency(subtotal)}</span>
+          <span className="font-medium tabular-nums">{formatAmount(subtotal)}</span>
         </div>
         <div>
           <span className="block text-xs text-muted-foreground">Tax</span>
-          <span className="font-medium tabular-nums">{currency(tax)}</span>
+          <span className="font-medium tabular-nums">{formatAmount(tax)}</span>
         </div>
         <div>
           <span className="block text-xs text-muted-foreground">Total</span>
-          <span className="font-semibold tabular-nums text-success">{currency(total)}</span>
+          <span className="font-semibold tabular-nums text-success">{formatAmount(total)}</span>
         </div>
         <div>
           <span className="block text-xs text-muted-foreground">Outstanding</span>
-          <span className="font-medium tabular-nums">{currency(outstanding)}</span>
+          <span className="font-medium tabular-nums">{formatAmount(outstanding)}</span>
         </div>
       </div>
 
@@ -124,10 +125,10 @@ export const RecommendedInvoiceCard: React.FC<RecommendedInvoiceCardProps> = ({
                         {quantity != null ? String(quantity) : "—"}
                       </TableCell>
                       <TableCell className="text-right tabular-nums">
-                        {currency(unitPrice)}
+                        {formatAmount(unitPrice)}
                       </TableCell>
                       <TableCell className="text-right font-medium tabular-nums">
-                        {currency(amount)}
+                        {formatAmount(amount)}
                       </TableCell>
                     </TableRow>
                   )

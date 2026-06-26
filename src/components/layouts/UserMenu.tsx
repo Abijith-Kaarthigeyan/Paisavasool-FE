@@ -2,11 +2,14 @@ import React from "react"
 import { LogOut, User } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { cn } from "@/lib/utils"
+import type { SidebarNavVariant } from "./SidebarNav"
 
 interface UserMenuProps {
   email?: string
   role?: string
   onLogout: () => void
+  variant?: SidebarNavVariant
 }
 
 function getRoleBadgeVariant(roleName: string | undefined) {
@@ -24,7 +27,34 @@ export const UserMenu: React.FC<UserMenuProps> = ({
   email,
   role,
   onLogout,
+  variant = "full",
 }) => {
+  if (variant === "icon") {
+    return (
+      <div className="flex shrink-0 flex-col items-center gap-2 border-t border-border px-2 py-3">
+        <div
+          className="flex h-9 w-9 items-center justify-center rounded-full bg-[#EEF2FF] text-[#4F46E5]"
+          title={email}
+          aria-label={email ? `Signed in as ${email}` : "User account"}
+        >
+          <User className="h-4 w-4" aria-hidden />
+        </div>
+        <button
+          type="button"
+          onClick={onLogout}
+          title="Sign out"
+          aria-label="Sign out"
+          className={cn(
+            "flex h-9 w-9 items-center justify-center rounded-full text-[#6B7280] transition-colors",
+            "hover:bg-muted hover:text-[#DC2626] focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-primary/40"
+          )}
+        >
+          <LogOut className="h-4 w-4" aria-hidden />
+        </button>
+      </div>
+    )
+  }
+
   return (
     <div className="border-t border-border p-4">
       <div className="mb-3 flex items-center gap-3 px-1">

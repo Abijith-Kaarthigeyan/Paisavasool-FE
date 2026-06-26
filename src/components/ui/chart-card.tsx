@@ -33,6 +33,8 @@ export interface ChartCardProps {
   height?: string
   headerAction?: React.ReactNode
   className?: string
+  compact?: boolean
+  footer?: React.ReactNode
 }
 
 export function ChartCard({
@@ -45,6 +47,8 @@ export function ChartCard({
   height = "h-44",
   headerAction,
   className,
+  compact = false,
+  footer,
 }: ChartCardProps) {
   const isError = Boolean(error)
   const isEmpty = Boolean(empty) && !loading && !isError
@@ -58,15 +62,24 @@ export function ChartCard({
       : { title: "No data yet", description: "Data will appear here once available." }
 
   return (
-    <Card className={cn("border-border", className)}>
-      <CardHeader className="mb-3 flex flex-row items-start justify-between space-y-0 border-b border-border pb-3">
-        <div className="space-y-1">
-          <CardTitle className="text-base">{title}</CardTitle>
-          {description && <CardDescription>{description}</CardDescription>}
+    <Card className={cn("border-border flex h-full min-h-0 flex-col", className)}>
+      <CardHeader
+        className={cn(
+          "flex shrink-0 flex-row items-start justify-between space-y-0 border-b border-border",
+          compact ? "mb-1 px-3 py-2" : "mb-3 pb-3"
+        )}
+      >
+        <div className={compact ? "space-y-0" : "space-y-1"}>
+          <CardTitle className={compact ? "text-sm" : "text-base"}>{title}</CardTitle>
+          {description && (
+            <CardDescription className={compact ? "text-[11px]" : undefined}>
+              {description}
+            </CardDescription>
+          )}
         </div>
         {headerAction}
       </CardHeader>
-      <CardContent className="pt-0">
+      <CardContent className={cn("min-h-0 flex-1 pt-0", compact && "px-3 pb-2")}>
         {loading ? (
           <Skeleton className={cn("w-full", height)} />
         ) : isError ? (
@@ -106,9 +119,14 @@ export function ChartCard({
             />
           </div>
         ) : (
-          <div className={cn("w-full", height)}>{children}</div>
+          <div className={cn("w-full min-h-0", height === "h-full" ? "h-full" : height)}>
+            {children}
+          </div>
         )}
       </CardContent>
+      {footer && !loading && !isError && (
+        <div className="shrink-0 px-3 pb-2 pt-1">{footer}</div>
+      )}
     </Card>
   )
 }

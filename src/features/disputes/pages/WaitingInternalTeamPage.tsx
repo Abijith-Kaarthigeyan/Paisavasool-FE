@@ -1,6 +1,7 @@
 import React, { useMemo } from "react"
 import { useNavigate } from "react-router-dom"
 import { useDisputes } from "../hooks/useDisputes"
+import { isWaitingInternalTeamDispute } from "../utils/disputeFormatters"
 import { Card, CardContent } from "@/components/ui/card"
 import { TableSkeleton } from "@/components/ui/skeleton"
 import { PageHeader } from "@/components/ui/page-header"
@@ -21,7 +22,7 @@ export const WaitingInternalTeamPage: React.FC = () => {
   const { data: disputes = [], isLoading, isError, refetch } = useDisputes()
 
   const waitingDisputes = useMemo(() => {
-    return disputes.filter((d) => d.status === "WAITING_INTERNAL")
+    return disputes.filter(isWaitingInternalTeamDispute)
   }, [disputes])
 
   const disputesEnriched = useMemo(() => {
@@ -53,7 +54,6 @@ export const WaitingInternalTeamPage: React.FC = () => {
     <div className="space-y-6 animate-in fade-in duration-150">
       <PageHeader
         title="Waiting for internal teams"
-        description="Disputes blocked pending confirmation, ledger validations, or authorization from internal departments."
         actions={
           <Button variant="secondary" size="sm" onClick={() => refetch()}>
             <RefreshCw className="h-3.5 w-3.5" aria-hidden />

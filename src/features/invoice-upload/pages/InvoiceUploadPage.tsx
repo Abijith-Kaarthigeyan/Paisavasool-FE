@@ -58,7 +58,6 @@ export const InvoiceUploadPage: React.FC = () => {
 
       <PageHeader
         title="Invoice upload center"
-        description="Upload single PDF invoices or bulk ZIP archives to trigger AI ingestion pipelines."
         actions={
           <Button variant="secondary" size="sm" onClick={() => navigate(getDashboardPath())}>
             Back to dashboard

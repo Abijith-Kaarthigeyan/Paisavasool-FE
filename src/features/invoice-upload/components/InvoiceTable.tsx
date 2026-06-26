@@ -14,6 +14,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { INVOICE_STATUS_VARIANT, getStatusVariant } from "@/lib/design-tokens"
+import { formatCurrency } from "@/lib/formatCurrency"
 import { FileSpreadsheet } from "lucide-react"
 
 interface InvoiceTableProps {
@@ -112,14 +113,10 @@ export const InvoiceTable: React.FC<InvoiceTableProps> = ({
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right tabular-nums text-muted-foreground">
-                      {inv.currency}{" "}
-                      {inv.outstanding_amount.toLocaleString(undefined, {
-                        minimumFractionDigits: 2,
-                      })}
+                      {formatCurrency(inv.outstanding_amount)}
                     </TableCell>
                     <TableCell className="text-right font-medium tabular-nums text-foreground">
-                      {inv.currency}{" "}
-                      {inv.total_amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                      {formatCurrency(inv.total_amount)}
                     </TableCell>
                   </TableRow>
                 ))}

@@ -12,7 +12,6 @@ export const AssignedCasesPage: React.FC = () => {
       isError={isError}
       refetch={refetch}
       title="My assigned cases"
-      description="Browse and manage collection cases assigned to your profile."
       showAssignedColumn={false}
       filterMode="basic"
     />

@@ -2,15 +2,12 @@ import React, { useState, useMemo } from "react"
 import { useNavigate } from "react-router-dom"
 import { useCases } from "../hooks/useDisputes"
 import { Card, CardContent } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
 import { TableSkeleton } from "@/components/ui/skeleton"
 import { Pagination } from "@/components/ui/pagination"
 import { PageHeader } from "@/components/ui/page-header"
 import { FilterBar } from "@/components/ui/filter-bar"
 import { EmptyState } from "@/components/ui/empty-state"
 import { Button } from "@/components/ui/button"
-import { Label } from "@/components/ui/label"
-import { Select } from "@/components/ui/select"
 import {
   Table,
   TableBody,
@@ -26,7 +23,6 @@ export const CasesListPage: React.FC = () => {
   const { data: cases = [], isLoading, isError, refetch } = useCases()
 
   const [searchTerm, setSearchTerm] = useState("")
-  const [statusFilter, setStatusFilter] = useState("")
   const [sortField, setSortField] = useState<string>("created_at")
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc")
   const [currentPage, setCurrentPage] = useState(1)
@@ -51,12 +47,11 @@ export const CasesListPage: React.FC = () => {
     return cases
       .filter((c) => {
         const term = searchTerm.toLowerCase()
-        const matchesSearch =
+        return (
           c.case_number.toLowerCase().includes(term) ||
           c.customer_email.toLowerCase().includes(term) ||
           (c.email_subject || "").toLowerCase().includes(term)
-        const matchesStatus = !statusFilter || c.status === statusFilter
-        return matchesSearch && matchesStatus
+        )
       })
       .sort((a, b) => {
         let aVal: unknown = a[sortField as keyof typeof a]
@@ -72,20 +67,19 @@ export const CasesListPage: React.FC = () => {
           ? Number(aVal) - Number(bVal)
           : Number(bVal) - Number(aVal)
       })
-  }, [cases, searchTerm, statusFilter, sortField, sortDirection])
+  }, [cases, searchTerm, sortField, sortDirection])
 
   const totalItems = filteredCases.length
   const totalPages = Math.max(1, Math.ceil(totalItems / itemsPerPage))
   const startIndex = (currentPage - 1) * itemsPerPage
   const paginatedCases = filteredCases.slice(startIndex, startIndex + itemsPerPage)
 
-  const hasActiveFilters = !!searchTerm || !!statusFilter
+  const hasActiveFilters = !!searchTerm
 
   return (
     <div className="space-y-6 animate-in fade-in duration-150">
       <PageHeader
         title="Intake email cases"
-        description="Browse email tickets ingested by the platform and review disputes created by AI analysis."
         actions={
           <Button variant="secondary" size="sm" onClick={() => refetch()}>
             <RefreshCw className="h-3.5 w-3.5" aria-hidden />
@@ -95,7 +89,7 @@ export const CasesListPage: React.FC = () => {
       />
 
       <Card>
-        <CardContent className="space-y-4 p-4">
+        <CardContent className="p-4">
           <FilterBar
             searchValue={searchTerm}
             onSearchChange={(value) => {
@@ -106,33 +100,16 @@ export const CasesListPage: React.FC = () => {
             showClear={hasActiveFilters}
             onClear={() => {
               setSearchTerm("")
-              setStatusFilter("")
               setCurrentPage(1)
             }}
           />
-          <div className="max-w-xs space-y-1.5">
-            <Label htmlFor="case-status-filter">Status</Label>
-            <Select
-              id="case-status-filter"
-              value={statusFilter}
-              onChange={(e) => {
-                setStatusFilter(e.target.value)
-                setCurrentPage(1)
-              }}
-            >
-              <option value="">All statuses</option>
-              <option value="OPEN">Open</option>
-              <option value="RESOLVED">Resolved</option>
-              <option value="FAILED">Failed</option>
-            </Select>
-          </div>
         </CardContent>
       </Card>
 
       <Card>
         <CardContent className="p-0">
           {isLoading ? (
-            <TableSkeleton rows={8} columns={6} />
+            <TableSkeleton rows={8} columns={5} />
           ) : isError ? (
             <EmptyState
               icon={<FolderOpen className="h-6 w-6 text-destructive" />}
@@ -167,7 +144,6 @@ export const CasesListPage: React.FC = () => {
                   <TableHead>Customer email</TableHead>
                   <TableHead>Subject</TableHead>
                   <TableHead className="text-center">Disputes</TableHead>
-                  <TableHead className="text-center">Status</TableHead>
                   <TableHead className="text-right">
                     <button
                       type="button"
@@ -197,11 +173,6 @@ export const CasesListPage: React.FC = () => {
                     </TableCell>
                     <TableCell className="text-center font-medium tabular-nums">
                       {c.dispute_count}
-                    </TableCell>
-                    <TableCell className="text-center">
-                      <Badge variant={c.status === "OPEN" ? "default" : "outline"} shape="pill">
-                        {c.status}
-                      </Badge>
                     </TableCell>
                     <TableCell className="text-right tabular-nums text-muted-foreground">
                       {new Date(c.created_at).toLocaleDateString()}

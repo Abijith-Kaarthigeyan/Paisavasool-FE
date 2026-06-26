@@ -54,7 +54,6 @@ export const PaymentUploadPage: React.FC = () => {
     <div className="mx-auto max-w-4xl space-y-8">
       <PageHeader
         title="Payment ingestion center"
-        description="Upload bank transaction receipts, wire transfers, or statement PDFs to match them against open customer balances."
       />
 
       <div className="grid grid-cols-1 gap-6 md:grid-cols-3">

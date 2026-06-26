@@ -21,10 +21,10 @@ import {
 } from "@/components/ui/table"
 import {
   AGING_BUCKET_VARIANT,
-  COLLECTION_STATUS_VARIANT,
   PRIORITY_VARIANT,
   getStatusVariant,
 } from "@/lib/design-tokens"
+import { formatCurrency } from "@/lib/formatCurrency"
 import { ArrowUpDown, FolderOpen, RefreshCw } from "lucide-react"
 
 export interface CollectionsCasesTableProps {
@@ -33,13 +33,8 @@ export interface CollectionsCasesTableProps {
   isError: boolean
   refetch: () => void
   title: string
-  description: string
   showAssignedColumn?: boolean
   filterMode?: "full" | "basic"
-}
-
-function formatCurrency(amount: number) {
-  return `₹${amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}`
 }
 
 export const CollectionsCasesTable: React.FC<CollectionsCasesTableProps> = ({
@@ -48,14 +43,12 @@ export const CollectionsCasesTable: React.FC<CollectionsCasesTableProps> = ({
   isError,
   refetch,
   title,
-  description,
   showAssignedColumn = true,
   filterMode = "full",
 }) => {
   const navigate = useNavigate()
 
   const [searchTerm, setSearchTerm] = useState("")
-  const [statusFilter, setStatusFilter] = useState("")
   const [priorityFilter, setPriorityFilter] = useState("")
   const [bucketFilter, setBucketFilter] = useState("")
   const [customerFilter, setCustomerFilter] = useState("")
@@ -103,7 +96,6 @@ export const CollectionsCasesTable: React.FC<CollectionsCasesTableProps> = ({
           (c.customer?.customer_name || "").toLowerCase().includes(term) ||
           (c.invoice?.invoice_number || "").toLowerCase().includes(term)
 
-        const matchesStatus = !statusFilter || c.status === statusFilter
         const matchesPriority = !priorityFilter || c.priority === priorityFilter
         const matchesBucket = !bucketFilter || c.aging_bucket === bucketFilter
         const matchesCustomer =
@@ -115,7 +107,6 @@ export const CollectionsCasesTable: React.FC<CollectionsCasesTableProps> = ({
 
         return (
           matchesSearch &&
-          matchesStatus &&
           matchesPriority &&
           matchesBucket &&
           matchesCustomer &&
@@ -155,7 +146,6 @@ export const CollectionsCasesTable: React.FC<CollectionsCasesTableProps> = ({
   }, [
     cases,
     searchTerm,
-    statusFilter,
     priorityFilter,
     bucketFilter,
     customerFilter,
@@ -172,14 +162,12 @@ export const CollectionsCasesTable: React.FC<CollectionsCasesTableProps> = ({
 
   const hasActiveFilters =
     !!searchTerm ||
-    !!statusFilter ||
     !!priorityFilter ||
     !!bucketFilter ||
     (filterMode === "full" && (!!customerFilter || !!associateFilter))
 
   const clearFilters = () => {
     setSearchTerm("")
-    setStatusFilter("")
     setPriorityFilter("")
     setBucketFilter("")
     setCustomerFilter("")
@@ -191,7 +179,6 @@ export const CollectionsCasesTable: React.FC<CollectionsCasesTableProps> = ({
     <div className="space-y-6 animate-in fade-in duration-150">
       <PageHeader
         title={title}
-        description={description}
         actions={
           <Button variant="secondary" size="sm" onClick={() => refetch()}>
             <RefreshCw className="h-3.5 w-3.5" aria-hidden />
@@ -215,28 +202,10 @@ export const CollectionsCasesTable: React.FC<CollectionsCasesTableProps> = ({
           <div
             className={
               filterMode === "full"
-                ? "grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5"
+                ? "grid grid-cols-2 gap-3 sm:grid-cols-2 lg:grid-cols-4"
                 : "grid grid-cols-1 gap-3 sm:grid-cols-2"
             }
           >
-            <div className="space-y-1.5">
-              <Label htmlFor="filter-status">Status</Label>
-              <Select
-                id="filter-status"
-                value={statusFilter}
-                onChange={(e) => {
-                  setStatusFilter(e.target.value)
-                  setCurrentPage(1)
-                }}
-              >
-                <option value="">All statuses</option>
-                <option value="OPEN">Open</option>
-                <option value="IN_PROGRESS">In progress</option>
-                <option value="PROMISED">Promised</option>
-                <option value="ESCALATED">Escalated</option>
-                <option value="DISPUTED">Disputed</option>
-              </Select>
-            </div>
             <div className="space-y-1.5">
               <Label htmlFor="filter-priority">Priority</Label>
               <Select
@@ -318,7 +287,7 @@ export const CollectionsCasesTable: React.FC<CollectionsCasesTableProps> = ({
       <Card>
         <CardContent className="p-0">
           {isLoading ? (
-            <TableSkeleton rows={8} columns={showAssignedColumn ? 8 : 7} />
+            <TableSkeleton rows={8} columns={showAssignedColumn ? 7 : 6} />
           ) : isError ? (
             <EmptyState
               icon={<FolderOpen className="h-6 w-6 text-destructive" />}
@@ -375,7 +344,6 @@ export const CollectionsCasesTable: React.FC<CollectionsCasesTableProps> = ({
                   <TableHead className="text-center">Bucket</TableHead>
                   <TableHead className="text-center">Priority</TableHead>
                   {showAssignedColumn && <TableHead>Assigned to</TableHead>}
-                  <TableHead className="text-center">Status</TableHead>
                   <TableHead className="text-right">
                     <button
                       type="button"
@@ -429,14 +397,6 @@ export const CollectionsCasesTable: React.FC<CollectionsCasesTableProps> = ({
                           {c.assigned_associate_name}
                         </TableCell>
                       )}
-                      <TableCell className="text-center">
-                        <Badge
-                          variant={getStatusVariant(COLLECTION_STATUS_VARIANT, c.status)}
-                          shape="pill"
-                        >
-                          {c.status.replace(/_/g, " ")}
-                        </Badge>
-                      </TableCell>
                       <TableCell className="text-right tabular-nums text-muted-foreground">
                         {new Date(c.opened_at).toLocaleDateString()}
                       </TableCell>

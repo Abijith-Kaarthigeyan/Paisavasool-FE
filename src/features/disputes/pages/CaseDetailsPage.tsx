@@ -3,7 +3,6 @@ import { useParams, Link, useNavigate } from "react-router-dom"
 import { useCase } from "../hooks/useDisputes"
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Badge } from "@/components/ui/badge"
 import { KpiCard, KpiGrid } from "@/components/ui/kpi-card"
 import { PageHeader } from "@/components/ui/page-header"
 import { EmptyState } from "@/components/ui/empty-state"
@@ -16,7 +15,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { DISPUTE_STATUS_VARIANT, getStatusVariant } from "@/lib/design-tokens"
 import {
   Mail,
   User,
@@ -65,12 +63,6 @@ export const CaseDetailsPage: React.FC = () => {
     <div className="space-y-6 animate-in fade-in duration-150">
       <PageHeader
         title={`Case ${caseData.case_number}`}
-        description={`Ingested ${new Date(caseData.created_at).toLocaleString()}`}
-        meta={
-          <Badge variant={caseData.status === "OPEN" ? "default" : "outline"} shape="pill">
-            {caseData.status}
-          </Badge>
-        }
         actions={
           <Button variant="ghost" size="sm" onClick={() => navigate("/disputes/cases")}>
             Back to cases
@@ -165,7 +157,6 @@ export const CaseDetailsPage: React.FC = () => {
                       <TableHead>Invoice</TableHead>
                       <TableHead>Category</TableHead>
                       <TableHead>Assignee</TableHead>
-                      <TableHead>Status</TableHead>
                       <TableHead className="text-right">Action</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -185,14 +176,6 @@ export const CaseDetailsPage: React.FC = () => {
                         </TableCell>
                         <TableCell className="text-muted-foreground">
                           {d.assigned_user_name || "Unassigned"}
-                        </TableCell>
-                        <TableCell>
-                          <Badge
-                            variant={getStatusVariant(DISPUTE_STATUS_VARIANT, d.status)}
-                            shape="pill"
-                          >
-                            {d.status.replace(/_/g, " ")}
-                          </Badge>
                         </TableCell>
                         <TableCell className="text-right">
                           <Link
@@ -264,11 +247,10 @@ export const CaseDetailsPage: React.FC = () => {
                               : "Pending"}
                           </span>
                         </div>
-                        <div className="mt-1 flex items-center justify-between text-xs text-muted-foreground">
+                        <div className="mt-1 text-xs text-muted-foreground">
                           <span className="tabular-nums">
                             Total: {total !== undefined ? `₹${total.toLocaleString()}` : "N/A"}
                           </span>
-                          <span>{d.invoice?.status || "Unknown"}</span>
                         </div>
                       </div>
                     )

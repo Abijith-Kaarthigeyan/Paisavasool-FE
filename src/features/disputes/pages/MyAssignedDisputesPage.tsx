@@ -20,7 +20,6 @@ export const MyAssignedDisputesPage: React.FC = () => {
       isError={isError}
       refetch={refetch}
       title="My Assigned Disputes"
-      description="Worklist of billing disputes assigned to your account queue for analysis and resolution."
     />
   );
 };

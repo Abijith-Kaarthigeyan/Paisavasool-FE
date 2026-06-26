@@ -71,7 +71,6 @@ export const ReminderHistoryPage: React.FC = () => {
     <div className="space-y-6 animate-in fade-in duration-150">
       <PageHeader
         title="Reminder history"
-        description="Browse dunning dispatches, check letter status, and view alert subject lines."
         actions={
           <Button variant="secondary" size="sm" onClick={() => refetch()}>
             <RefreshCw className="h-3.5 w-3.5" aria-hidden />

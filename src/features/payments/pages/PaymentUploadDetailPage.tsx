@@ -130,7 +130,6 @@ export const PaymentUploadDetailPage: React.FC = () => {
 
       <PageHeader
         title="Payment ingestion details"
-        description={upload.file_name}
         actions={
           <div className="flex items-center gap-2">
             <Button

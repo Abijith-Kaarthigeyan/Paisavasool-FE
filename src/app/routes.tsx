@@ -34,6 +34,7 @@ const DisputeDashboardPage = React.lazy(() => import("@/features/disputes/pages/
 const CasesListPage = React.lazy(() => import("@/features/disputes/pages/CasesListPage"));
 const CaseDetailsPage = React.lazy(() => import("@/features/disputes/pages/CaseDetailsPage"));
 const OpenDisputesPage = React.lazy(() => import("@/features/disputes/pages/OpenDisputesPage"));
+const AllDisputesPage = React.lazy(() => import("@/features/disputes/pages/AllDisputesPage"));
 const MyAssignedDisputesPage = React.lazy(() => import("@/features/disputes/pages/MyAssignedDisputesPage"));
 const EscalatedDisputesPage = React.lazy(() => import("@/features/disputes/pages/EscalatedDisputesPage"));
 const DisputeReviewQueuePage = React.lazy(() => import("@/features/disputes/pages/ReviewQueuePage"));
@@ -224,6 +225,14 @@ export const AppRoutes = () => {
             element={
               <ProtectedRoute allowedRoles={["FINANCE_MANAGER", "FINANCE_ASSOCIATE"]}>
                 <OpenDisputesPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/disputes/all"
+            element={
+              <ProtectedRoute allowedRoles={["FINANCE_MANAGER", "FINANCE_ASSOCIATE"]}>
+                <AllDisputesPage />
               </ProtectedRoute>
             }
           />

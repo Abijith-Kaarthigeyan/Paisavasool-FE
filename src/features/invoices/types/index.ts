@@ -1,5 +1,5 @@
 export type BatchStatus = "UPLOADED" | "PROCESSING" | "COMPLETED" | "PARTIAL_SUCCESS" | "FAILED";
-export type FileStatus = "UPLOADED" | "EXTRACTED" | "FAILED" | "IMPORTED";
+export type FileStatus = "UPLOADED" | "EXTRACTED" | "FAILED" | "IMPORTED" | "PENDING_REVIEW";
 export type InvoiceStatus = "PENDING" | "PARTIALLY_PAID" | "PAID" | "OVERDUE" | "DISPUTED" | "CANCELLED" | "DRAFT";
 
 export interface InvoiceUploadBatch {
@@ -9,6 +9,7 @@ export interface InvoiceUploadBatch {
   processed_files: number;
   success_count: number;
   failed_count: number;
+  pending_review_count?: number;
   status: BatchStatus;
   uploaded_by: string;
   uploaded_at: string;
@@ -86,4 +87,31 @@ export interface InvoiceItem {
   unit_price: number;
   amount: number;
   created_at: string;
+}
+
+export type ReviewQueueStatus = "PENDING" | "RESOLVED" | "REJECTED";
+
+export interface ReviewQueueItem {
+  id: string;
+  batch_id: string;
+  invoice_id: string | null;
+  batch_file_id: string | null;
+  review_reason: string;
+  status: ReviewQueueStatus;
+  assigned_to: string | null;
+  created_at: string;
+}
+
+export interface DuplicateReviewContext {
+  review_id: string;
+  batch_id: string;
+  batch_file_id: string | null;
+  status: ReviewQueueStatus;
+  review_reason: string;
+  current_version: number;
+  invoice_id: string;
+  invoice_number: string;
+  current_invoice: Record<string, unknown>;
+  proposed_invoice: Record<string, unknown>;
+  has_changes: boolean;
 }

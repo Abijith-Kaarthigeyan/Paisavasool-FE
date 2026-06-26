@@ -34,7 +34,6 @@ interface DisputesTableProps {
   isError: boolean
   refetch: () => void
   title: string
-  description: string
 }
 
 function getPriorityKey(dispute: Dispute): string {
@@ -58,7 +57,6 @@ export const DisputesTable: React.FC<DisputesTableProps> = ({
   isError,
   refetch,
   title,
-  description,
 }) => {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
@@ -210,7 +208,6 @@ export const DisputesTable: React.FC<DisputesTableProps> = ({
     <div className="space-y-6 animate-in fade-in duration-150">
       <PageHeader
         title={title}
-        description={description}
         actions={
           <Button variant="secondary" size="sm" onClick={() => refetch()}>
             <RefreshCw className="h-3.5 w-3.5" aria-hidden />

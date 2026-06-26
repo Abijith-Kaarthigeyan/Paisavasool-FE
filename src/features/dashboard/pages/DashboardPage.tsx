@@ -25,17 +25,21 @@ export const DashboardPage: React.FC = () => {
       case "FINANCE_MANAGER":
         return <ManagerDashboard />;
       case "FINANCE_ASSOCIATE":
-        return <AssociateDashboard />;
+        return (
+          <div className="-mx-page-side -my-3 flex h-[calc(100dvh-3.5rem)] min-h-0 flex-col overflow-hidden px-page-side py-3">
+            <AssociateDashboard />
+          </div>
+        );
       default:
         return <Navigate to="/403" replace />;
     }
   })();
 
   return (
-    <div className="animate-in fade-in duration-150">
+    <>
       {dashboard}
       {canPollEmails && <EmailPollFab />}
-    </div>
+    </>
   );
 };
 

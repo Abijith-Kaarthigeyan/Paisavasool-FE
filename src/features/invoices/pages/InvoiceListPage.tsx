@@ -19,6 +19,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { INVOICE_STATUS_VARIANT, getStatusVariant } from "@/lib/design-tokens"
+import { formatCurrency } from "@/lib/formatCurrency"
 import { RefreshCw, HelpCircle, Inbox } from "lucide-react"
 
 export const InvoiceListPage: React.FC = () => {
@@ -48,14 +49,12 @@ export const InvoiceListPage: React.FC = () => {
   const startIndex = (currentPage - 1) * itemsPerPage
   const paginatedInvoices = filteredInvoices.slice(startIndex, startIndex + itemsPerPage)
 
-  const currencySymbol = invoices[0]?.currency || "INR"
   const totalOpenBalance = filteredInvoices.reduce((sum, i) => sum + i.outstanding_amount, 0)
 
   return (
     <div className="space-y-8">
       <PageHeader
         title="Billing Register"
-        description="Browse corporate invoices, track outstanding balances, and check dispute indicators."
         actions={
           <Button variant="secondary" size="sm" onClick={() => refetch()}>
             <RefreshCw className="h-3.5 w-3.5" aria-hidden />
@@ -87,8 +86,7 @@ export const InvoiceListPage: React.FC = () => {
           <p className="text-sm text-muted-foreground">
             Total open balance:{" "}
             <span className="font-semibold tabular-nums text-foreground">
-              {currencySymbol}{" "}
-              {totalOpenBalance.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+              {formatCurrency(totalOpenBalance)}
             </span>
           </p>
         </CardContent>
@@ -151,12 +149,10 @@ export const InvoiceListPage: React.FC = () => {
                       {new Date(inv.due_date).toLocaleDateString()}
                     </TableCell>
                     <TableCell className="text-right font-medium tabular-nums text-foreground">
-                      {inv.currency}{" "}
-                      {inv.total_amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                      {formatCurrency(inv.total_amount)}
                     </TableCell>
                     <TableCell className="text-right tabular-nums text-muted-foreground">
-                      {inv.currency}{" "}
-                      {inv.outstanding_amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                      {formatCurrency(inv.outstanding_amount)}
                     </TableCell>
                     <TableCell className="text-right">
                       <Badge

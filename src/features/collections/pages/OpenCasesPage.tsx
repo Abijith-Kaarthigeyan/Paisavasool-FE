@@ -12,7 +12,6 @@ export const OpenCasesPage: React.FC = () => {
       isError={isError}
       refetch={refetch}
       title="Open collection cases"
-      description="Browse and manage all currently active credit collection cases in accounts receivable."
       showAssignedColumn
       filterMode="full"
     />

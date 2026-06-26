@@ -22,6 +22,7 @@ import {
   INVOICE_STATUS_VARIANT,
   getStatusVariant,
 } from "@/lib/design-tokens"
+import { formatCurrency } from "@/lib/formatCurrency"
 import {
   ArrowLeft,
   User,
@@ -203,12 +204,10 @@ export const CustomerDetailPage: React.FC = () => {
                           {new Date(inv.due_date).toLocaleDateString()}
                         </TableCell>
                         <TableCell className="text-right font-medium tabular-nums text-foreground">
-                          {inv.currency}{" "}
-                          {inv.total_amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                          {formatCurrency(inv.total_amount)}
                         </TableCell>
                         <TableCell className="text-right tabular-nums text-muted-foreground">
-                          {inv.currency}{" "}
-                          {inv.outstanding_amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                          {formatCurrency(inv.outstanding_amount)}
                         </TableCell>
                         <TableCell className="text-right">
                           <Badge
@@ -264,8 +263,7 @@ export const CustomerDetailPage: React.FC = () => {
                           {new Date(pmt.payment_date).toLocaleDateString()}
                         </TableCell>
                         <TableCell className="text-right font-medium tabular-nums text-foreground">
-                          {pmt.currency}{" "}
-                          {pmt.payment_amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                          {formatCurrency(pmt.payment_amount)}
                         </TableCell>
                         <TableCell className="text-right">
                           <Badge
@@ -338,7 +336,7 @@ export const CustomerDetailPage: React.FC = () => {
                           {new Date(crd.created_at).toLocaleDateString()}
                         </TableCell>
                         <TableCell className="text-right font-medium tabular-nums text-foreground">
-                          INR {crd.credit_amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                          {formatCurrency(crd.credit_amount)}
                         </TableCell>
                         <TableCell className="text-right">
                           <Badge

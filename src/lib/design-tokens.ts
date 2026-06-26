@@ -14,6 +14,26 @@ export const CHART_COLORS = [
   "#DC2626",
 ] as const
 
+/** Aging bucket bar colors — professional multi-tone palette (Upflow-style). */
+export const AGING_BUCKET_CHART_COLORS = [
+  "#16A34A",
+  "#2563EB",
+  "#D97706",
+  "#EA580C",
+  "#DC2626",
+] as const
+
+/** Sidebar nav icon accent colors keyed by nav item label. */
+export const NAV_ICON_COLORS: Record<string, { icon: string; activeBg: string }> = {
+  Dashboard: { icon: "#4F46E5", activeBg: "#EEF2FF" },
+  Invoices: { icon: "#2563EB", activeBg: "#EFF6FF" },
+  Payments: { icon: "#16A34A", activeBg: "#F0FDF4" },
+  Collections: { icon: "#D97706", activeBg: "#FFFBEB" },
+  Disputes: { icon: "#DC2626", activeBg: "#FEF2F2" },
+  Customers: { icon: "#9333EA", activeBg: "#FAF5FF" },
+  "User Management": { icon: "#0891B2", activeBg: "#ECFEFF" },
+}
+
 /** SLA health pie/bar segments aligned to semantic chart palette. */
 export const SLA_HEALTH_COLORS = {
   healthy: CHART_COLORS[1],
@@ -50,6 +70,8 @@ export const INVOICE_FILE_STATUS_VARIANT: Record<string, BadgeVariant> = {
   FAILED: "destructive",
   PROCESSING: "info",
   PENDING: "default",
+  PENDING_REVIEW: "warning",
+  IMPORTED: "success",
 }
 
 export const PAYMENT_STATUS_VARIANT: Record<string, BadgeVariant> = {

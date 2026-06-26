@@ -16,7 +16,21 @@ interface SidebarProps {
   className?: string
 }
 
-function SidebarBrand() {
+function SidebarBrand({ iconOnly = false }: { iconOnly?: boolean }) {
+  if (iconOnly) {
+    return (
+      <div className="flex h-14 shrink-0 items-center justify-center border-b border-border">
+        <span
+          className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10"
+          title="Paisa Vasool"
+          aria-label="Paisa Vasool"
+        >
+          <CreditCard className="h-5 w-5 text-primary" aria-hidden />
+        </span>
+      </div>
+    )
+  }
+
   return (
     <div className="flex h-14 shrink-0 items-center border-b border-border px-5">
       <span className="flex items-center gap-2 text-base font-semibold tracking-tight text-foreground">
@@ -38,13 +52,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
   return (
     <aside
       className={cn(
-        "flex w-60 flex-col border-r border-border bg-card",
+        "flex w-16 flex-col border-r border-border bg-card",
         className
       )}
     >
-      <SidebarBrand />
-      <SidebarNav items={items} onNavigate={onNavigate} />
-      <UserMenu email={email} role={role} onLogout={onLogout} />
+      <SidebarBrand iconOnly />
+      <SidebarNav items={items} onNavigate={onNavigate} variant="icon" />
+      <UserMenu email={email} role={role} onLogout={onLogout} variant="icon" />
     </aside>
   )
 }
@@ -105,8 +119,8 @@ export const MobileSidebar: React.FC<MobileSidebarProps> = ({
             <X className="h-5 w-5" />
           </button>
         </div>
-        <SidebarNav items={items} onNavigate={handleNavigate} />
-        <UserMenu email={email} role={role} onLogout={handleLogout} />
+        <SidebarNav items={items} onNavigate={handleNavigate} variant="full" />
+        <UserMenu email={email} role={role} onLogout={handleLogout} variant="full" />
       </aside>
     </div>
   )

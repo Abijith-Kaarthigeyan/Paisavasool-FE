@@ -2,6 +2,37 @@ import type { DisputeCommunication, DisputeReviewQueueItem } from "../types"
 
 const TERMINAL_DISPUTE_STATUSES = new Set(["CLOSED", "RESOLVED", "FAILED"])
 
+const ASSOCIATE_INPUT_STATUSES = new Set([
+  "WAITING_ASSOCIATE_APPROVAL",
+  "IN_REVIEW",
+  "WAITING_PAYMENT_REVIEW",
+])
+
+const WAITING_INTERNAL_TEAM_STATUSES = new Set(["WAITING_INTERNAL", "WAITING_INTERNAL_TEAM"])
+
+export function isClosedDispute(status?: string | null): boolean {
+  return status === "CLOSED"
+}
+
+export function isFailedDispute(status?: string | null): boolean {
+  return status === "FAILED"
+}
+
+/** Active open disputes — everything except closed and failed. */
+export function isNonClosedDispute(dispute: { status?: string | null }): boolean {
+  return !isClosedDispute(dispute.status) && !isFailedDispute(dispute.status)
+}
+
+/** Disputes waiting on associate approval, payment review, or similar action. */
+export function needsAssociateInput(dispute: { status?: string | null }): boolean {
+  return !!dispute.status && ASSOCIATE_INPUT_STATUSES.has(dispute.status)
+}
+
+/** Disputes blocked on an internal department response. */
+export function isWaitingInternalTeamDispute(dispute: { status?: string | null }): boolean {
+  return !!dispute.status && WAITING_INTERNAL_TEAM_STATUSES.has(dispute.status)
+}
+
 export function isTerminalDisputeStatus(status?: string | null): boolean {
   return !!status && TERMINAL_DISPUTE_STATUSES.has(status)
 }
@@ -53,17 +84,31 @@ export function formatSlaStatusLabel(
   return isPaused ? `${label} (Paused)` : label
 }
 
+export function isCaseOriginCommunication(comm: DisputeCommunication): boolean {
+  return comm.id.startsWith("case-")
+}
+
 export function getCommunicationDirection(
-  comm: DisputeCommunication
+  comm: DisputeCommunication,
+  options?: { isCaseOrigin?: boolean }
 ): "Sent" | "Received" {
+  if (options?.isCaseOrigin || isCaseOriginCommunication(comm)) {
+    return "Received"
+  }
   if (comm.communication_type === "INTERNAL") {
     return "Sent"
   }
   const subject = (comm.subject || "").toLowerCase()
-  if (
-    subject.includes("paisa vasool") ||
-    subject.includes("escalation request")
-  ) {
+  const body = (comm.message_body || "").toLowerCase()
+  const outboundMarkers = [
+    "paisa vasool",
+    "escalation request",
+    "dear customer",
+    "we have received your",
+    "please find attached",
+    "regarding your dispute",
+  ]
+  if (outboundMarkers.some((m) => subject.includes(m) || body.includes(m))) {
     return "Sent"
   }
   return "Received"
@@ -71,9 +116,10 @@ export function getCommunicationDirection(
 
 export function getCommunicationAddress(
   comm: DisputeCommunication,
-  customerEmail?: string | null
+  customerEmail?: string | null,
+  options?: { isCaseOrigin?: boolean }
 ): string {
-  const direction = getCommunicationDirection(comm)
+  const direction = getCommunicationDirection(comm, options)
   if (comm.communication_type === "INTERNAL") {
     return comm.recipient
   }
@@ -83,9 +129,19 @@ export function getCommunicationAddress(
   return customerEmail || comm.recipient
 }
 
+export function isInternalCommunication(comm: DisputeCommunication): boolean {
+  return comm.communication_type === "INTERNAL"
+}
+
 export function getCommunicationTypeLabel(comm: DisputeCommunication): string {
   if (comm.communication_type === "INTERNAL") {
     return "Internal"
   }
   return "Customer"
+}
+
+export function getCommunicationPreview(body: string, maxLines = 2): string {
+  const lines = body.split("\n").filter((line) => line.trim())
+  if (lines.length <= maxLines) return body.trim()
+  return lines.slice(0, maxLines).join("\n") + "…"
 }

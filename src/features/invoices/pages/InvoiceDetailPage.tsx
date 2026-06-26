@@ -23,8 +23,11 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { INVOICE_STATUS_VARIANT, getStatusVariant } from "@/lib/design-tokens"
+import { formatCurrency } from "@/lib/formatCurrency"
 import {
   ChevronLeft,
+  ChevronDown,
+  ChevronUp,
   Calendar,
   User,
   HelpCircle,
@@ -36,6 +39,7 @@ export const InvoiceDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const [selectedVersion, setSelectedVersion] = useState<number | "current">("current")
+  const [isHistoryExpanded, setIsHistoryExpanded] = useState(false)
 
   const { data: invoice, isLoading: isDetailsLoading, error: detailsError } = useInvoiceDetails(id)
   const { data: liveItems = [], isLoading: isItemsLoading } = useInvoiceItems(id)
@@ -76,10 +80,6 @@ export const InvoiceDetailPage: React.FC = () => {
   const headerStatus = viewingHistorical
     ? String(displaySnapshot?.status ?? "HISTORICAL")
     : invoice?.status
-
-  const currency = viewingHistorical
-    ? String(displaySnapshot?.currency ?? invoice?.currency ?? "INR")
-    : invoice?.currency ?? "INR"
 
   const subtotal = viewingHistorical
     ? Number(displaySnapshot?.subtotal_amount ?? 0)
@@ -137,16 +137,16 @@ export const InvoiceDetailPage: React.FC = () => {
   }
 
   const currentVersion = invoice.current_version ?? 1
+  const latestVersionEntry = versions.reduce<typeof versions[number] | undefined>(
+    (latest, version) =>
+      !latest || version.version_number > latest.version_number ? version : latest,
+    undefined
+  )
 
   return (
     <div className="mx-auto max-w-4xl space-y-8">
       <PageHeader
         title={`Invoice #${headerInvoiceNumber}`}
-        description={
-          viewingHistorical
-            ? "Historical snapshot (read-only)"
-            : "Invoice details, line items, and amendment history."
-        }
         meta={
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant="outline" shape="pill">
@@ -203,47 +203,81 @@ export const InvoiceDetailPage: React.FC = () => {
 
       {versions.length > 1 && (
         <Card>
-          <CardHeader className="border-b border-border pb-4">
-            <CardTitle className="flex items-center gap-2 text-base font-semibold">
-              <History className="h-4 w-4 text-primary" aria-hidden />
-              Amendment history
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-0">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Version</TableHead>
-                  <TableHead>When</TableHead>
-                  <TableHead>Reason</TableHead>
-                  <TableHead>Source</TableHead>
-                  <TableHead>By</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {versions.map((v) => (
-                  <TableRow
-                    key={v.version_number}
-                    className="cursor-pointer"
-                    onClick={() =>
-                      setSelectedVersion(v.is_current ? "current" : v.version_number)
-                    }
-                  >
-                    <TableCell className="font-medium tabular-nums">
-                      v{v.version_number}
-                      {v.is_current ? " *" : ""}
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {new Date(v.created_at).toLocaleString()}
-                    </TableCell>
-                    <TableCell>{v.change_reason || "—"}</TableCell>
-                    <TableCell>{v.change_source}</TableCell>
-                    <TableCell>{v.created_by || "—"}</TableCell>
+          <button
+            type="button"
+            onClick={() => setIsHistoryExpanded((open) => !open)}
+            aria-expanded={isHistoryExpanded}
+            className="flex w-full items-center justify-between gap-3 border-b border-border px-6 py-4 text-left transition-colors hover:bg-muted/40"
+          >
+            <div className="min-w-0 space-y-1">
+              <CardTitle className="flex items-center gap-2 text-base font-semibold">
+                <History className="h-4 w-4 shrink-0 text-primary" aria-hidden />
+                Amendment history
+              </CardTitle>
+              {!isHistoryExpanded && (
+                <p className="text-sm text-muted-foreground">
+                  {versions.length} versions
+                  {latestVersionEntry?.created_at && (
+                    <>
+                      {" "}
+                      · Latest change{" "}
+                      {new Date(latestVersionEntry.created_at).toLocaleDateString()}
+                    </>
+                  )}
+                </p>
+              )}
+            </div>
+            <span className="flex shrink-0 items-center gap-1 text-xs font-medium text-primary">
+              {isHistoryExpanded ? (
+                <>
+                  Hide
+                  <ChevronUp className="h-4 w-4" aria-hidden />
+                </>
+              ) : (
+                <>
+                  Show all
+                  <ChevronDown className="h-4 w-4" aria-hidden />
+                </>
+              )}
+            </span>
+          </button>
+          {isHistoryExpanded && (
+            <CardContent className="p-0">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Version</TableHead>
+                    <TableHead>When</TableHead>
+                    <TableHead>Reason</TableHead>
+                    <TableHead>Source</TableHead>
+                    <TableHead>By</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
+                </TableHeader>
+                <TableBody>
+                  {versions.map((v) => (
+                    <TableRow
+                      key={v.version_number}
+                      className="cursor-pointer"
+                      onClick={() =>
+                        setSelectedVersion(v.is_current ? "current" : v.version_number)
+                      }
+                    >
+                      <TableCell className="font-medium tabular-nums">
+                        v{v.version_number}
+                        {v.is_current ? " *" : ""}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {new Date(v.created_at).toLocaleString()}
+                      </TableCell>
+                      <TableCell>{v.change_reason || "—"}</TableCell>
+                      <TableCell>{v.change_source}</TableCell>
+                      <TableCell>{v.created_by || "—"}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </CardContent>
+          )}
         </Card>
       )}
 
@@ -297,7 +331,7 @@ export const InvoiceDetailPage: React.FC = () => {
             ) : (
               <div className="flex justify-between gap-4">
                 <span className="text-muted-foreground">Billing currency</span>
-                <span className="font-medium text-foreground">{currency}</span>
+                <span className="font-medium text-foreground">INR (₹)</span>
               </div>
             )}
           </CardContent>
@@ -343,12 +377,10 @@ export const InvoiceDetailPage: React.FC = () => {
                       {item.quantity.toLocaleString()}
                     </TableCell>
                     <TableCell className="text-right tabular-nums text-muted-foreground">
-                      {currency}{" "}
-                      {item.unit_price.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                      {formatCurrency(item.unit_price)}
                     </TableCell>
                     <TableCell className="text-right font-medium tabular-nums text-foreground">
-                      {currency}{" "}
-                      {item.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                      {formatCurrency(item.amount)}
                     </TableCell>
                   </TableRow>
                 ))}
@@ -361,27 +393,25 @@ export const InvoiceDetailPage: React.FC = () => {
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Subtotal</span>
                 <span className="font-medium tabular-nums text-foreground">
-                  {currency}{" "}
-                  {subtotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                  {formatCurrency(subtotal)}
                 </span>
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Taxes</span>
                 <span className="font-medium tabular-nums text-foreground">
-                  {currency} {tax.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                  {formatCurrency(tax)}
                 </span>
               </div>
               <div className="flex justify-between border-b border-border pb-3">
                 <span className="font-semibold text-foreground">Total invoice amount</span>
                 <span className="font-semibold tabular-nums text-foreground">
-                  {currency} {total.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                  {formatCurrency(total)}
                 </span>
               </div>
               <div className="flex justify-between pt-1">
                 <span className="font-semibold text-destructive">Outstanding</span>
                 <span className="font-semibold tabular-nums text-destructive">
-                  {currency}{" "}
-                  {outstanding.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                  {formatCurrency(outstanding)}
                 </span>
               </div>
             </div>

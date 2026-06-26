@@ -108,7 +108,6 @@ export const BrokenPromisesPage: React.FC = () => {
     <div className="space-y-6 animate-in fade-in duration-150">
       <PageHeader
         title="Broken commitments"
-        description="Track collection cases where customers breached payment promise dates."
         actions={
           <Button variant="secondary" size="sm" onClick={handleRetry}>
             <RefreshCw className="h-3.5 w-3.5" aria-hidden />

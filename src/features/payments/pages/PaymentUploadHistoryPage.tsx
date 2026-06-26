@@ -41,7 +41,6 @@ export const PaymentUploadHistoryPage: React.FC = () => {
     <div className="space-y-8">
       <PageHeader
         title="Payment upload history"
-        description="Review ingested payment documents, check processing statuses, and view match configurations. Page refreshes every 10 seconds."
         meta="Auto-refresh enabled"
         actions={
           <Button variant="secondary" size="sm" onClick={() => refetch()}>

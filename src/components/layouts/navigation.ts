@@ -17,6 +17,8 @@ export interface NavChildItem {
 export interface NavItem {
   name: string
   path?: string
+  /** Landing path when sidebar shows a single icon for grouped nav items */
+  primaryPath?: string
   icon: LucideIcon
   roles: string[]
   children?: NavChildItem[]
@@ -31,6 +33,7 @@ export const navigationItems: NavItem[] = [
   },
   {
     name: "Disputes",
+    primaryPath: "/disputes",
     roles: ["FINANCE_MANAGER", "FINANCE_ASSOCIATE"],
     icon: AlertTriangle,
     children: [
@@ -54,6 +57,7 @@ export const navigationItems: NavItem[] = [
   },
   {
     name: "Invoices",
+    primaryPath: "/invoices",
     roles: ["FINANCE_ASSOCIATE"],
     icon: FileText,
     children: [
@@ -63,6 +67,7 @@ export const navigationItems: NavItem[] = [
   },
   {
     name: "Payments",
+    primaryPath: "/payment-reviews",
     roles: ["FINANCE_ASSOCIATE"],
     icon: CreditCard,
     children: [
@@ -73,6 +78,7 @@ export const navigationItems: NavItem[] = [
   },
   {
     name: "Collections",
+    primaryPath: "/collections",
     roles: ["FINANCE_MANAGER", "FINANCE_ASSOCIATE"],
     icon: History,
     children: [

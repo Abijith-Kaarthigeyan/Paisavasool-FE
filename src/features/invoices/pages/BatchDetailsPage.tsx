@@ -1,6 +1,10 @@
 import React from "react"
 import { useParams, useNavigate } from "react-router-dom"
-import { useBatchStatus } from "../hooks/useInvoices"
+import {
+  useBatchStatus,
+  useBatchReviewItems,
+} from "../hooks/useInvoices"
+import { DuplicateInvoiceReviewPanel } from "../components/DuplicateInvoiceReviewPanel"
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -17,7 +21,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { BATCH_STATUS_VARIANT, getStatusVariant } from "@/lib/design-tokens"
+import {
+  BATCH_STATUS_VARIANT,
+  getStatusVariant,
+} from "@/lib/design-tokens"
 import {
   CheckCircle,
   XCircle,
@@ -27,7 +34,15 @@ import {
   Layers,
   ChevronDown,
   ChevronUp,
+  AlertTriangle,
 } from "lucide-react"
+import type { InvoiceUploadFile, ReviewQueueItem } from "../types"
+
+type ParsedFileMeta = {
+  reason: string
+  rawText: string
+  reviewItemId: string | null
+}
 
 export const BatchDetailsPage: React.FC = () => {
   const { id } = useParams<{ id: string }>()
@@ -39,27 +54,60 @@ export const BatchDetailsPage: React.FC = () => {
   }
 
   const { data: batch, isLoading: isBatchLoading, error: batchError } = useBatchStatus(id)
+  const { data: reviewItems } = useBatchReviewItems(id)
 
-  const failedFiles = React.useMemo(() => {
-    if (!batch || !batch.files) return []
-    return batch.files.filter((f: { status: string }) => f.status === "FAILED")
-  }, [batch])
-
-  const parseErrorMessage = (errorMsg: string | null) => {
-    if (!errorMsg) return { reason: "Unknown error occurred.", rawText: "" }
+  const parseErrorMessage = (errorMsg: string | null): ParsedFileMeta => {
+    if (!errorMsg) return { reason: "Unknown error occurred.", rawText: "", reviewItemId: null }
     try {
       if (errorMsg.trim().startsWith("{")) {
         const parsed = JSON.parse(errorMsg)
         return {
           reason: parsed.reason || "Extraction failed.",
           rawText: parsed.raw_text || "",
+          reviewItemId: parsed.review_item_id || null,
         }
       }
     } catch {
       // Fallback if it's not JSON
     }
-    return { reason: errorMsg, rawText: "" }
+    return { reason: errorMsg, rawText: "", reviewItemId: null }
   }
+
+  const pendingReviewFiles = React.useMemo(() => {
+    if (!batch?.files) return []
+    return batch.files.filter((f) => f.status === "PENDING_REVIEW")
+  }, [batch])
+
+  const failedFiles = React.useMemo(() => {
+    if (!batch?.files) return []
+    return batch.files.filter((f) => f.status === "FAILED")
+  }, [batch])
+
+  const pendingDuplicateReviews = React.useMemo(() => {
+    const items = reviewItems || []
+    return items.filter(
+      (item: ReviewQueueItem) =>
+        item.review_reason === "DUPLICATE_INVOICE" && item.status === "PENDING"
+    )
+  }, [reviewItems])
+
+  const fileNameByReviewId = React.useMemo(() => {
+    const map = new Map<string, string>()
+    if (!batch?.files) return map
+    for (const file of batch.files) {
+      const { reviewItemId } = parseErrorMessage(file.error_message)
+      if (reviewItemId) {
+        map.set(reviewItemId, file.file_name)
+      }
+    }
+    for (const item of pendingDuplicateReviews) {
+      if (item.batch_file_id) {
+        const file = batch?.files?.find((f) => f.id === item.batch_file_id)
+        if (file) map.set(item.id, file.file_name)
+      }
+    }
+    return map
+  }, [batch, pendingDuplicateReviews])
 
   const formatStatus = (status: string | undefined) => {
     if (!status) return ""
@@ -105,11 +153,12 @@ export const BatchDetailsPage: React.FC = () => {
     )
   }
 
+  const pendingReviewCount = batch.pending_review_count ?? pendingReviewFiles.length
+
   return (
     <div className="mx-auto max-w-5xl space-y-8">
       <PageHeader
         title="Batch ingestion details"
-        description="Track AI extraction progress and review failed file ingestions."
         actions={
           <div className="flex items-center gap-2">
             <Button variant="ghost" size="sm" onClick={() => navigate("/invoice-upload")}>
@@ -126,7 +175,7 @@ export const BatchDetailsPage: React.FC = () => {
         }
       />
 
-      <KpiGrid columns={4}>
+      <KpiGrid columns={5}>
         <KpiCard
           label="Total invoices"
           value={batch.total_files}
@@ -137,6 +186,12 @@ export const BatchDetailsPage: React.FC = () => {
           value={batch.success_count}
           icon={<CheckCircle className="h-5 w-5" />}
           iconTone="success"
+        />
+        <KpiCard
+          label="Pending duplicate review"
+          value={pendingReviewCount}
+          icon={<AlertTriangle className="h-5 w-5" />}
+          iconTone="warning"
         />
         <KpiCard
           label="Failed ingestion"
@@ -169,6 +224,38 @@ export const BatchDetailsPage: React.FC = () => {
         />
       )}
 
+      {pendingDuplicateReviews.length > 0 && id && (
+        <section className="space-y-4">
+          <div>
+            <h2 className="text-lg font-semibold text-foreground">
+              Duplicate invoices pending review
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              Compare the upload with the latest version, then approve, edit, or reject.
+            </p>
+          </div>
+          {pendingDuplicateReviews.map((item) => (
+            <DuplicateInvoiceReviewPanel
+              key={item.id}
+              item={item}
+              batchId={id}
+              fileName={fileNameByReviewId.get(item.id)}
+            />
+          ))}
+        </section>
+      )}
+
+      {pendingReviewFiles.length > 0 && pendingDuplicateReviews.length === 0 && (
+        <Card className="border-warning/20">
+          <CardContent className="flex items-center gap-3 p-4">
+            <Loader2 className="h-5 w-5 shrink-0 animate-spin text-warning" aria-hidden />
+            <p className="text-sm text-foreground">
+              {pendingReviewFiles.length} duplicate upload(s) are being prepared for review…
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
       {failedFiles.length > 0 && (
         <Card className="border-destructive/20">
           <CardHeader className="border-b border-border pb-4">
@@ -190,7 +277,7 @@ export const BatchDetailsPage: React.FC = () => {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {failedFiles.map((file: { id: string; file_name: string; error_message: string | null }) => {
+                {failedFiles.map((file: InvoiceUploadFile) => {
                   const { reason, rawText } = parseErrorMessage(file.error_message)
                   const isExpanded = !!expandedFiles[file.id]
                   return (
@@ -252,23 +339,29 @@ export const BatchDetailsPage: React.FC = () => {
         </Card>
       )}
 
-      {!isProcessing && failedFiles.length === 0 && batch.status === "COMPLETED" && (
-        <Card className="border-success/20 bg-success-muted/30">
-          <CardContent className="flex items-center gap-3 p-4">
-            <CheckCircle className="h-5 w-5 shrink-0 text-success" aria-hidden />
-            <p className="text-sm text-foreground">
-              All {batch.total_files} invoice(s) were successfully parsed and registered.
-            </p>
-          </CardContent>
-        </Card>
-      )}
+      {!isProcessing &&
+        failedFiles.length === 0 &&
+        pendingDuplicateReviews.length === 0 &&
+        batch.status === "COMPLETED" && (
+          <Card className="border-success/20 bg-success-muted/30">
+            <CardContent className="flex items-center gap-3 p-4">
+              <CheckCircle className="h-5 w-5 shrink-0 text-success" aria-hidden />
+              <p className="text-sm text-foreground">
+                All {batch.total_files} invoice(s) were successfully parsed and registered.
+              </p>
+            </CardContent>
+          </Card>
+        )}
 
-      {!isProcessing && batch.status === "PARTIAL_SUCCESS" && (
+      {!isProcessing && batch.status === "PARTIAL_SUCCESS" && pendingDuplicateReviews.length === 0 && (
         <Card className="border-warning/20 bg-warning-muted/30">
           <CardContent className="flex items-center gap-3 p-4">
             <Loader2 className="h-5 w-5 shrink-0 text-warning" aria-hidden />
             <p className="text-sm text-foreground">
-              {batch.success_count} succeeded and {batch.failed_count} were sent for review.
+              {batch.success_count} succeeded and {batch.failed_count} failed.
+              {pendingReviewCount > 0
+                ? ` ${pendingReviewCount} duplicate(s) were resolved or are no longer pending.`
+                : ""}
             </p>
           </CardContent>
         </Card>

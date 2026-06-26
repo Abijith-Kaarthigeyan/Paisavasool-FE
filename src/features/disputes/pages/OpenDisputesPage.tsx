@@ -1,20 +1,25 @@
-import React from "react"
+import React, { useMemo } from "react"
 import { useDisputes } from "../hooks/useDisputes"
 import { DisputesTable } from "../components/DisputesTable"
+import { isNonClosedDispute } from "../utils/disputeFormatters"
 
 export const OpenDisputesPage: React.FC = () => {
-  const { data: disputes = [], isLoading, isError, refetch } = useDisputes();
+  const { data: disputes = [], isLoading, isError, refetch } = useDisputes()
+
+  const openDisputes = useMemo(
+    () => disputes.filter(isNonClosedDispute),
+    [disputes]
+  )
 
   return (
     <DisputesTable
-      disputes={disputes}
+      disputes={openDisputes}
       isLoading={isLoading}
       isError={isError}
       refetch={refetch}
       title="Open Disputes"
-      description="Browse and inspect all active invoice disputes raised by customers."
     />
-  );
-};
+  )
+}
 
-export default OpenDisputesPage;
+export default OpenDisputesPage

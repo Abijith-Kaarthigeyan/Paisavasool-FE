@@ -103,7 +103,6 @@ export const BatchDetailsPage: React.FC = () => {
 
       <PageHeader
         title={`Batch details: ${batch.file_name}`}
-        description="Verify AI ingestion outputs, resolution counters, and validation errors."
         actions={
           <div className="flex gap-2">
             <Button

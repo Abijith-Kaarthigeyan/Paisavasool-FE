@@ -9,7 +9,12 @@ import {
   useBrokenPromises,
   useEscalatedCases,
 } from "@/features/collections/hooks/useCollections"
-import { useDisputes, useReviewQueue } from "@/features/disputes/hooks/useDisputes"
+import { useDisputes } from "@/features/disputes/hooks/useDisputes"
+import {
+  isNonClosedDispute,
+  needsAssociateInput,
+  isWaitingInternalTeamDispute,
+} from "@/features/disputes/utils/disputeFormatters"
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip } from "recharts"
 import { UserResponse } from "@/types"
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card"
@@ -63,7 +68,6 @@ export const ManagerDashboard: React.FC = () => {
 
   // 3. Dispute queries
   const { data: disputes = [], isLoading: isDisputesLoading } = useDisputes();
-  const { data: reviewQueue = [], isLoading: isDisputesReviewLoading } = useReviewQueue("PENDING");
 
   // Filter collections assigned to the manager's direct team
   const teamCases = useMemo(() => {
@@ -181,10 +185,10 @@ export const ManagerDashboard: React.FC = () => {
       </KpiGrid>
 
       {/* Disputes KPI Grid Section */}
-      <KpiGrid columns={5}>
+      <KpiGrid columns={6}>
         <KpiCard
           label="Open disputes"
-          value={disputes.filter((d) => d.status === "OPEN").length}
+          value={disputes.filter(isNonClosedDispute).length}
           loading={isDisputesLoading}
           icon={<AlertTriangle className="h-5 w-5" />}
           iconTone="info"
@@ -211,10 +215,17 @@ export const ManagerDashboard: React.FC = () => {
         />
         <KpiCard
           label="Review queue"
-          value={reviewQueue.length}
-          loading={isDisputesReviewLoading}
+          value={disputes.filter(needsAssociateInput).length}
+          loading={isDisputesLoading}
           icon={<HelpCircle className="h-5 w-5" />}
           iconTone="success"
+        />
+        <KpiCard
+          label="Waiting team"
+          value={disputes.filter(isWaitingInternalTeamDispute).length}
+          loading={isDisputesLoading}
+          icon={<Clock className="h-5 w-5" />}
+          iconTone="warning"
         />
       </KpiGrid>
 

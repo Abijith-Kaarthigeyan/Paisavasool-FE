@@ -10,6 +10,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { cn } from "@/lib/utils"
+import { formatCurrency } from "@/lib/formatCurrency"
 
 export type EditableInvoiceData = {
   invoice_number?: string
@@ -239,7 +240,7 @@ export const EditableRecommendedInvoiceForm: React.FC<
                   />
                 </TableCell>
                 <TableCell className="text-right font-medium tabular-nums">
-                  ₹{item.amount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                  {formatCurrency(item.amount)}
                 </TableCell>
               </TableRow>
             ))}
@@ -248,7 +249,7 @@ export const EditableRecommendedInvoiceForm: React.FC<
       </div>
 
       <div className="flex justify-end text-sm font-semibold tabular-nums text-success">
-        Total: ₹{form.total_amount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+        Total: {formatCurrency(form.total_amount)}
       </div>
     </div>
   )
