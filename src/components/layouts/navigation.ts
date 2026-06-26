@@ -61,7 +61,6 @@ export const navigationItems: NavItem[] = [
     roles: ["FINANCE_ASSOCIATE"],
     icon: FileText,
     children: [
-      { name: "Upload Invoices", path: "/invoice-upload", roles: ["FINANCE_ASSOCIATE"] },
       { name: "Invoice List", path: "/invoices", roles: ["FINANCE_ASSOCIATE"] },
     ],
   },
@@ -71,7 +70,6 @@ export const navigationItems: NavItem[] = [
     roles: ["FINANCE_ASSOCIATE"],
     icon: CreditCard,
     children: [
-      { name: "Upload Payments", path: "/payment-upload", roles: ["FINANCE_ASSOCIATE"] },
       { name: "Upload History", path: "/payment-upload-history", roles: ["FINANCE_ASSOCIATE"] },
       { name: "Matching Reviews", path: "/payment-reviews", roles: ["FINANCE_ASSOCIATE"] },
     ],

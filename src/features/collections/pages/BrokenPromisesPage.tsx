@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge"
 import { TableSkeleton } from "@/components/ui/skeleton"
 import { Pagination } from "@/components/ui/pagination"
 import { PageHeader } from "@/components/ui/page-header"
+import { PageBreadcrumb } from "@/components/ui/page-breadcrumb"
 import { FilterBar } from "@/components/ui/filter-bar"
 import { EmptyState } from "@/components/ui/empty-state"
 import { Button } from "@/components/ui/button"
@@ -106,6 +107,13 @@ export const BrokenPromisesPage: React.FC = () => {
 
   return (
     <div className="space-y-6 animate-in fade-in duration-150">
+      <PageBreadcrumb
+        items={[
+          { label: "Collections", to: "/collections" },
+          { label: "Broken commitments" },
+        ]}
+      />
+
       <PageHeader
         title="Broken commitments"
         actions={

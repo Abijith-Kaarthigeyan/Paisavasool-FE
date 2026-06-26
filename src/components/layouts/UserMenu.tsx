@@ -31,14 +31,7 @@ export const UserMenu: React.FC<UserMenuProps> = ({
 }) => {
   if (variant === "icon") {
     return (
-      <div className="flex shrink-0 flex-col items-center gap-2 border-t border-border px-2 py-3">
-        <div
-          className="flex h-9 w-9 items-center justify-center rounded-full bg-[#EEF2FF] text-[#4F46E5]"
-          title={email}
-          aria-label={email ? `Signed in as ${email}` : "User account"}
-        >
-          <User className="h-4 w-4" aria-hidden />
-        </div>
+      <div className="flex shrink-0 flex-col items-center border-t border-border px-2 py-3">
         <button
           type="button"
           onClick={onLogout}

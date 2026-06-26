@@ -1,5 +1,5 @@
 import React, { useRef, useState } from "react"
-import { UploadCloud, AlertCircle } from "lucide-react"
+import { UploadCloud, AlertCircle, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 
@@ -32,12 +32,12 @@ export const PaymentUploadDropzone: React.FC<PaymentUploadDropzoneProps> = ({
 
     const extension = file.name.split(".").pop()?.toLowerCase()
     if (extension !== "pdf") {
-      setErrorMsg("Only PDF receipts or confirmations are supported.")
+      setErrorMsg("PDF only.")
       return
     }
 
     if (file.size > 20 * 1024 * 1024) {
-      setErrorMsg("Maximum payment upload size is 20MB.")
+      setErrorMsg("Max file size is 20MB.")
       return
     }
 
@@ -73,11 +73,9 @@ export const PaymentUploadDropzone: React.FC<PaymentUploadDropzoneProps> = ({
         onDragLeave={handleDrag}
         onDrop={handleDrop}
         className={cn(
-          "relative flex flex-col items-center justify-center rounded-lg border-2 border-dashed p-8 text-center transition-colors duration-150",
-          dragActive
-            ? "border-primary bg-primary/5"
-            : "border-border bg-muted/30 hover:border-primary/40 hover:bg-muted/50",
-          isUploading ? "cursor-not-allowed opacity-60" : "cursor-pointer"
+          "relative flex flex-col items-center justify-center rounded-lg border border-dashed p-10 text-center transition-colors",
+          dragActive ? "border-primary bg-primary/5" : "border-border bg-card",
+          isUploading ? "cursor-wait opacity-70" : "cursor-pointer hover:border-primary/50"
         )}
         onClick={!isUploading ? onButtonClick : undefined}
         role="button"
@@ -89,6 +87,7 @@ export const PaymentUploadDropzone: React.FC<PaymentUploadDropzoneProps> = ({
           }
         }}
         aria-disabled={isUploading}
+        aria-busy={isUploading}
       >
         <input
           ref={fileInputRef}
@@ -100,40 +99,36 @@ export const PaymentUploadDropzone: React.FC<PaymentUploadDropzoneProps> = ({
           aria-hidden
         />
 
-        <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary">
-          <UploadCloud className="h-6 w-6" aria-hidden />
-        </div>
-
-        <h3 className="text-base font-semibold text-foreground">
-          Drag and drop payment receipt here
-        </h3>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Supports transaction PDF confirmation (max 20MB)
-        </p>
-
-        <Button
-          type="button"
-          variant="primary"
-          size="sm"
-          disabled={isUploading}
-          className="mt-4"
-          onClick={(e) => {
-            e.stopPropagation()
-            onButtonClick()
-          }}
-        >
-          Select PDF
-        </Button>
+        {isUploading ? (
+          <>
+            <Loader2 className="h-8 w-8 animate-spin text-primary" aria-hidden />
+            <p className="mt-3 text-sm text-muted-foreground">Uploading…</p>
+          </>
+        ) : (
+          <>
+            <UploadCloud className="h-8 w-8 text-muted-foreground" aria-hidden />
+            <p className="mt-3 text-sm font-medium text-foreground">Drop PDF here or browse</p>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              className="mt-4"
+              onClick={(e) => {
+                e.stopPropagation()
+                onButtonClick()
+              }}
+            >
+              Choose file
+            </Button>
+          </>
+        )}
       </div>
 
       {errorMsg && (
-        <div
-          className="mt-3 flex items-center gap-2 rounded-md border border-destructive/20 bg-destructive/10 p-3 text-sm text-destructive"
-          role="alert"
-        >
-          <AlertCircle className="h-4 w-4 shrink-0" aria-hidden />
-          <span>{errorMsg}</span>
-        </div>
+        <p className="mt-2 flex items-center gap-1.5 text-sm text-destructive" role="alert">
+          <AlertCircle className="h-3.5 w-3.5 shrink-0" aria-hidden />
+          {errorMsg}
+        </p>
       )}
     </div>
   )

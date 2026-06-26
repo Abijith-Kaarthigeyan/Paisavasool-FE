@@ -2,18 +2,23 @@ import React, { useRef, useState } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { UploadCloud, AlertCircle, Loader2 } from "lucide-react"
-import { fileUploadSchema, FileUploadFormValues } from "../schemas/invoiceUploadSchema"
+import {
+  documentUploadSchema,
+  DocumentUploadFormValues,
+} from "../schemas/documentUploadSchema"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 
-interface UploadDropzoneProps {
+interface UnifiedUploadDropzoneProps {
   onFileSelect: (file: File) => void
   isUploading: boolean
+  uploadLabel?: string
 }
 
-export const UploadDropzone: React.FC<UploadDropzoneProps> = ({
+export const UnifiedUploadDropzone: React.FC<UnifiedUploadDropzoneProps> = ({
   onFileSelect,
   isUploading,
+  uploadLabel = "Analyzing documents…",
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [dragActive, setDragActive] = useState(false)
@@ -22,8 +27,8 @@ export const UploadDropzone: React.FC<UploadDropzoneProps> = ({
     formState: { errors },
     clearErrors,
     setError,
-  } = useForm<FileUploadFormValues>({
-    resolver: zodResolver(fileUploadSchema),
+  } = useForm<DocumentUploadFormValues>({
+    resolver: zodResolver(documentUploadSchema),
   })
 
   const handleDrag = (e: React.DragEvent) => {
@@ -40,7 +45,7 @@ export const UploadDropzone: React.FC<UploadDropzoneProps> = ({
     if (!file) return
     clearErrors("file")
 
-    const result = fileUploadSchema.safeParse({ file })
+    const result = documentUploadSchema.safeParse({ file })
     if (!result.success) {
       const errorMsg = result.error.issues[0]?.message || "Invalid file."
       setError("file", { type: "manual", message: errorMsg })
@@ -107,12 +112,15 @@ export const UploadDropzone: React.FC<UploadDropzoneProps> = ({
         {isUploading ? (
           <>
             <Loader2 className="h-8 w-8 animate-spin text-primary" aria-hidden />
-            <p className="mt-3 text-sm text-muted-foreground">Uploading…</p>
+            <p className="mt-3 text-sm text-muted-foreground">{uploadLabel}</p>
           </>
         ) : (
           <>
             <UploadCloud className="h-8 w-8 text-muted-foreground" aria-hidden />
-            <p className="mt-3 text-sm font-medium text-foreground">Drop file here or browse</p>
+            <p className="mt-3 text-sm font-medium text-foreground">
+              Drop invoice or payment document here
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">PDF or ZIP, up to 50MB</p>
             <Button
               type="button"
               variant="secondary"
@@ -139,4 +147,4 @@ export const UploadDropzone: React.FC<UploadDropzoneProps> = ({
   )
 }
 
-export default UploadDropzone
+export default UnifiedUploadDropzone

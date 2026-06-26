@@ -1,7 +1,7 @@
 import React, { useRef, useState } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
-import { UploadCloud, AlertCircle } from "lucide-react"
+import { UploadCloud, AlertCircle, Loader2 } from "lucide-react"
 import { fileUploadSchema, FileUploadFormValues } from "../schemas/invoiceUploadSchema"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
@@ -78,11 +78,9 @@ export const UploadDropzone: React.FC<UploadDropzoneProps> = ({
         onDragLeave={handleDrag}
         onDrop={handleDrop}
         className={cn(
-          "relative flex flex-col items-center justify-center rounded-lg border-2 border-dashed p-8 text-center transition-colors duration-150",
-          dragActive
-            ? "border-primary bg-primary/5"
-            : "border-border bg-muted/30 hover:border-primary/40 hover:bg-muted/50",
-          isUploading ? "cursor-not-allowed opacity-60" : "cursor-pointer"
+          "relative flex flex-col items-center justify-center rounded-lg border border-dashed p-10 text-center transition-colors",
+          dragActive ? "border-primary bg-primary/5" : "border-border bg-card",
+          isUploading ? "cursor-wait opacity-70" : "cursor-pointer hover:border-primary/50"
         )}
         onClick={!isUploading ? onButtonClick : undefined}
         role="button"
@@ -94,6 +92,7 @@ export const UploadDropzone: React.FC<UploadDropzoneProps> = ({
           }
         }}
         aria-disabled={isUploading}
+        aria-busy={isUploading}
       >
         <input
           ref={fileInputRef}
@@ -105,38 +104,36 @@ export const UploadDropzone: React.FC<UploadDropzoneProps> = ({
           aria-hidden
         />
 
-        <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary">
-          <UploadCloud className="h-6 w-6" aria-hidden />
-        </div>
-
-        <h3 className="text-base font-semibold text-foreground">Drag and drop your file here</h3>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Supports single PDF or bulk ZIP archive (max 50MB)
-        </p>
-
-        <Button
-          type="button"
-          variant="primary"
-          size="sm"
-          disabled={isUploading}
-          className="mt-4"
-          onClick={(e) => {
-            e.stopPropagation()
-            onButtonClick()
-          }}
-        >
-          Select file
-        </Button>
+        {isUploading ? (
+          <>
+            <Loader2 className="h-8 w-8 animate-spin text-primary" aria-hidden />
+            <p className="mt-3 text-sm text-muted-foreground">Uploading…</p>
+          </>
+        ) : (
+          <>
+            <UploadCloud className="h-8 w-8 text-muted-foreground" aria-hidden />
+            <p className="mt-3 text-sm font-medium text-foreground">Drop file here or browse</p>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              className="mt-4"
+              onClick={(e) => {
+                e.stopPropagation()
+                onButtonClick()
+              }}
+            >
+              Choose file
+            </Button>
+          </>
+        )}
       </div>
 
       {errors.file && (
-        <div
-          className="mt-3 flex items-center gap-2 rounded-md border border-destructive/20 bg-destructive/10 p-3 text-sm text-destructive"
-          role="alert"
-        >
-          <AlertCircle className="h-4 w-4 shrink-0" aria-hidden />
-          <span>{errors.file.message as string}</span>
-        </div>
+        <p className="mt-2 flex items-center gap-1.5 text-sm text-destructive" role="alert">
+          <AlertCircle className="h-3.5 w-3.5 shrink-0" aria-hidden />
+          {errors.file.message as string}
+        </p>
       )}
     </div>
   )

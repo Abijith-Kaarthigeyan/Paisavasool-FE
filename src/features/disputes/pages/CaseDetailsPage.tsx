@@ -5,6 +5,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/com
 import { Skeleton } from "@/components/ui/skeleton"
 import { KpiCard, KpiGrid } from "@/components/ui/kpi-card"
 import { PageHeader } from "@/components/ui/page-header"
+import { PageBreadcrumb } from "@/components/ui/page-breadcrumb"
 import { EmptyState } from "@/components/ui/empty-state"
 import { Button } from "@/components/ui/button"
 import {
@@ -61,13 +62,16 @@ export const CaseDetailsPage: React.FC = () => {
 
   return (
     <div className="space-y-6 animate-in fade-in duration-150">
+      <PageBreadcrumb
+        items={[
+          { label: "Disputes", to: "/disputes" },
+          { label: "Cases", to: "/disputes/cases" },
+          { label: `Case ${caseData.case_number}` },
+        ]}
+      />
+
       <PageHeader
         title={`Case ${caseData.case_number}`}
-        actions={
-          <Button variant="ghost" size="sm" onClick={() => navigate("/disputes/cases")}>
-            Back to cases
-          </Button>
-        }
       />
 
       <KpiGrid>

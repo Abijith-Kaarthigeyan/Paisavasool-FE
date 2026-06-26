@@ -9,6 +9,7 @@ import { TableSkeleton, Skeleton } from "@/components/ui/skeleton"
 import { Pagination } from "@/components/ui/pagination"
 import { useToast } from "@/components/ui/toast"
 import { PageHeader } from "@/components/ui/page-header"
+import { PageBreadcrumb } from "@/components/ui/page-breadcrumb"
 import { FilterBar } from "@/components/ui/filter-bar"
 import { EmptyState } from "@/components/ui/empty-state"
 import { Button } from "@/components/ui/button"
@@ -143,6 +144,13 @@ export const EscalatedDisputesPage: React.FC = () => {
 
   return (
     <div className="space-y-6 animate-in fade-in duration-150">
+      <PageBreadcrumb
+        items={[
+          { label: "Disputes", to: "/disputes" },
+          { label: "Escalated disputes" },
+        ]}
+      />
+
       <PageHeader
         title="Escalated disputes"
         actions={

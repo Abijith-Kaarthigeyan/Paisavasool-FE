@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge"
 import { TableSkeleton } from "@/components/ui/skeleton"
 import { Pagination } from "@/components/ui/pagination"
 import { PageHeader } from "@/components/ui/page-header"
+import { PageBreadcrumb, type BreadcrumbItem } from "@/components/ui/page-breadcrumb"
 import { FilterBar } from "@/components/ui/filter-bar"
 import { EmptyState } from "@/components/ui/empty-state"
 import { Button } from "@/components/ui/button"
@@ -35,6 +36,7 @@ export interface CollectionsCasesTableProps {
   title: string
   showAssignedColumn?: boolean
   filterMode?: "full" | "basic"
+  breadcrumbItems?: BreadcrumbItem[]
 }
 
 export const CollectionsCasesTable: React.FC<CollectionsCasesTableProps> = ({
@@ -45,6 +47,7 @@ export const CollectionsCasesTable: React.FC<CollectionsCasesTableProps> = ({
   title,
   showAssignedColumn = true,
   filterMode = "full",
+  breadcrumbItems,
 }) => {
   const navigate = useNavigate()
 
@@ -175,8 +178,15 @@ export const CollectionsCasesTable: React.FC<CollectionsCasesTableProps> = ({
     setCurrentPage(1)
   }
 
+  const breadcrumb = breadcrumbItems ?? [
+    { label: "Collections", to: "/collections" },
+    { label: title },
+  ]
+
   return (
     <div className="space-y-6 animate-in fade-in duration-150">
+      <PageBreadcrumb items={breadcrumb} />
+
       <PageHeader
         title={title}
         actions={

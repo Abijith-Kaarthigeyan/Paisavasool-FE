@@ -91,6 +91,28 @@ export const disputeService = {
     return response.data;
   },
 
+  draftCommunication: async (
+    disputeId: string,
+    payload?: { instructions?: string }
+  ): Promise<{ recipient: string; subject: string; body: string }> => {
+    const response = await disputeApi.post<{ recipient: string; subject: string; body: string }>(
+      `/disputes/${disputeId}/communications/draft`,
+      payload ?? {}
+    );
+    return response.data;
+  },
+
+  sendCommunication: async (
+    disputeId: string,
+    payload: { recipient: string; subject: string; body: string }
+  ): Promise<DisputeCommunication> => {
+    const response = await disputeApi.post<DisputeCommunication>(
+      `/disputes/${disputeId}/communications/send`,
+      payload
+    );
+    return response.data;
+  },
+
   getEvidence: async (disputeId: string): Promise<DisputeEvidenceSnapshot[]> => {
     const response = await disputeApi.get<DisputeEvidenceSnapshot[]>(`/disputes/${disputeId}/evidence`);
     return response.data;

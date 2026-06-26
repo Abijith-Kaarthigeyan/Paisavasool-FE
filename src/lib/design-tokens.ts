@@ -82,6 +82,21 @@ export const PAYMENT_STATUS_VARIANT: Record<string, BadgeVariant> = {
   FAILED: "destructive",
 }
 
+export const DOCUMENT_SESSION_STATUS_VARIANT: Record<string, BadgeVariant> = {
+  CLASSIFYING: "info",
+  AWAITING_CONFIRMATION: "warning",
+  ROUTING: "info",
+  COMPLETED: "success",
+  FAILED: "destructive",
+}
+
+export const DOCUMENT_FILE_STATUS_VARIANT: Record<string, BadgeVariant> = {
+  PENDING_CONFIRMATION: "warning",
+  READY: "info",
+  ROUTED: "success",
+  FAILED: "destructive",
+}
+
 export const COLLECTION_STATUS_VARIANT: Record<string, BadgeVariant> = {
   OPEN: "default",
   IN_PROGRESS: "info",

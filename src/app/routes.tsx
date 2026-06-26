@@ -8,11 +8,11 @@ import { AppLayout } from "@/components/layouts/AppLayout"
 // Feature pages
 import { DashboardPage } from "@/features/dashboard/pages/DashboardPage"
 import { AdminDashboard } from "@/features/dashboard/pages/AdminDashboard"
-import { InvoiceUploadPage } from "@/features/invoices/pages/InvoiceUploadPage"
 import { BatchDetailsPage } from "@/features/invoices/pages/BatchDetailsPage"
 import { InvoiceListPage } from "@/features/invoices/pages/InvoiceListPage"
 import { InvoiceDetailPage } from "@/features/invoices/pages/InvoiceDetailPage"
-import { PaymentUploadPage } from "@/features/payments/pages/PaymentUploadPage"
+import { UnifiedUploadPage } from "@/features/document-upload/pages/UnifiedUploadPage"
+import { UnifiedUploadHubPage } from "@/features/document-upload/pages/UnifiedUploadHubPage"
 import { PaymentUploadHistoryPage } from "@/features/payments/pages/PaymentUploadHistoryPage"
 import { PaymentUploadDetailPage } from "@/features/payments/pages/PaymentUploadDetailPage"
 import { ReviewQueuePage } from "@/features/matching/pages/ReviewQueuePage"
@@ -65,14 +65,28 @@ export const AppRoutes = () => {
             }
           />
 
+          {/* Unified Document Upload */}
+          <Route
+            path="/upload"
+            element={
+              <ProtectedRoute allowedRoles={["FINANCE_ASSOCIATE"]}>
+                <UnifiedUploadPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/upload/sessions/:id"
+            element={
+              <ProtectedRoute allowedRoles={["FINANCE_ASSOCIATE"]}>
+                <UnifiedUploadHubPage />
+              </ProtectedRoute>
+            }
+          />
+
           {/* Invoice Ingestion Routes */}
           <Route
             path="/invoice-upload"
-            element={
-              <ProtectedRoute allowedRoles={["FINANCE_ASSOCIATE"]}>
-                <InvoiceUploadPage />
-              </ProtectedRoute>
-            }
+            element={<Navigate to="/upload" replace />}
           />
           <Route
             path="/invoice-upload/batches/:id"
@@ -102,11 +116,7 @@ export const AppRoutes = () => {
           {/* Payment Ingestion Routes */}
           <Route
             path="/payment-upload"
-            element={
-              <ProtectedRoute allowedRoles={["FINANCE_ASSOCIATE"]}>
-                <PaymentUploadPage />
-              </ProtectedRoute>
-            }
+            element={<Navigate to="/upload" replace />}
           />
           <Route
             path="/payment-upload-history"

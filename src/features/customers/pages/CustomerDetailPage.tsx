@@ -1,5 +1,5 @@
 import React from "react"
-import { useParams, Link } from "react-router-dom"
+import { useParams, Link, useNavigate } from "react-router-dom"
 import { useCustomerDetail } from "../hooks/useCustomers"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -8,6 +8,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { useToast } from "@/components/ui/toast"
 import { EmptyState } from "@/components/ui/empty-state"
 import { Button } from "@/components/ui/button"
+import { PageBreadcrumb } from "@/components/ui/page-breadcrumb"
 import {
   Table,
   TableBody,
@@ -24,7 +25,6 @@ import {
 } from "@/lib/design-tokens"
 import { formatCurrency } from "@/lib/formatCurrency"
 import {
-  ArrowLeft,
   User,
   HelpCircle,
   FileText,
@@ -36,6 +36,7 @@ import {
 
 export const CustomerDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>()
+  const navigate = useNavigate()
   const { toast } = useToast()
 
   const {
@@ -72,13 +73,9 @@ export const CustomerDetailPage: React.FC = () => {
           title="Customer not found"
           description="The requested customer details could not be loaded."
           action={
-            <Link
-              to="/customers"
-              className="inline-flex h-8 items-center gap-1.5 rounded-md px-3 text-xs font-medium text-foreground transition-colors hover:bg-muted"
-            >
-              <ArrowLeft className="h-4 w-4" aria-hidden />
+            <Button variant="secondary" size="sm" onClick={() => navigate("/customers")}>
               Back to customers
-            </Link>
+            </Button>
           }
         />
       </div>
@@ -89,20 +86,18 @@ export const CustomerDetailPage: React.FC = () => {
 
   return (
     <div className="mx-auto max-w-5xl space-y-8">
+      <PageBreadcrumb
+        items={[
+          { label: "Customers", to: "/customers" },
+          { label: customer.customer_name },
+        ]}
+      />
+
       <header className="flex flex-col gap-4 border-b border-border pb-5 sm:flex-row sm:items-center sm:justify-between">
         <div className="space-y-1">
-          <div className="flex items-center gap-2">
-            <Link
-              to="/customers"
-              className="text-muted-foreground transition-colors hover:text-foreground"
-              aria-label="Back to customers"
-            >
-              <ArrowLeft className="h-5 w-5" />
-            </Link>
-            <h1 className="m-0 text-2xl font-semibold tracking-tight text-foreground md:text-3xl">
-              {customer.customer_name}
-            </h1>
-          </div>
+          <h1 className="m-0 text-2xl font-semibold tracking-tight text-foreground md:text-3xl">
+            {customer.customer_name}
+          </h1>
           <Badge variant="outline" className="font-mono text-xs font-medium text-primary">
             {customer.customer_code}
           </Badge>

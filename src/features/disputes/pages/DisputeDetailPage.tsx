@@ -5,6 +5,8 @@ import {
   useAssociateDecision,
   usePaymentReviewDecision,
   useOperationalDecision,
+  useDraftDisputeCommunication,
+  useSendDisputeCommunication,
 } from "../hooks/useDisputes"
 import { useDisputeWorkspace } from "../hooks/useDisputeWorkspace"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -19,6 +21,7 @@ import { DisputeWorkspaceKpis } from "../components/workspace/DisputeWorkspaceKp
 import { DisputeAttentionPanel } from "../components/workspace/DisputeAttentionPanel"
 import { DisputeContextRail } from "../components/workspace/DisputeContextRail"
 import { DisputeOverviewTab } from "../components/workspace/DisputeOverviewTab"
+import { DisputeInvoicePaymentTab } from "../components/workspace/DisputeInvoicePaymentTab"
 import { DisputeCommunicationsTab } from "../components/workspace/DisputeCommunicationsTab"
 import { DisputeCommentsTab } from "../components/workspace/DisputeCommentsTab"
 import { DisputeRecommendationsTab } from "../components/workspace/DisputeRecommendationsTab"
@@ -58,6 +61,8 @@ export const DisputeDetailPage: React.FC = () => {
   const associateDecisionMutation = useAssociateDecision()
   const paymentReviewMutation = usePaymentReviewDecision()
   const operationalDecisionMutation = useOperationalDecision()
+  const draftCommunicationMutation = useDraftDisputeCommunication(disputeId || "")
+  const sendCommunicationMutation = useSendDisputeCommunication(disputeId || "")
 
   const handleSendComment = async (comment: string, commentType: "INTERNAL" | "CUSTOMER") => {
     if (!disputeId) return
@@ -176,6 +181,47 @@ export const DisputeDetailPage: React.FC = () => {
     }
   }
 
+  const handleDraftCommunication = async (instructions?: string) => {
+    try {
+      const draft = await draftCommunicationMutation.mutateAsync(instructions)
+      toast({
+        title: "Draft ready",
+        description: "Review and edit the message before sending.",
+        type: "success",
+      })
+      return draft
+    } catch {
+      toast({
+        title: "Draft failed",
+        description: "Could not generate email draft. Please try again.",
+        type: "error",
+      })
+      throw new Error("Draft failed")
+    }
+  }
+
+  const handleSendCommunication = async (payload: {
+    recipient: string
+    subject: string
+    body: string
+  }) => {
+    try {
+      await sendCommunicationMutation.mutateAsync(payload)
+      toast({
+        title: "Email sent",
+        description: "Your message was added to the dispute thread.",
+        type: "success",
+      })
+    } catch {
+      toast({
+        title: "Send failed",
+        description: "Could not send the email. Please try again.",
+        type: "error",
+      })
+      throw new Error("Send failed")
+    }
+  }
+
   const actionState = dispute ? getDisputeActionState(dispute, wfContext) : null
 
   useEffect(() => {
@@ -239,11 +285,7 @@ export const DisputeDetailPage: React.FC = () => {
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <DisputeContextRail
           dispute={dispute}
-          disputeCase={disputeCase}
-          invoiceItems={invoiceItems}
           customerDetail={customerDetail}
-          evidence={evidence}
-          isLoadingInvoiceItems={loading.invoiceItems}
           isLoadingCustomer={loading.customerDetail}
         />
 
@@ -262,6 +304,7 @@ export const DisputeDetailPage: React.FC = () => {
                   />
                 )}
               </TabsTrigger>
+              <TabsTrigger value="invoice-payment">Invoice &amp; payment</TabsTrigger>
               <TabsTrigger value="communications">Communications</TabsTrigger>
               <TabsTrigger value="comments">Comments</TabsTrigger>
               <TabsTrigger value="recommendations">Recommendations</TabsTrigger>
@@ -278,12 +321,28 @@ export const DisputeDetailPage: React.FC = () => {
               />
             </TabsContent>
 
+            <TabsContent value="invoice-payment" className="mt-4 min-h-[300px]">
+              <DisputeInvoicePaymentTab
+                dispute={dispute}
+                disputeCase={disputeCase}
+                invoiceItems={invoiceItems}
+                customerDetail={customerDetail}
+                evidence={evidence}
+                isLoadingInvoiceItems={loading.invoiceItems}
+                isLoadingCustomer={loading.customerDetail}
+              />
+            </TabsContent>
+
             <TabsContent value="communications" className="mt-4 min-h-[300px]">
               <DisputeCommunicationsTab
                 communications={allCommunications}
                 customerEmail={customerEmail}
                 messageId={disputeCase?.original_message_id}
                 isLoading={loading.communications}
+                isDrafting={draftCommunicationMutation.isPending}
+                isSending={sendCommunicationMutation.isPending}
+                onDraftEmail={handleDraftCommunication}
+                onSendEmail={handleSendCommunication}
               />
             </TabsContent>
 

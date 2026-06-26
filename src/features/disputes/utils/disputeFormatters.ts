@@ -95,6 +95,9 @@ export function getCommunicationDirection(
   if (options?.isCaseOrigin || isCaseOriginCommunication(comm)) {
     return "Received"
   }
+  if (comm.communication_type === "ASSOCIATE_OUTBOUND") {
+    return "Sent"
+  }
   if (comm.communication_type === "INTERNAL") {
     return "Sent"
   }
@@ -134,10 +137,17 @@ export function isInternalCommunication(comm: DisputeCommunication): boolean {
 }
 
 export function getCommunicationTypeLabel(comm: DisputeCommunication): string {
+  if (comm.communication_type === "ASSOCIATE_OUTBOUND") {
+    return "Associate"
+  }
   if (comm.communication_type === "INTERNAL") {
     return "Internal"
   }
   return "Customer"
+}
+
+export function isAssociateOutboundCommunication(comm: DisputeCommunication): boolean {
+  return comm.communication_type === "ASSOCIATE_OUTBOUND"
 }
 
 export function getCommunicationPreview(body: string, maxLines = 2): string {

@@ -1,10 +1,11 @@
 import React from "react"
-import { useParams, Link, useNavigate } from "react-router-dom"
+import { useParams, useNavigate } from "react-router-dom"
 import { usePaymentUpload, usePaymentUploadStatus } from "../hooks/usePayments"
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { PageHeader } from "@/components/ui/page-header"
+import { PageBreadcrumb } from "@/components/ui/page-breadcrumb"
 import { EmptyState } from "@/components/ui/empty-state"
 import { Button } from "@/components/ui/button"
 import { AiAgentCard } from "@/components/ui/ai-agent-card"
@@ -15,8 +16,6 @@ import {
   Calendar,
   AlertTriangle,
   RefreshCw,
-  ChevronRight,
-  Home,
   Upload,
   ScanSearch,
   GitMerge,
@@ -65,7 +64,11 @@ function getAgentStage(status: string): { stage: string; agentStatus: "running" 
     case "MATCHED":
       return { stage: "Payment matched and auto-approved", agentStatus: "complete", progress: 100 }
     case "REVIEW_REQUIRED":
-      return { stage: "Match confidence below threshold — routed to human review", agentStatus: "running", progress: 90 }
+      return {
+        stage: "Match confidence below threshold — routed to human review",
+        agentStatus: "complete",
+        progress: 100,
+      }
     case "FAILED":
       return { stage: "Matching pipeline failed", agentStatus: "error" }
     default:
@@ -86,7 +89,7 @@ export const PaymentUploadDetailPage: React.FC = () => {
 
   if (isUploadLoading) {
     return (
-      <div className="mx-auto max-w-5xl space-y-6">
+      <div className="space-y-6">
         <Skeleton className="h-8 w-64" />
         <Skeleton className="h-20 w-full" />
         <Skeleton className="h-40 w-full" />
@@ -112,21 +115,13 @@ export const PaymentUploadDetailPage: React.FC = () => {
   }
 
   return (
-    <div className="mx-auto max-w-5xl space-y-8">
-      <nav
-        className="flex w-fit flex-wrap items-center gap-2 rounded-lg border border-border bg-card px-4 py-2 text-xs text-muted-foreground"
-        aria-label="Breadcrumb"
-      >
-        <Link
-          to="/payment-upload-history"
-          className="flex items-center gap-1 transition-colors hover:text-foreground"
-        >
-          <Home className="h-3.5 w-3.5" aria-hidden />
-          <span>Payment history</span>
-        </Link>
-        <ChevronRight className="h-3.5 w-3.5" aria-hidden />
-        <span className="font-medium text-foreground">Upload details</span>
-      </nav>
+    <div className="space-y-8">
+      <PageBreadcrumb
+        items={[
+          { label: "Payment history", to: "/payment-upload-history" },
+          { label: "Upload details" },
+        ]}
+      />
 
       <PageHeader
         title="Payment ingestion details"

@@ -10,6 +10,7 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { PageHeader } from "@/components/ui/page-header"
+import { PageBreadcrumb } from "@/components/ui/page-breadcrumb"
 import { EmptyState } from "@/components/ui/empty-state"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
@@ -25,7 +26,6 @@ import {
 import { INVOICE_STATUS_VARIANT, getStatusVariant } from "@/lib/design-tokens"
 import { formatCurrency } from "@/lib/formatCurrency"
 import {
-  ChevronLeft,
   ChevronDown,
   ChevronUp,
   Calendar,
@@ -127,7 +127,6 @@ export const InvoiceDetailPage: React.FC = () => {
           description="The requested invoice details could not be loaded."
           action={
             <Button variant="ghost" size="sm" onClick={() => navigate("/invoices")}>
-              <ChevronLeft className="h-4 w-4" aria-hidden />
               Back to invoices
             </Button>
           }
@@ -145,6 +144,13 @@ export const InvoiceDetailPage: React.FC = () => {
 
   return (
     <div className="mx-auto max-w-4xl space-y-8">
+      <PageBreadcrumb
+        items={[
+          { label: "Invoices", to: "/invoices" },
+          { label: `Invoice #${headerInvoiceNumber}` },
+        ]}
+      />
+
       <PageHeader
         title={`Invoice #${headerInvoiceNumber}`}
         meta={
@@ -161,10 +167,6 @@ export const InvoiceDetailPage: React.FC = () => {
         }
         actions={
           <div className="flex flex-wrap items-center gap-2">
-            <Button variant="ghost" size="sm" onClick={() => navigate("/invoices")}>
-              <ChevronLeft className="h-4 w-4" aria-hidden />
-              Back
-            </Button>
             {versions.length > 0 && (
               <div className="w-36 space-y-1">
                 <Label htmlFor="version-select" className="sr-only">

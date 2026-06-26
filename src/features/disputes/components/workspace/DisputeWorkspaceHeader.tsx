@@ -1,12 +1,11 @@
-import { Link, useNavigate } from "react-router-dom"
-import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { PageBreadcrumb } from "@/components/ui/page-breadcrumb"
 import {
   DISPUTE_STATUS_VARIANT,
   PRIORITY_VARIANT,
   getStatusVariant,
 } from "@/lib/design-tokens"
-import { Calendar, ChevronLeft } from "lucide-react"
+import { Calendar } from "lucide-react"
 import type { Dispute } from "../../types"
 import { getDisputePriorityKey } from "../../utils/disputeWorkspaceUtils"
 
@@ -15,28 +14,16 @@ interface DisputeWorkspaceHeaderProps {
 }
 
 export function DisputeWorkspaceHeader({ dispute }: DisputeWorkspaceHeaderProps) {
-  const navigate = useNavigate()
   const priorityKey = getDisputePriorityKey(dispute)
 
   return (
     <header className="space-y-4 border-b border-border pb-5">
-      <div className="flex items-center gap-2 text-xs text-muted-foreground">
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-8 px-2 text-muted-foreground"
-          onClick={() => navigate(-1)}
-        >
-          <ChevronLeft className="h-3.5 w-3.5" aria-hidden />
-          Back
-        </Button>
-        <span aria-hidden>/</span>
-        <Link to="/disputes" className="hover:text-foreground">
-          Disputes
-        </Link>
-        <span aria-hidden>/</span>
-        <span className="text-foreground">{dispute.dispute_number}</span>
-      </div>
+      <PageBreadcrumb
+        items={[
+          { label: "Disputes", to: "/disputes" },
+          { label: dispute.dispute_number },
+        ]}
+      />
 
       <div className="space-y-2">
         <div className="flex flex-wrap items-center gap-2">

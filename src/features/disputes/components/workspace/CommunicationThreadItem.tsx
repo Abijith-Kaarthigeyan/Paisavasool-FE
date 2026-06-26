@@ -8,6 +8,7 @@ import {
   getCommunicationAddress,
   getCommunicationDirection,
   getCommunicationPreview,
+  isAssociateOutboundCommunication,
   isCaseOriginCommunication,
   isInternalCommunication,
 } from "../../utils/disputeFormatters"
@@ -41,6 +42,7 @@ export function CommunicationThreadItem({
   const body = getCommunicationBody(comm)
   const time = getCommunicationTime(comm)
   const isInternal = isInternalCommunication(comm)
+  const isAssociate = isAssociateOutboundCommunication(comm)
 
   return (
     <div
@@ -74,6 +76,11 @@ export function CommunicationThreadItem({
           {isInternal && (
             <Badge variant="outline" shape="pill">
               Internal
+            </Badge>
+          )}
+          {isAssociate && (
+            <Badge variant="secondary" shape="pill">
+              Associate
             </Badge>
           )}
           <span className="truncate font-mono text-xs text-muted-foreground">

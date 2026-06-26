@@ -5,6 +5,8 @@ import { Card, CardContent } from "@/components/ui/card"
 import { TableSkeleton } from "@/components/ui/skeleton"
 import { Pagination } from "@/components/ui/pagination"
 import { PageHeader } from "@/components/ui/page-header"
+import { PageBreadcrumb } from "@/components/ui/page-breadcrumb"
+import { getDashboardPath } from "@/lib/navigation"
 import { EmptyState } from "@/components/ui/empty-state"
 import { FilterBar } from "@/components/ui/filter-bar"
 import { Button } from "@/components/ui/button"
@@ -52,6 +54,13 @@ export const CustomerListPage: React.FC = () => {
 
   return (
     <div className="space-y-8">
+      <PageBreadcrumb
+        items={[
+          { label: "Dashboard", to: getDashboardPath() },
+          { label: "Customers directory" },
+        ]}
+      />
+
       <PageHeader
         title="Customers directory"
         actions={

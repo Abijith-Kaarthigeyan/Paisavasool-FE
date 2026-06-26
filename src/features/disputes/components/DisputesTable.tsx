@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge"
 import { TableSkeleton } from "@/components/ui/skeleton"
 import { Pagination } from "@/components/ui/pagination"
 import { PageHeader } from "@/components/ui/page-header"
+import { PageBreadcrumb, type BreadcrumbItem } from "@/components/ui/page-breadcrumb"
 import { FilterBar } from "@/components/ui/filter-bar"
 import { EmptyState } from "@/components/ui/empty-state"
 import { Button } from "@/components/ui/button"
@@ -34,6 +35,7 @@ interface DisputesTableProps {
   isError: boolean
   refetch: () => void
   title: string
+  breadcrumbItems?: BreadcrumbItem[]
 }
 
 function getPriorityKey(dispute: Dispute): string {
@@ -57,6 +59,7 @@ export const DisputesTable: React.FC<DisputesTableProps> = ({
   isError,
   refetch,
   title,
+  breadcrumbItems,
 }) => {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
@@ -204,8 +207,15 @@ export const DisputesTable: React.FC<DisputesTableProps> = ({
     setCurrentPage(1)
   }
 
+  const breadcrumb = breadcrumbItems ?? [
+    { label: "Disputes", to: "/disputes" },
+    { label: title },
+  ]
+
   return (
     <div className="space-y-6 animate-in fade-in duration-150">
+      <PageBreadcrumb items={breadcrumb} />
+
       <PageHeader
         title={title}
         actions={

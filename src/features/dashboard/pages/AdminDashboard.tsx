@@ -17,6 +17,8 @@ import {
 } from "@/components/ui/dialog"
 import { useToast } from "@/components/ui/toast"
 import { PageHeader } from "@/components/ui/page-header"
+import { PageBreadcrumb } from "@/components/ui/page-breadcrumb"
+import { getDashboardPath } from "@/lib/navigation"
 import { KpiCard, KpiGrid } from "@/components/ui/kpi-card"
 import { EmptyState } from "@/components/ui/empty-state"
 import { Button } from "@/components/ui/button"
@@ -204,6 +206,13 @@ export const AdminDashboard: React.FC = () => {
 
   return (
     <div className="space-y-8">
+      <PageBreadcrumb
+        items={[
+          { label: "Dashboard", to: getDashboardPath() },
+          { label: "System administration" },
+        ]}
+      />
+
       <PageHeader
         title="System administration"
         description="Manage user profiles, assign organizational reporting hierarchies, and configure roles."

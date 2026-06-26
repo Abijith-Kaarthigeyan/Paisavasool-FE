@@ -9,6 +9,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { PageHeader } from "@/components/ui/page-header"
+import { PageBreadcrumb } from "@/components/ui/page-breadcrumb"
 import { EmptyState } from "@/components/ui/empty-state"
 import { Button } from "@/components/ui/button"
 import { KpiCard, KpiGrid } from "@/components/ui/kpi-card"
@@ -29,11 +30,9 @@ import {
   CheckCircle,
   XCircle,
   Loader2,
-  ChevronLeft,
   Calendar,
   Layers,
-  ChevronDown,
-  ChevronUp,
+  ChevronLeft,
   AlertTriangle,
 } from "lucide-react"
 import type { InvoiceUploadFile, ReviewQueueItem } from "../types"
@@ -47,11 +46,6 @@ type ParsedFileMeta = {
 export const BatchDetailsPage: React.FC = () => {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const [expandedFiles, setExpandedFiles] = React.useState<Record<string, boolean>>({})
-
-  const toggleExpand = (fileId: string) => {
-    setExpandedFiles((prev) => ({ ...prev, [fileId]: !prev[fileId] }))
-  }
 
   const { data: batch, isLoading: isBatchLoading, error: batchError } = useBatchStatus(id)
   const { data: reviewItems } = useBatchReviewItems(id)
@@ -122,7 +116,7 @@ export const BatchDetailsPage: React.FC = () => {
 
   if (isBatchLoading) {
     return (
-      <div className="mx-auto max-w-5xl space-y-6">
+      <div className="space-y-6">
         <Skeleton className="h-10 w-48" />
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <Skeleton className="h-24 w-full" />
@@ -156,15 +150,18 @@ export const BatchDetailsPage: React.FC = () => {
   const pendingReviewCount = batch.pending_review_count ?? pendingReviewFiles.length
 
   return (
-    <div className="mx-auto max-w-5xl space-y-8">
+    <div className="space-y-8">
+      <PageBreadcrumb
+        items={[
+          { label: "Invoice upload", to: "/invoice-upload" },
+          { label: "Batch details" },
+        ]}
+      />
+
       <PageHeader
         title="Batch ingestion details"
         actions={
           <div className="flex items-center gap-2">
-            <Button variant="ghost" size="sm" onClick={() => navigate("/invoice-upload")}>
-              <ChevronLeft className="h-4 w-4" aria-hidden />
-              Back
-            </Button>
             <Badge
               variant={getStatusVariant(BATCH_STATUS_VARIANT, batch.status)}
               shape="pill"
@@ -273,64 +270,21 @@ export const BatchDetailsPage: React.FC = () => {
                 <TableRow>
                   <TableHead>File name</TableHead>
                   <TableHead>Failure reason</TableHead>
-                  <TableHead>Raw parsed text</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {failedFiles.map((file: InvoiceUploadFile) => {
-                  const { reason, rawText } = parseErrorMessage(file.error_message)
-                  const isExpanded = !!expandedFiles[file.id]
+                  const { reason } = parseErrorMessage(file.error_message)
                   return (
-                    <React.Fragment key={file.id}>
-                      <TableRow>
-                        <TableCell
-                          className="max-w-[240px] truncate font-medium"
-                          title={file.file_name}
-                        >
-                          {file.file_name}
-                        </TableCell>
-                        <TableCell className="text-destructive">{formatStatus(reason)}</TableCell>
-                        <TableCell>
-                          {rawText ? (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-8 px-2 text-primary"
-                              onClick={() => toggleExpand(file.id)}
-                            >
-                              {isExpanded ? (
-                                <>
-                                  Hide raw text <ChevronUp className="h-3.5 w-3.5" aria-hidden />
-                                </>
-                              ) : (
-                                <>
-                                  Show raw text ({rawText.length} chars){" "}
-                                  <ChevronDown className="h-3.5 w-3.5" aria-hidden />
-                                </>
-                              )}
-                            </Button>
-                          ) : (
-                            <span className="text-xs italic text-muted-foreground">
-                              No raw text available
-                            </span>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                      {isExpanded && rawText && (
-                        <TableRow>
-                          <TableCell colSpan={3} className="bg-muted/30 p-4">
-                            <div className="space-y-2">
-                              <span className="text-xs font-medium text-muted-foreground">
-                                Raw extracted content
-                              </span>
-                              <pre className="max-h-60 overflow-y-auto rounded-md border border-border bg-background p-3 text-xs leading-relaxed whitespace-pre-wrap">
-                                {rawText}
-                              </pre>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      )}
-                    </React.Fragment>
+                    <TableRow key={file.id}>
+                      <TableCell
+                        className="max-w-[240px] truncate font-medium"
+                        title={file.file_name}
+                      >
+                        {file.file_name}
+                      </TableCell>
+                      <TableCell className="text-destructive">{formatStatus(reason)}</TableCell>
+                    </TableRow>
                   )
                 })}
               </TableBody>

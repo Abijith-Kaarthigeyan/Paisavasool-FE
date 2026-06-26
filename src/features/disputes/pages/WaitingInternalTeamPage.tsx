@@ -5,6 +5,7 @@ import { isWaitingInternalTeamDispute } from "../utils/disputeFormatters"
 import { Card, CardContent } from "@/components/ui/card"
 import { TableSkeleton } from "@/components/ui/skeleton"
 import { PageHeader } from "@/components/ui/page-header"
+import { PageBreadcrumb } from "@/components/ui/page-breadcrumb"
 import { EmptyState } from "@/components/ui/empty-state"
 import { Button } from "@/components/ui/button"
 import {
@@ -52,6 +53,13 @@ export const WaitingInternalTeamPage: React.FC = () => {
 
   return (
     <div className="space-y-6 animate-in fade-in duration-150">
+      <PageBreadcrumb
+        items={[
+          { label: "Disputes", to: "/disputes" },
+          { label: "Waiting for internal teams" },
+        ]}
+      />
+
       <PageHeader
         title="Waiting for internal teams"
         actions={

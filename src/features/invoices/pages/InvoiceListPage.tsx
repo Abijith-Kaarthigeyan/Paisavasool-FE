@@ -6,6 +6,8 @@ import { Badge } from "@/components/ui/badge"
 import { TableSkeleton } from "@/components/ui/skeleton"
 import { Pagination } from "@/components/ui/pagination"
 import { PageHeader } from "@/components/ui/page-header"
+import { PageBreadcrumb } from "@/components/ui/page-breadcrumb"
+import { getDashboardPath } from "@/lib/navigation"
 import { EmptyState } from "@/components/ui/empty-state"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
@@ -53,6 +55,13 @@ export const InvoiceListPage: React.FC = () => {
 
   return (
     <div className="space-y-8">
+      <PageBreadcrumb
+        items={[
+          { label: "Dashboard", to: getDashboardPath() },
+          { label: "Billing register" },
+        ]}
+      />
+
       <PageHeader
         title="Billing Register"
         actions={

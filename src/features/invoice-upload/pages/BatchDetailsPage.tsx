@@ -1,7 +1,5 @@
 import React from "react"
-import { useParams, Link, useNavigate } from "react-router-dom"
-import { useSelector } from "react-redux"
-import { RootState } from "@/app/store"
+import { useParams, useNavigate } from "react-router-dom"
 import { useBatchStatus } from "../hooks/useBatchStatus"
 import { useBatchInvoices } from "../hooks/useInvoices"
 import { useReviewQueue } from "../hooks/useReviewQueue"
@@ -10,15 +8,16 @@ import { InvoiceTable } from "../components/InvoiceTable"
 import { ReviewQueueTable } from "../components/ReviewQueueTable"
 import { UploadSummary } from "../components/UploadSummary"
 import { PageHeader } from "@/components/ui/page-header"
+import { PageBreadcrumb } from "@/components/ui/page-breadcrumb"
+import { getDashboardPath } from "@/lib/navigation"
 import { Button } from "@/components/ui/button"
 import { EmptyState } from "@/components/ui/empty-state"
 import { Skeleton } from "@/components/ui/skeleton"
-import { ChevronRight, Home, RefreshCw } from "lucide-react"
+import { RefreshCw } from "lucide-react"
 
 export const BatchDetailsPage: React.FC = () => {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const { user } = useSelector((state: RootState) => state.auth)
 
   const {
     data: batch,
@@ -38,13 +37,6 @@ export const BatchDetailsPage: React.FC = () => {
     isError: isReviewError,
     refetch: refetchReview,
   } = useReviewQueue()
-
-  const getDashboardPath = () => {
-    if (!user) return "/login"
-    if (user.role === "ADMIN") return "/admin"
-    if (user.role === "FINANCE_MANAGER") return "/manager"
-    return "/associate"
-  }
 
   const handleRefresh = () => {
     refetchBatch()
@@ -82,24 +74,13 @@ export const BatchDetailsPage: React.FC = () => {
 
   return (
     <div className="mx-auto max-w-5xl space-y-8">
-      <nav
-        className="flex w-fit flex-wrap items-center gap-2 rounded-lg border border-border bg-card px-4 py-2 text-xs text-muted-foreground"
-        aria-label="Breadcrumb"
-      >
-        <Link
-          to={getDashboardPath()}
-          className="flex items-center gap-1 transition-colors hover:text-foreground"
-        >
-          <Home className="h-3.5 w-3.5" aria-hidden />
-          <span>Dashboard</span>
-        </Link>
-        <ChevronRight className="h-3.5 w-3.5" aria-hidden />
-        <Link to="/invoice-upload" className="transition-colors hover:text-foreground">
-          Invoice upload
-        </Link>
-        <ChevronRight className="h-3.5 w-3.5" aria-hidden />
-        <span className="font-medium text-foreground">Batch details</span>
-      </nav>
+      <PageBreadcrumb
+        items={[
+          { label: "Dashboard", to: getDashboardPath() },
+          { label: "Invoice upload", to: "/invoice-upload" },
+          { label: "Batch details" },
+        ]}
+      />
 
       <PageHeader
         title={`Batch details: ${batch.file_name}`}

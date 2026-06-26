@@ -3,12 +3,21 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { EmptyState } from "@/components/ui/empty-state"
 import type { DisputeCommunication } from "../../types"
 import { CommunicationThreadItem } from "./CommunicationThreadItem"
+import { AssociateEmailComposer } from "./AssociateEmailComposer"
 
 interface DisputeCommunicationsTabProps {
   communications: DisputeCommunication[]
   customerEmail: string | null
   messageId?: string | null
   isLoading?: boolean
+  isDrafting?: boolean
+  isSending?: boolean
+  onDraftEmail: (instructions?: string) => Promise<{
+    recipient: string
+    subject: string
+    body: string
+  }>
+  onSendEmail: (payload: { recipient: string; subject: string; body: string }) => Promise<void>
 }
 
 export function DisputeCommunicationsTab({
@@ -16,22 +25,35 @@ export function DisputeCommunicationsTab({
   customerEmail,
   messageId,
   isLoading,
+  isDrafting,
+  isSending,
+  onDraftEmail,
+  onSendEmail,
 }: DisputeCommunicationsTabProps) {
   return (
     <Card>
       <CardHeader>
         <CardTitle className="text-base">Communications</CardTitle>
         <CardDescription>
-          Email thread — received messages on the left, sent messages on the right.
+          Email thread — received on the left, sent on the right. System and associate messages
+          both appear here.
         </CardDescription>
       </CardHeader>
-      <CardContent>
+      <CardContent className="space-y-6">
+        <AssociateEmailComposer
+          customerEmail={customerEmail}
+          isDrafting={isDrafting}
+          isSending={isSending}
+          onDraft={onDraftEmail}
+          onSend={onSendEmail}
+        />
+
         {isLoading ? (
           <Skeleton className="h-32 w-full" />
         ) : communications.length === 0 ? (
           <EmptyState
             title="No correspondence"
-            description="No communications have been recorded for this dispute."
+            description="No communications have been recorded for this dispute yet."
             className="py-8"
           />
         ) : (

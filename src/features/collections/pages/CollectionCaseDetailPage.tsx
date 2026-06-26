@@ -24,6 +24,7 @@ import { Select } from "@/components/ui/select"
 import { KpiCard, KpiGrid } from "@/components/ui/kpi-card"
 import { Timeline, TimelineItem } from "@/components/ui/timeline"
 import { EmptyState } from "@/components/ui/empty-state"
+import { PageBreadcrumb } from "@/components/ui/page-breadcrumb"
 import {
   Table,
   TableBody,
@@ -70,8 +71,10 @@ import {
   User,
   Activity,
   TrendingUp,
-  ChevronLeft,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react"
+import { cn } from "@/lib/utils"
 import type { ActivityType } from "../types"
 
 function getActivityTypeConfig(type: ActivityType) {
@@ -132,6 +135,7 @@ export const CollectionCaseDetailPage: React.FC = () => {
   const [isReassignOpen, setIsReassignOpen] = useState(false)
   const [isCloseOpen, setIsCloseOpen] = useState(false)
   const [isOverrideOpen, setIsOverrideOpen] = useState(false)
+  const [expandedReminders, setExpandedReminders] = useState<Record<string, boolean>>({})
 
   const [targetAssociateId, setTargetAssociateId] = useState("")
   const [targetStatus, setTargetStatus] = useState("")
@@ -281,6 +285,10 @@ export const CollectionCaseDetailPage: React.FC = () => {
     )
   }
 
+  const toggleReminderExpand = (reminderId: string) => {
+    setExpandedReminders((prev) => ({ ...prev, [reminderId]: !prev[reminderId] }))
+  }
+
   if (isLoading) {
     return (
       <div className="space-y-6">
@@ -316,23 +324,12 @@ export const CollectionCaseDetailPage: React.FC = () => {
   return (
     <div className="space-y-6 animate-in fade-in duration-150">
       <header className="space-y-4 border-b border-border pb-5">
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-8 px-2 text-muted-foreground"
-            onClick={() => navigate(-1)}
-          >
-            <ChevronLeft className="h-3.5 w-3.5" aria-hidden />
-            Back
-          </Button>
-          <span aria-hidden>/</span>
-          <Link to="/collections" className="hover:text-foreground">
-            Collections
-          </Link>
-          <span aria-hidden>/</span>
-          <span className="text-foreground">Case workspace</span>
-        </div>
+        <PageBreadcrumb
+          items={[
+            { label: "Collections", to: "/collections" },
+            { label: "Case workspace" },
+          ]}
+        />
 
         <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
           <div className="space-y-2">
@@ -685,30 +682,96 @@ export const CollectionCaseDetailPage: React.FC = () => {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {c.reminders.map((rem) => (
-                          <TableRow key={rem.id}>
-                            <TableCell className="font-mono tabular-nums">
-                              #{rem.reminder_number}
-                            </TableCell>
-                            <TableCell className="max-w-[150px] truncate font-medium">
-                              {rem.subject}
-                            </TableCell>
-                            <TableCell className="max-w-[120px] truncate font-mono text-xs text-muted-foreground">
-                              {rem.sent_to}
-                            </TableCell>
-                            <TableCell className="text-center">
-                              <Badge
-                                variant={getStatusVariant(REMINDER_STATUS_VARIANT, rem.status)}
-                                shape="pill"
+                        {c.reminders.map((rem) => {
+                          const isExpanded = !!expandedReminders[rem.id]
+                          return (
+                            <React.Fragment key={rem.id}>
+                              <TableRow
+                                className="cursor-pointer hover:bg-muted/50"
+                                onClick={() => toggleReminderExpand(rem.id)}
+                                aria-expanded={isExpanded}
                               >
-                                {rem.status}
-                              </Badge>
-                            </TableCell>
-                            <TableCell className="text-right tabular-nums text-muted-foreground">
-                              {new Date(rem.created_at).toLocaleDateString()}
-                            </TableCell>
-                          </TableRow>
-                        ))}
+                                <TableCell className="font-mono tabular-nums">
+                                  #{rem.reminder_number}
+                                </TableCell>
+                                <TableCell className="max-w-[200px] font-medium">
+                                  <span className="flex items-center gap-1.5">
+                                    {isExpanded ? (
+                                      <ChevronUp
+                                        className="h-3.5 w-3.5 shrink-0 text-muted-foreground"
+                                        aria-hidden
+                                      />
+                                    ) : (
+                                      <ChevronDown
+                                        className="h-3.5 w-3.5 shrink-0 text-muted-foreground"
+                                        aria-hidden
+                                      />
+                                    )}
+                                    <span className={cn(!isExpanded && "truncate")}>{rem.subject}</span>
+                                  </span>
+                                </TableCell>
+                                <TableCell className="max-w-[120px] truncate font-mono text-xs text-muted-foreground">
+                                  {rem.sent_to}
+                                </TableCell>
+                                <TableCell className="text-center">
+                                  <Badge
+                                    variant={getStatusVariant(REMINDER_STATUS_VARIANT, rem.status)}
+                                    shape="pill"
+                                  >
+                                    {rem.status}
+                                  </Badge>
+                                </TableCell>
+                                <TableCell className="text-right tabular-nums text-muted-foreground">
+                                  {new Date(rem.sent_at || rem.created_at).toLocaleDateString()}
+                                </TableCell>
+                              </TableRow>
+                              {isExpanded && (
+                                <TableRow>
+                                  <TableCell colSpan={5} className="bg-muted/30 p-4">
+                                    <div className="space-y-3">
+                                      <div>
+                                        <p className="text-xs font-medium text-muted-foreground">
+                                          Subject
+                                        </p>
+                                        <p className="text-sm font-medium text-foreground">
+                                          {rem.subject}
+                                        </p>
+                                      </div>
+                                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                                        <div>
+                                          <p className="text-xs font-medium text-muted-foreground">
+                                            Sent to
+                                          </p>
+                                          <p className="text-sm font-mono text-foreground">
+                                            {rem.sent_to}
+                                          </p>
+                                        </div>
+                                        <div>
+                                          <p className="text-xs font-medium text-muted-foreground">
+                                            Sent at
+                                          </p>
+                                          <p className="text-sm text-foreground">
+                                            {new Date(
+                                              rem.sent_at || rem.scheduled_at || rem.created_at
+                                            ).toLocaleString()}
+                                          </p>
+                                        </div>
+                                      </div>
+                                      <div>
+                                        <p className="text-xs font-medium text-muted-foreground">
+                                          Email body
+                                        </p>
+                                        <pre className="mt-1 max-h-80 overflow-y-auto rounded-md border border-border bg-background p-3 text-sm leading-relaxed whitespace-pre-wrap text-foreground">
+                                          {rem.body || "(No email body recorded)"}
+                                        </pre>
+                                      </div>
+                                    </div>
+                                  </TableCell>
+                                </TableRow>
+                              )}
+                            </React.Fragment>
+                          )
+                        })}
                       </TableBody>
                     </Table>
                   )}

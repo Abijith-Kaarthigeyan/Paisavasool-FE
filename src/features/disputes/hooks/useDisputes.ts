@@ -273,6 +273,30 @@ export const useCommunications = (disputeId: string) => {
   });
 };
 
+export const useDraftDisputeCommunication = (disputeId: string) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (instructions?: string) =>
+      disputeService.draftCommunication(disputeId, instructions ? { instructions } : undefined),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["disputeCommunications", disputeId] });
+    },
+  });
+};
+
+export const useSendDisputeCommunication = (disputeId: string) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: { recipient: string; subject: string; body: string }) =>
+      disputeService.sendCommunication(disputeId, payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["disputeCommunications", disputeId] });
+      queryClient.invalidateQueries({ queryKey: ["disputeComments", disputeId] });
+      queryClient.invalidateQueries({ queryKey: ["disputeActivities", disputeId] });
+    },
+  });
+};
+
 export const useEvidence = (disputeId: string) => {
   return useQuery({
     queryKey: ["disputeEvidence", disputeId],
