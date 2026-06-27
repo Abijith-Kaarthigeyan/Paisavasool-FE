@@ -5,11 +5,13 @@ import { cn } from "@/lib/utils"
 interface DashboardGreetingProps {
   displayName: string
   className?: string
+  action?: React.ReactNode
 }
 
 export const DashboardGreeting: React.FC<DashboardGreetingProps> = ({
   displayName,
   className,
+  action = <QuickUploadMenu />,
 }) => {
   return (
     <div
@@ -26,12 +28,13 @@ export const DashboardGreeting: React.FC<DashboardGreetingProps> = ({
           Here&apos;s what needs your attention today
         </p>
       </div>
-      <QuickUploadMenu />
+      {action}
     </div>
   )
 }
 
-export function getDisplayNameFromEmail(email: string | undefined): string {
+export function getGreetingName(firstName: string | undefined, email?: string): string {
+  if (firstName?.trim()) return firstName.trim()
   if (!email) return "there"
   const localPart = email.split("@")[0] ?? email
   const firstSegment = localPart.split(/[._-]/)[0] ?? localPart

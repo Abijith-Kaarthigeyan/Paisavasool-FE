@@ -3,6 +3,7 @@ import { createSlice, PayloadAction } from "@reduxjs/toolkit"
 export interface TokenPayload {
   sub: string;
   email: string;
+  first_name: string;
   role: string;
   is_active: boolean;
   exp: number;

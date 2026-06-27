@@ -10,7 +10,7 @@ import { useCustomers } from "@/features/customers/hooks/useCustomers"
 import { usePaymentReviews } from "@/features/matching/hooks/useReviews"
 import { Skeleton } from "@/components/ui/skeleton"
 import { ClickableWidget } from "../components/ClickableWidget"
-import { DashboardGreeting, getDisplayNameFromEmail } from "../components/DashboardGreeting"
+import { DashboardGreeting, getGreetingName } from "../components/DashboardGreeting"
 import { DisputeCategoryChart } from "../components/DisputeCategoryChart"
 import { AgingBucketChart } from "../components/AgingBucketChart"
 import { ArrowRight, Users, HelpCircle, DollarSign } from "lucide-react"
@@ -59,7 +59,7 @@ export const AssociateDashboard: React.FC = () => {
       .slice(0, 3)
   }, [customers, invoices])
 
-  const displayName = getDisplayNameFromEmail(user?.email)
+  const displayName = getGreetingName(user?.first_name, user?.email)
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-3">

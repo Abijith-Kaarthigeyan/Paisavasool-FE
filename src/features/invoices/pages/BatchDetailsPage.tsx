@@ -1,5 +1,5 @@
 import React from "react"
-import { useParams, useNavigate } from "react-router-dom"
+import { useParams, useNavigate, useSearchParams } from "react-router-dom"
 import {
   useBatchStatus,
   useBatchReviewItems,
@@ -46,6 +46,8 @@ type ParsedFileMeta = {
 export const BatchDetailsPage: React.FC = () => {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const fromSessionId = searchParams.get("fromSession")
 
   const { data: batch, isLoading: isBatchLoading, error: batchError } = useBatchStatus(id)
   const { data: reviewItems } = useBatchReviewItems(id)
@@ -152,16 +154,34 @@ export const BatchDetailsPage: React.FC = () => {
   return (
     <div className="space-y-8">
       <PageBreadcrumb
-        items={[
-          { label: "Invoice upload", to: "/invoice-upload" },
-          { label: "Batch details" },
-        ]}
+        items={
+          fromSessionId
+            ? [
+                { label: "Upload documents", to: "/upload" },
+                { label: "Session", to: `/upload/sessions/${fromSessionId}` },
+                { label: "Batch details" },
+              ]
+            : [
+                { label: "Invoice upload", to: "/invoice-upload" },
+                { label: "Batch details" },
+              ]
+        }
       />
 
       <PageHeader
         title="Batch ingestion details"
         actions={
           <div className="flex items-center gap-2">
+            {fromSessionId && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => navigate(`/upload/sessions/${fromSessionId}`)}
+              >
+                <ChevronLeft className="h-4 w-4" aria-hidden />
+                Back to session
+              </Button>
+            )}
             <Badge
               variant={getStatusVariant(BATCH_STATUS_VARIANT, batch.status)}
               shape="pill"

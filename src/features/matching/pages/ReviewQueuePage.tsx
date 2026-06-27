@@ -33,7 +33,12 @@ import {
 } from "@/lib/design-tokens"
 import { cn } from "@/lib/utils"
 import { formatCurrency } from "@/lib/formatCurrency"
-import { AlertTriangle, CheckCircle, HelpCircle } from "lucide-react"
+import { AlertTriangle, Check, CheckCircle, HelpCircle, X } from "lucide-react"
+
+const hoverScrollBase = "overflow-x-hidden hover-scroll-y"
+const hoverScrollList = cn(hoverScrollBase, "max-h-[280px] space-y-2.5")
+const sectionCard = "rounded-lg border border-border bg-card shadow-card"
+const sectionLabel = "text-xs font-semibold uppercase tracking-wide text-muted-foreground"
 
 export const ReviewQueuePage: React.FC = () => {
   const { toast } = useToast()
@@ -323,18 +328,18 @@ export const ReviewQueuePage: React.FC = () => {
       </Card>
 
       <Sheet open={isDrawerOpen} onOpenChange={setIsDrawerOpen}>
-        <SheetContent className="overflow-y-auto pb-10">
-          <SheetHeader>
+        <SheetContent className="flex h-full flex-col overflow-hidden pb-0">
+          <SheetHeader className="shrink-0">
             <SheetTitle>Payment match resolution</SheetTitle>
             <SheetDescription>Verify bank wire metadata and allocate cash amounts.</SheetDescription>
           </SheetHeader>
 
           {isPaymentLoading ? (
-            <div className="space-y-4 py-6">
+            <div className="min-h-0 flex-1 space-y-4 overflow-hidden px-0 py-6 hover-scroll-y">
               <TableSkeleton rows={2} columns={1} />
             </div>
           ) : paymentDetails ? (
-            <div className="space-y-6 pt-4 text-sm">
+            <div className="min-h-0 flex-1 space-y-5 overflow-hidden py-4 hover-scroll-y">
               {selectedReview?.confidence !== undefined && (
                 <ConfidenceMeter
                   value={selectedReview.confidence}
@@ -343,24 +348,22 @@ export const ReviewQueuePage: React.FC = () => {
                 />
               )}
 
-              <div className="grid grid-cols-2 gap-4 rounded-lg border border-border bg-muted/30 p-4">
+              <div className={cn(sectionCard, "grid grid-cols-2 gap-4 bg-muted/20 p-4")}>
                 <div className="flex flex-col">
-                  <span className="text-xs font-medium text-muted-foreground">
-                    Original customer extracted
-                  </span>
-                  <span className="mt-0.5 font-medium text-foreground">
+                  <span className={sectionLabel}>Original customer extracted</span>
+                  <span className="mt-1 text-sm font-medium text-foreground">
                     {paymentDetails.customer_name_original}
                   </span>
                 </div>
                 <div className="flex flex-col">
-                  <span className="text-xs font-medium text-muted-foreground">Payment amount</span>
-                  <span className="mt-0.5 text-base font-semibold tabular-nums text-primary">
+                  <span className={sectionLabel}>Payment amount</span>
+                  <span className="mt-1 text-lg font-semibold tabular-nums text-primary">
                     {formatCurrency(paymentDetails.payment_amount)}
                   </span>
                 </div>
                 <div className="flex flex-col">
-                  <span className="text-xs font-medium text-muted-foreground">Payment date</span>
-                  <span className="mt-0.5 font-medium text-foreground">
+                  <span className={sectionLabel}>Payment date</span>
+                  <span className="mt-1 text-sm font-medium text-foreground">
                     {new Date(paymentDetails.payment_date).toLocaleDateString()}
                   </span>
                 </div>
@@ -368,11 +371,11 @@ export const ReviewQueuePage: React.FC = () => {
 
               {selectedReview?.suggested_candidates &&
               selectedReview.suggested_candidates.length > 0 ? (
-                <div className="space-y-2">
-                  <span className="block text-xs font-medium text-muted-foreground">
+                <div className={cn(sectionCard, "p-4")}>
+                  <span className={cn(sectionLabel, "mb-3 block")}>
                     Match suggestions (top candidates)
                   </span>
-                  <div className="max-h-[280px] space-y-2.5 overflow-y-auto pr-1">
+                  <div className={hoverScrollList}>
                     {selectedReview.suggested_candidates.map((cand: {
                       customer_id: string
                       customer_name: string
@@ -384,16 +387,16 @@ export const ReviewQueuePage: React.FC = () => {
                         <div
                           key={cand.customer_id}
                           className={cn(
-                            "flex flex-col gap-2 rounded-lg border p-3.5 transition-colors",
+                            "flex flex-col gap-2.5 rounded-md border p-3 transition-colors",
                             isSelected
-                              ? "border-primary bg-primary/5"
-                              : "border-border bg-card hover:bg-muted/40"
+                              ? "border-primary/40 bg-primary/5"
+                              : "border-border/80 bg-background hover:border-border hover:bg-muted/30"
                           )}
                         >
-                          <div className="flex items-center justify-between gap-2 text-xs">
-                            <div>
-                              <p className="font-medium text-foreground">{cand.customer_name}</p>
-                              <p className="mt-0.5 font-mono text-xs text-muted-foreground">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <p className="text-sm font-medium text-foreground">{cand.customer_name}</p>
+                              <p className="mt-0.5 text-xs tracking-wide text-muted-foreground uppercase">
                                 {cand.customer_code}
                               </p>
                             </div>
@@ -401,16 +404,21 @@ export const ReviewQueuePage: React.FC = () => {
                               <Badge
                                 variant={getConfidenceBadgeVariant(cand.confidence)}
                                 shape="pill"
+                                className="tabular-nums"
                               >
                                 {cand.confidence.toFixed(1)}%
                               </Badge>
                               {isSelected ? (
-                                <span className="text-xs font-medium text-success">Selected</span>
+                                <span className="inline-flex items-center gap-1 text-xs font-medium text-success">
+                                  <Check className="h-3.5 w-3.5" aria-hidden />
+                                  Selected
+                                </span>
                               ) : (
                                 <Button
                                   type="button"
-                                  variant="primary"
+                                  variant="secondary"
                                   size="sm"
+                                  className="h-8 text-xs font-medium"
                                   onClick={() => {
                                     setSelectedCustomerId(cand.customer_id)
                                     setCustomerCodeInput(cand.customer_code)
@@ -429,30 +437,34 @@ export const ReviewQueuePage: React.FC = () => {
                 </div>
               ) : (
                 selectedReview?.suggested_customer_name && (
-                  <div className="space-y-3 rounded-lg border border-primary/20 bg-primary/5 p-3.5">
+                  <div className={cn(sectionCard, "space-y-3 border-primary/20 bg-primary/5 p-4")}>
                     <div className="flex items-center justify-between">
-                      <span className="text-xs font-medium text-primary">Top match candidate</span>
+                      <span className={cn(sectionLabel, "text-primary normal-case tracking-normal")}>
+                        Top match candidate
+                      </span>
                       <Badge
                         variant={getConfidenceBadgeVariant(selectedReview.confidence)}
                         shape="pill"
+                        className="tabular-nums"
                       >
                         {selectedReview.confidence.toFixed(1)}%
                       </Badge>
                     </div>
-                    <div className="flex items-center justify-between text-xs">
+                    <div className="flex items-center justify-between gap-3">
                       <div>
-                        <p className="font-medium text-foreground">
+                        <p className="text-sm font-medium text-foreground">
                           {selectedReview.suggested_customer_name}
                         </p>
-                        <p className="mt-0.5 font-mono text-xs text-muted-foreground">
+                        <p className="mt-0.5 text-xs tracking-wide text-muted-foreground uppercase">
                           {selectedReview.suggested_customer_code}
                         </p>
                       </div>
                       {selectedCustomerId !== selectedReview.suggested_customer_id ? (
                         <Button
                           type="button"
-                          variant="primary"
+                          variant="secondary"
                           size="sm"
+                          className="h-8 shrink-0 text-xs font-medium"
                           onClick={() => {
                             setSelectedCustomerId(selectedReview.suggested_customer_id)
                             setCustomerCodeInput(selectedReview.suggested_customer_code)
@@ -461,31 +473,37 @@ export const ReviewQueuePage: React.FC = () => {
                           Use suggestion
                         </Button>
                       ) : (
-                        <span className="text-xs font-medium text-success">Selected</span>
+                        <span className="inline-flex items-center gap-1 text-xs font-medium text-success">
+                          <Check className="h-3.5 w-3.5" aria-hidden />
+                          Selected
+                        </span>
                       )}
                     </div>
                   </div>
                 )
               )}
 
-              <div className="space-y-2">
-                <Label htmlFor="customer-code">Resolved customer code</Label>
+              <div className={cn(sectionCard, "space-y-2.5 p-4")}>
+                <Label htmlFor="customer-code" className={sectionLabel}>
+                  Resolved customer code
+                </Label>
                 <div className="relative">
                   <Input
                     id="customer-code"
                     value={customerCodeInput}
                     onChange={(e) => handleCustomerCodeChange(e.target.value)}
                     placeholder="Enter customer code (e.g. CUST-000001)…"
-                    className="font-mono uppercase"
+                    className="tracking-wide uppercase"
                   />
                   {isSearchingCustomer && (
                     <div className="absolute right-3 top-2.5">
-                      <div className="h-4 w-4 animate-spin rounded-full border-b-2 border-primary" />
+                      <div className="h-4 w-4 animate-spin rounded-full border-2 border-muted border-t-primary" />
                     </div>
                   )}
                 </div>
                 {selectedCustomerId ? (
-                  <p className="text-xs font-medium text-success">
+                  <p className="flex items-center gap-1.5 text-xs font-medium text-success">
+                    <CheckCircle className="h-3.5 w-3.5 shrink-0" aria-hidden />
                     Customer resolved:{" "}
                     {resolvedCustomer?.customer_name ||
                       matchedCustomerDetail?.customer?.customer_name}
@@ -501,13 +519,16 @@ export const ReviewQueuePage: React.FC = () => {
                 )}
               </div>
 
-              <div className="space-y-3">
-                <div className="flex items-center justify-between border-b border-border pb-2">
-                  <Label>Candidate invoices allocation</Label>
+              <div className={cn(sectionCard, "space-y-3 p-4")}>
+                <div className="flex items-center justify-between border-b border-border pb-2.5">
+                  <Label className={cn(sectionLabel, "normal-case tracking-normal")}>
+                    Candidate invoices allocation
+                  </Label>
                   {selectedCustomerId && (
                     <Badge
                       variant={allocatableInvoices.length > 0 ? "outline" : "destructive"}
                       shape="pill"
+                      className="text-[11px] font-medium"
                     >
                       {allocatableInvoices.length} candidate invoices
                     </Badge>
@@ -529,20 +550,20 @@ export const ReviewQueuePage: React.FC = () => {
                     className="py-6"
                   />
                 ) : (
-                  <div className="max-h-[250px] space-y-3 overflow-y-auto pr-1">
+                  <div className={cn(hoverScrollBase, "max-h-[250px] space-y-3")}>
                     {allocatableInvoices.map((inv) => {
                       const isChecked = selectedAllocations.some((a) => a.invoice_id === inv.id)
                       return (
                         <div
                           key={inv.id}
                           className={cn(
-                            "flex items-center justify-between rounded-lg border p-3 transition-colors",
+                            "flex items-center justify-between rounded-md border p-3 transition-colors",
                             isChecked
-                              ? "border-primary bg-primary/5"
-                              : "border-border bg-card hover:bg-muted/40"
+                              ? "border-primary/40 bg-primary/5"
+                              : "border-border/80 bg-background hover:border-border hover:bg-muted/30"
                           )}
                         >
-                          <div className="flex items-center space-x-3">
+                          <div className="flex items-center gap-3">
                             <input
                               type="checkbox"
                               checked={isChecked}
@@ -555,12 +576,12 @@ export const ReviewQueuePage: React.FC = () => {
                                   {inv.invoice_number}
                                 </p>
                                 {inv.status === "DISPUTED" && (
-                                  <Badge variant="warning" shape="pill">
+                                  <Badge variant="warning" shape="pill" className="text-[10px]">
                                     Disputed
                                   </Badge>
                                 )}
                                 {inv.status === "OVERDUE" && (
-                                  <Badge variant="destructive" shape="pill">
+                                  <Badge variant="destructive" shape="pill" className="text-[10px]">
                                     Overdue
                                   </Badge>
                                 )}
@@ -572,14 +593,14 @@ export const ReviewQueuePage: React.FC = () => {
                           </div>
 
                           {isChecked && (
-                            <div className="flex items-center space-x-2">
+                            <div className="flex items-center gap-1.5">
                               <span className="text-xs text-muted-foreground">₹</span>
                               <Input
                                 type="number"
                                 step="any"
                                 value={allocationInputs[inv.id] || ""}
                                 onChange={(e) => handleAmountChange(inv.id, e.target.value)}
-                                className="w-24 text-right font-mono tabular-nums"
+                                className="h-9 w-28 text-right tabular-nums"
                               />
                             </div>
                           )}
@@ -590,10 +611,10 @@ export const ReviewQueuePage: React.FC = () => {
                 )}
               </div>
 
-              <div className="space-y-2.5 border-t border-border pt-4">
+              <div className={cn(sectionCard, "space-y-3 bg-muted/15 p-4")}>
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Total cash allocating</span>
-                  <span className="font-medium tabular-nums text-foreground">
+                  <span className="font-semibold tabular-nums text-foreground">
                     {formatCurrency(totalAllocated)}
                   </span>
                 </div>
@@ -601,7 +622,7 @@ export const ReviewQueuePage: React.FC = () => {
                   <span className="text-muted-foreground">Remaining unallocated</span>
                   <span
                     className={cn(
-                      "font-medium tabular-nums",
+                      "font-semibold tabular-nums",
                       remainingToAllocate < -0.01 ? "text-destructive" : "text-success"
                     )}
                   >
@@ -610,22 +631,22 @@ export const ReviewQueuePage: React.FC = () => {
                 </div>
 
                 {remainingToAllocate > 0.01 && (
-                  <div className="flex items-start gap-2 rounded-lg border border-warning/25 bg-warning-muted p-3 text-xs text-warning-foreground">
-                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+                  <div className="flex items-start gap-2.5 rounded-md border border-warning/20 bg-warning-muted px-3 py-2.5 text-xs leading-relaxed text-warning-foreground">
+                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning" aria-hidden />
                     <span>
-                      <strong>Under-allocation:</strong> Remaining balance of{" "}
-                      {formatCurrency(remainingToAllocate)} will generate a customer credit upon
+                      <strong className="font-semibold">Under-allocation:</strong> Remaining balance
+                      of {formatCurrency(remainingToAllocate)} will generate a customer credit upon
                       approval.
                     </span>
                   </div>
                 )}
 
                 {remainingToAllocate < -0.01 && (
-                  <div className="flex items-start gap-2 rounded-lg border border-destructive/25 bg-destructive/10 p-3 text-xs text-destructive">
+                  <div className="flex items-start gap-2.5 rounded-md border border-destructive/20 bg-destructive/10 px-3 py-2.5 text-xs leading-relaxed text-destructive">
                     <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
                     <span>
-                      <strong>Error:</strong> Allocated amount exceeds total cash receipt. Please
-                      correct invoice allocations.
+                      <strong className="font-semibold">Error:</strong> Allocated amount exceeds total
+                      cash receipt. Please correct invoice allocations.
                     </span>
                   </div>
                 )}
@@ -633,25 +654,27 @@ export const ReviewQueuePage: React.FC = () => {
             </div>
           ) : null}
 
-          <SheetFooter>
+          <SheetFooter className="mt-0 shrink-0 border-t border-border bg-card/95 px-0 py-4 backdrop-blur-sm">
             {selectedReview?.status === "PENDING" && (
-              <div className="flex w-full justify-end gap-3">
+              <div className="flex w-full justify-end gap-2.5">
                 <Button
                   type="button"
-                  variant="danger"
-                  size="sm"
+                  variant="secondary"
+                  size="md"
+                  className="border-destructive/25 text-destructive hover:border-destructive/40 hover:bg-destructive/5"
                   onClick={() => {
                     setConfirmAction("reject")
                     setIsConfirmOpen(true)
                   }}
                   disabled={rejectMutation.isPending || approveMutation.isPending}
                 >
+                  <X className="h-4 w-4" aria-hidden />
                   Reject match
                 </Button>
                 <Button
                   type="button"
                   variant="primary"
-                  size="sm"
+                  size="md"
                   onClick={() => {
                     setConfirmAction("approve")
                     setIsConfirmOpen(true)
@@ -663,6 +686,7 @@ export const ReviewQueuePage: React.FC = () => {
                     !selectedCustomerId
                   }
                 >
+                  <Check className="h-4 w-4" aria-hidden />
                   Approve allocation
                 </Button>
               </div>

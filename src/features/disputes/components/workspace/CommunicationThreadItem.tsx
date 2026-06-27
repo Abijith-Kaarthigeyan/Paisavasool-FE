@@ -6,10 +6,12 @@ import { ChevronDown, ChevronUp, Inbox, Send } from "lucide-react"
 import type { DisputeCommunication } from "../../types"
 import {
   getCommunicationAddress,
+  getCommunicationDeliveryLabel,
   getCommunicationDirection,
   getCommunicationPreview,
   isAssociateOutboundCommunication,
   isCaseOriginCommunication,
+  isCommunicationDelivered,
   isInternalCommunication,
 } from "../../utils/disputeFormatters"
 
@@ -17,7 +19,6 @@ interface CommunicationThreadItemProps {
   comm: DisputeCommunication
   customerEmail: string | null
   isFirst?: boolean
-  messageId?: string | null
 }
 
 function getCommunicationBody(comm: DisputeCommunication) {
@@ -32,7 +33,6 @@ export function CommunicationThreadItem({
   comm,
   customerEmail,
   isFirst = false,
-  messageId,
 }: CommunicationThreadItemProps) {
   const [isExpanded, setIsExpanded] = useState(isFirst)
   const isCaseOrigin = isCaseOriginCommunication(comm)
@@ -43,6 +43,8 @@ export function CommunicationThreadItem({
   const time = getCommunicationTime(comm)
   const isInternal = isInternalCommunication(comm)
   const isAssociate = isAssociateOutboundCommunication(comm)
+  const deliveryLabel = getCommunicationDeliveryLabel(comm)
+  const isDelivered = isCommunicationDelivered(comm)
 
   return (
     <div
@@ -83,6 +85,19 @@ export function CommunicationThreadItem({
               Associate
             </Badge>
           )}
+          {deliveryLabel && (
+            <Badge
+              variant={isDelivered ? "success" : "warning"}
+              shape="pill"
+              title={
+                isDelivered
+                  ? "Delivered through Gmail"
+                  : "Saved in the dispute thread; Gmail delivery is pending or disabled"
+              }
+            >
+              {deliveryLabel}
+            </Badge>
+          )}
           <span className="truncate font-mono text-xs text-muted-foreground">
             {isSent ? `To: ${address}` : `From: ${address}`}
           </span>
@@ -107,14 +122,6 @@ export function CommunicationThreadItem({
                 {comm.subject}
               </span>
             </div>
-            {messageId && (
-              <div className="flex justify-between gap-4">
-                <span>Message-ID</span>
-                <span className="max-w-[60%] truncate font-mono text-[10px] text-foreground">
-                  {messageId}
-                </span>
-              </div>
-            )}
           </div>
         )}
 

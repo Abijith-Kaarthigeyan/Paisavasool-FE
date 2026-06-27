@@ -123,7 +123,9 @@ export interface DisputeCommunication {
   recipient: string;
   subject: string;
   message_body: string;
-  communication_type: "CUSTOMER" | "INTERNAL" | string;
+  communication_type: "CUSTOMER" | "INTERNAL" | "ASSOCIATE_OUTBOUND" | string;
+  gmail_message_id?: string | null;
+  rfc_message_id?: string | null;
   sent_time: string;
   created_at: string;
 }

@@ -23,7 +23,11 @@ export const DashboardPage: React.FC = () => {
       case "ADMIN":
         return <AdminDashboard />;
       case "FINANCE_MANAGER":
-        return <ManagerDashboard />;
+        return (
+          <div className="-mx-page-side -my-3 flex h-[calc(100dvh-3.5rem)] min-h-0 flex-col overflow-hidden px-page-side py-3">
+            <ManagerDashboard />
+          </div>
+        );
       case "FINANCE_ASSOCIATE":
         return (
           <div className="-mx-page-side -my-3 flex h-[calc(100dvh-3.5rem)] min-h-0 flex-col overflow-hidden px-page-side py-3">

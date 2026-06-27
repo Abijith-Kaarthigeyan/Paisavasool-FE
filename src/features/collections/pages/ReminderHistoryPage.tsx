@@ -21,6 +21,11 @@ import {
 } from "@/components/ui/table"
 import { REMINDER_STATUS_VARIANT, getStatusVariant } from "@/lib/design-tokens"
 import { ArrowUpDown, Mail, RefreshCw } from "lucide-react"
+import {
+  getReminderDisplayDate,
+  getReminderStatusDescription,
+  getReminderStatusLabel,
+} from "../utils/reminderFormatters"
 
 export const ReminderHistoryPage: React.FC = () => {
   const { data: reminders = [], isLoading, isError, refetch } = useReminderHistory()
@@ -154,7 +159,7 @@ export const ReminderHistoryPage: React.FC = () => {
                       aria-sort={sortDirection === "asc" ? "ascending" : "descending"}
                       className="ml-auto inline-flex items-center gap-1 hover:text-foreground"
                     >
-                      Generated date
+                      Date
                       <ArrowUpDown className="h-3 w-3" aria-hidden />
                     </button>
                   </TableHead>
@@ -176,12 +181,13 @@ export const ReminderHistoryPage: React.FC = () => {
                       <Badge
                         variant={getStatusVariant(REMINDER_STATUS_VARIANT, r.status)}
                         shape="pill"
+                        title={getReminderStatusDescription(r.status)}
                       >
-                        {r.status}
+                        {getReminderStatusLabel(r.status)}
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right tabular-nums text-muted-foreground">
-                      {new Date(r.created_at).toLocaleString()}
+                      {new Date(getReminderDisplayDate(r)).toLocaleString()}
                     </TableCell>
                   </TableRow>
                 ))}

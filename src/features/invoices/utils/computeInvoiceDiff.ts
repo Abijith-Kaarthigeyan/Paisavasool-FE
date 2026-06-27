@@ -49,7 +49,18 @@ export type InvoiceDiffResult = {
   changedLineItemCount: number
 }
 
-const FIELD_LABELS: Record<Exclude<keyof NormalizedInvoice, "items">, string> = {
+/** Scalar fields compared for upload amendments (outstanding is ledger-derived, not from PDF). */
+const DIFF_SCALAR_FIELDS = [
+  "invoice_number",
+  "customer_name",
+  "invoice_date",
+  "due_date",
+  "subtotal_amount",
+  "tax_amount",
+  "total_amount",
+] as const satisfies ReadonlyArray<Exclude<keyof NormalizedInvoice, "items">>
+
+const FIELD_LABELS: Record<(typeof DIFF_SCALAR_FIELDS)[number], string> = {
   invoice_number: "Invoice number",
   customer_name: "Customer",
   invoice_date: "Issue date",
@@ -57,7 +68,6 @@ const FIELD_LABELS: Record<Exclude<keyof NormalizedInvoice, "items">, string> = 
   subtotal_amount: "Subtotal",
   tax_amount: "Tax",
   total_amount: "Total",
-  outstanding_amount: "Outstanding",
 }
 
 const toNumber = (value: unknown, fallback = 0): number => {
@@ -172,16 +182,13 @@ export function computeInvoiceDiff(
   current: NormalizedInvoice,
   proposed: NormalizedInvoice
 ): InvoiceDiffResult {
-  const scalarFields = Object.keys(FIELD_LABELS) as Array<Exclude<keyof NormalizedInvoice, "items">>
-
-  const fieldDiffs: FieldDiff[] = scalarFields.map((field) => {
+  const fieldDiffs: FieldDiff[] = DIFF_SCALAR_FIELDS.map((field) => {
     const currentValue = current[field]
     const proposedValue = proposed[field]
     const changed =
       field === "subtotal_amount" ||
       field === "tax_amount" ||
-      field === "total_amount" ||
-      field === "outstanding_amount"
+      field === "total_amount"
         ? toNumber(currentValue) !== toNumber(proposedValue)
         : String(currentValue ?? "") !== String(proposedValue ?? "")
 

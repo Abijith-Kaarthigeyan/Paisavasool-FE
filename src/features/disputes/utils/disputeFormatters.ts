@@ -81,7 +81,8 @@ export function formatSlaStatusLabel(
   }
   if (!status) return "No SLA"
   const label = status.replace(/_/g, " ")
-  return isPaused ? `${label} (Paused)` : label
+  const showPaused = isPaused && disputeStatus === "WAITING_CUSTOMER"
+  return showPaused ? `${label} (Paused)` : label
 }
 
 export function isCaseOriginCommunication(comm: DisputeCommunication): boolean {
@@ -154,4 +155,23 @@ export function getCommunicationPreview(body: string, maxLines = 2): string {
   const lines = body.split("\n").filter((line) => line.trim())
   if (lines.length <= maxLines) return body.trim()
   return lines.slice(0, maxLines).join("\n") + "…"
+}
+
+export function isOutboundCommunication(comm: DisputeCommunication): boolean {
+  return (
+    comm.communication_type === "ASSOCIATE_OUTBOUND" ||
+    comm.communication_type === "INTERNAL" ||
+    getCommunicationDirection(comm) === "Sent"
+  )
+}
+
+export function isCommunicationDelivered(comm: DisputeCommunication): boolean {
+  return isOutboundCommunication(comm) && !!comm.gmail_message_id
+}
+
+export function getCommunicationDeliveryLabel(comm: DisputeCommunication): string | null {
+  if (!isOutboundCommunication(comm)) {
+    return null
+  }
+  return isCommunicationDelivered(comm) ? "Delivered" : "Saved (delivery pending)"
 }

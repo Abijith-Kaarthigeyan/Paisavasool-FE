@@ -23,6 +23,21 @@ import {
 import { INVOICE_STATUS_VARIANT, getStatusVariant } from "@/lib/design-tokens"
 import { formatCurrency } from "@/lib/formatCurrency"
 import { RefreshCw, HelpCircle, Inbox } from "lucide-react"
+import type { Invoice } from "../types"
+
+const getDisplayStatus = (invoice: Invoice): string => {
+  if (invoice.status !== "OVERDUE") {
+    return invoice.status
+  }
+  return invoice.outstanding_amount >= invoice.total_amount
+    ? "PENDING"
+    : "PARTIALLY_PAID"
+}
+
+const matchesStatusFilter = (invoice: Invoice, statusFilter: string): boolean => {
+  if (statusFilter === "") return true
+  return getDisplayStatus(invoice) === statusFilter
+}
 
 export const InvoiceListPage: React.FC = () => {
   const navigate = useNavigate()
@@ -41,10 +56,9 @@ export const InvoiceListPage: React.FC = () => {
     navigate(`/invoices/${invoiceId}`)
   }
 
-  const filteredInvoices = invoices.filter((inv) => {
-    if (statusFilter === "") return true
-    return inv.status === statusFilter
-  })
+  const filteredInvoices = invoices.filter((inv) =>
+    matchesStatusFilter(inv, statusFilter)
+  )
 
   const totalItems = filteredInvoices.length
   const totalPages = Math.max(1, Math.ceil(totalItems / itemsPerPage))
@@ -88,7 +102,6 @@ export const InvoiceListPage: React.FC = () => {
               <option value="PENDING">Pending</option>
               <option value="PARTIALLY_PAID">Partially paid</option>
               <option value="PAID">Paid</option>
-              <option value="OVERDUE">Overdue</option>
               <option value="DISPUTED">Disputed</option>
             </Select>
           </div>
@@ -139,7 +152,9 @@ export const InvoiceListPage: React.FC = () => {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {paginatedInvoices.map((inv) => (
+                {paginatedInvoices.map((inv) => {
+                  const displayStatus = getDisplayStatus(inv)
+                  return (
                   <TableRow
                     key={inv.id}
                     className="cursor-pointer"
@@ -165,14 +180,15 @@ export const InvoiceListPage: React.FC = () => {
                     </TableCell>
                     <TableCell className="text-right">
                       <Badge
-                        variant={getStatusVariant(INVOICE_STATUS_VARIANT, inv.status)}
+                        variant={getStatusVariant(INVOICE_STATUS_VARIANT, displayStatus)}
                         shape="pill"
                       >
-                        {inv.status.replace(/_/g, " ")}
+                        {displayStatus.replace(/_/g, " ")}
                       </Badge>
                     </TableCell>
                   </TableRow>
-                ))}
+                  )
+                })}
               </TableBody>
             </Table>
           )}

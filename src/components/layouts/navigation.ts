@@ -89,12 +89,6 @@ export const navigationItems: NavItem[] = [
       { name: "Reminder History", path: "/collections/reminders", roles: ["FINANCE_ASSOCIATE", "FINANCE_MANAGER"] },
     ],
   },
-  {
-    name: "Customers",
-    path: "/customers",
-    icon: Users,
-    roles: ["FINANCE_ASSOCIATE", "FINANCE_MANAGER", "ADMIN"],
-  },
 ]
 
 export function filterNavItemsForRole(

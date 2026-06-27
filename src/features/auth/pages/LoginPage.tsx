@@ -9,8 +9,8 @@ import { setCredentials, clearCredentials } from "@/features/auth/slices/authSli
 import { getCookie } from "@/lib/cookies"
 import { RootState } from "@/app/store"
 import { ROLES, RoleType } from "@/config/constants"
+import { LoginDebitCard } from "@/features/auth/components/LoginDebitCard"
 import {
-  CreditCard,
   Mail,
   Lock,
   Eye,
@@ -20,8 +20,8 @@ import {
   Info,
   ChevronDown,
   ChevronUp,
+  ArrowRight,
 } from "lucide-react"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -75,6 +75,7 @@ export const LoginPage: React.FC = () => {
       const tokenPayload = {
         sub: profile.id,
         email: profile.email,
+        first_name: profile.first_name,
         role: profile.role.role_name,
         is_active: profile.is_active,
         exp,
@@ -114,146 +115,148 @@ export const LoginPage: React.FC = () => {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-4 py-12 sm:px-6 lg:px-8">
-      <Card className="w-full max-w-md shadow-card">
-        <CardHeader className="items-center text-center">
-          <div className="mb-2 flex h-11 w-11 items-center justify-center rounded-lg border border-primary/20 bg-primary/10">
-            <CreditCard className="h-5 w-5 text-primary" aria-hidden />
-          </div>
-          <CardTitle className="text-2xl">Paisa Vasool</CardTitle>
-          <CardDescription>Accounts Receivable Assistant</CardDescription>
-        </CardHeader>
-
-        <CardContent className="space-y-5">
-          {isSessionExpired && (
-            <div className="flex items-start gap-3 rounded-md border border-warning/20 bg-warning-muted p-3 text-sm text-warning-foreground">
-              <Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
-              <span>Your session has expired. Please log in again to continue.</span>
-            </div>
-          )}
-
-          {apiError && (
-            <div className="flex items-start gap-3 rounded-md border border-destructive/20 bg-destructive/10 p-3 text-sm text-destructive">
-              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
-              <span>{apiError}</span>
-            </div>
-          )}
-
-          <form className="space-y-4" onSubmit={handleSubmit(onSubmit)}>
-            <div className="space-y-2">
-              <Label htmlFor="email">Email address</Label>
-              <div className="relative">
-                <Mail
-                  className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
-                  aria-hidden
-                />
-                <Input
-                  id="email"
-                  type="email"
-                  disabled={isLoading}
-                  placeholder="name@paisavasool.com"
-                  className="pl-9"
-                  {...register("email")}
-                />
-              </div>
-              {errors.email && (
-                <p className="flex items-center gap-1 text-xs text-destructive">
-                  <AlertCircle className="h-3 w-3" aria-hidden />
-                  {errors.email.message}
-                </p>
-              )}
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
-              <div className="relative">
-                <Lock
-                  className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
-                  aria-hidden
-                />
-                <Input
-                  id="password"
-                  type={showPassword ? "text" : "password"}
-                  disabled={isLoading}
-                  placeholder="••••••••"
-                  className="pl-9 pr-10"
-                  {...register("password")}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  disabled={isLoading}
-                  aria-label={showPassword ? "Hide password" : "Show password"}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 rounded-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring/30"
-                >
-                  {showPassword ? (
-                    <EyeOff className="h-4 w-4" aria-hidden />
-                  ) : (
-                    <Eye className="h-4 w-4" aria-hidden />
-                  )}
-                </button>
-              </div>
-              {errors.password && (
-                <p className="flex items-center gap-1 text-xs text-destructive">
-                  <AlertCircle className="h-3 w-3" aria-hidden />
-                  {errors.password.message}
-                </p>
-              )}
-            </div>
-
-            <Button type="submit" variant="primary" size="lg" loading={isLoading} className="w-full">
-              Sign in
-            </Button>
-          </form>
-
-          <div className="border-t border-border pt-4">
-            <button
-              type="button"
-              onClick={() => setShowTestAccounts(!showTestAccounts)}
-              aria-expanded={showTestAccounts}
-              className="flex w-full items-center justify-between rounded-md border border-border bg-muted/30 px-3 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring/30 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-            >
-              <span className="flex items-center gap-2">
-                <KeyRound className="h-4 w-4 text-primary" aria-hidden />
-                Demo / test accounts
-              </span>
-              {showTestAccounts ? (
-                <ChevronUp className="h-4 w-4" aria-hidden />
-              ) : (
-                <ChevronDown className="h-4 w-4" aria-hidden />
-              )}
-            </button>
-
-            {showTestAccounts && (
-              <div
-                className={cn(
-                  "mt-3 space-y-2 rounded-md border border-border bg-muted/20 p-3",
-                  "motion-reduce:animate-none animate-in fade-in slide-in-from-top-1 duration-200"
-                )}
-              >
-                <div className="flex items-center justify-between gap-3 rounded-md border border-border bg-card p-2.5">
-                  <div className="min-w-0 text-left">
-                    <span className="block text-sm font-medium text-foreground">
-                      Administrator account
-                    </span>
-                    <span className="font-mono text-xs text-muted-foreground">
-                      admin@paisavasool.com
-                    </span>
-                  </div>
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => handleFillCredentials("admin@paisavasool.com", "ChangeMe123!")}
-                  >
-                    Auto-fill
-                  </Button>
-                </div>
+    <div className="login-gradient-mesh login-dot-grid flex min-h-screen items-center justify-center px-4 py-10 sm:px-6">
+      <div className="w-full max-w-xl space-y-4">
+        <LoginDebitCard>
+          <div className="space-y-5">
+            {isSessionExpired && (
+              <div className="flex items-start gap-3 rounded-md border border-warning/20 bg-warning-muted p-3 text-sm text-warning-foreground">
+                <Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+                <span>Your session has expired. Please log in again to continue.</span>
               </div>
             )}
+
+            {apiError && (
+              <div className="flex items-start gap-3 rounded-md border border-destructive/20 bg-destructive/10 p-3 text-sm text-destructive">
+                <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+                <span>{apiError}</span>
+              </div>
+            )}
+
+            <form id="login-form" className="space-y-4" onSubmit={handleSubmit(onSubmit)}>
+              <div className="space-y-2">
+                <Label htmlFor="email">Email address</Label>
+                <div className="relative rounded-md focus-within:ring-2 focus-within:ring-primary/20">
+                  <Mail
+                    className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+                    aria-hidden
+                  />
+                  <Input
+                    id="email"
+                    type="email"
+                    disabled={isLoading}
+                    placeholder="name@paisavasool.com"
+                    className="border-border/80 bg-background/50 pl-9"
+                    {...register("email")}
+                  />
+                </div>
+                {errors.email && (
+                  <p className="flex items-center gap-1 text-xs text-destructive">
+                    <AlertCircle className="h-3 w-3" aria-hidden />
+                    {errors.email.message}
+                  </p>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="password">Password</Label>
+                <div className="relative rounded-md focus-within:ring-2 focus-within:ring-primary/20">
+                  <Lock
+                    className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+                    aria-hidden
+                  />
+                  <Input
+                    id="password"
+                    type={showPassword ? "text" : "password"}
+                    disabled={isLoading}
+                    placeholder="••••••••"
+                    className="border-border/80 bg-background/50 pl-9 pr-10"
+                    {...register("password")}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    disabled={isLoading}
+                    aria-label={showPassword ? "Hide password" : "Show password"}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 rounded-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring/30"
+                  >
+                    {showPassword ? (
+                      <EyeOff className="h-4 w-4" aria-hidden />
+                    ) : (
+                      <Eye className="h-4 w-4" aria-hidden />
+                    )}
+                  </button>
+                </div>
+                {errors.password && (
+                  <p className="flex items-center gap-1 text-xs text-destructive">
+                    <AlertCircle className="h-3 w-3" aria-hidden />
+                    {errors.password.message}
+                  </p>
+                )}
+              </div>
+            </form>
           </div>
-        </CardContent>
-      </Card>
+        </LoginDebitCard>
+
+        <Button
+          type="submit"
+          form="login-form"
+          variant="primary"
+          size="lg"
+          loading={isLoading}
+          className="w-full"
+        >
+          Sign in
+          {!isLoading && <ArrowRight className="h-4 w-4" aria-hidden />}
+        </Button>
+
+        <div className="rounded-xl border border-border/40 bg-card/60 px-3 py-2 backdrop-blur-sm">
+          <button
+            type="button"
+            onClick={() => setShowTestAccounts(!showTestAccounts)}
+            aria-expanded={showTestAccounts}
+            className="flex w-full items-center justify-between rounded-md px-1 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring/30 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+          >
+            <span className="flex items-center gap-2">
+              <KeyRound className="h-3.5 w-3.5 text-primary" aria-hidden />
+              Demo / test accounts
+            </span>
+            {showTestAccounts ? (
+              <ChevronUp className="h-3.5 w-3.5" aria-hidden />
+            ) : (
+              <ChevronDown className="h-3.5 w-3.5" aria-hidden />
+            )}
+          </button>
+
+          {showTestAccounts && (
+            <div
+              className={cn(
+                "mt-2 space-y-2 rounded-md bg-muted/10 p-2.5",
+                "motion-reduce:animate-none animate-in fade-in slide-in-from-top-1 duration-200"
+              )}
+            >
+              <div className="flex items-center justify-between gap-3 rounded-md bg-card/60 p-2.5">
+                <div className="min-w-0 text-left">
+                  <span className="block text-sm font-medium text-foreground">
+                    Administrator account
+                  </span>
+                  <span className="font-mono text-xs text-muted-foreground">
+                    admin@paisavasool.com
+                  </span>
+                </div>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => handleFillCredentials("admin@paisavasool.com", "ChangeMe123!")}
+                >
+                  Auto-fill
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   )
 }

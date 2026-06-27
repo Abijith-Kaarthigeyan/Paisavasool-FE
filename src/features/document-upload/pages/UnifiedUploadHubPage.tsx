@@ -42,13 +42,23 @@ function formatType(type: string | null | undefined): string {
   return type.charAt(0) + type.slice(1).toLowerCase()
 }
 
-function getDestinationLink(file: DocumentUploadFile): { label: string; to: string } | null {
+function getDestinationLink(
+  file: DocumentUploadFile,
+  sessionId: string
+): { label: string; to: string } | null {
   if (file.status !== "ROUTED" || !file.target_id) return null
+  const returnQuery = `?fromSession=${encodeURIComponent(sessionId)}`
   if (file.target_type === "INVOICE_BATCH") {
-    return { label: "View invoice batch", to: `/invoice-upload/batches/${file.target_id}` }
+    return {
+      label: "View invoice batch",
+      to: `/invoice-upload/batches/${file.target_id}${returnQuery}`,
+    }
   }
   if (file.target_type === "PAYMENT_UPLOAD") {
-    return { label: "View payment upload", to: `/payment-upload/${file.target_id}` }
+    return {
+      label: "View payment upload",
+      to: `/payment-upload/${file.target_id}${returnQuery}`,
+    }
   }
   return null
 }
@@ -218,7 +228,7 @@ export const UnifiedUploadHubPage: React.FC = () => {
               </TableHeader>
               <TableBody>
                 {session.files.map((file) => {
-                  const destination = getDestinationLink(file)
+                  const destination = id ? getDestinationLink(file, id) : null
                   const detectedType = file.confirmed_type || file.predicted_type
 
                   return (

@@ -55,7 +55,7 @@ export function AssociateEmailComposer({
         <div>
           <p className="text-sm font-medium text-foreground">Compose reply</p>
           <p className="text-xs text-muted-foreground">
-            AI drafts from dispute context — edit before sending.
+            AI drafts from dispute context — edit before sending via Gmail.
           </p>
         </div>
         <Button

@@ -99,6 +99,9 @@ export interface ReminderHistory {
   scheduled_at: string;
   sent_to: string;
   sent_at: string | null;
+  gmail_message_id?: string | null;
+  gmail_thread_id?: string | null;
+  rfc_message_id?: string | null;
   created_at: string;
   // Enriched fields
   customer_name?: string;

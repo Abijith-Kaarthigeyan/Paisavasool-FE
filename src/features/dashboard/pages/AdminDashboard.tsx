@@ -46,7 +46,13 @@ import {
   Power,
   PowerOff,
   User,
+  Mail,
 } from "lucide-react"
+import {
+  internalTeamConfigService,
+  INTERNAL_TEAM_CATEGORY_HINTS,
+  InternalTeamContact,
+} from "@/features/admin/services/internalTeamConfigService"
 
 const createUserSchema = z.object({
   first_name: z.string().min(1, "First name is required"),
@@ -67,10 +73,42 @@ export const AdminDashboard: React.FC = () => {
   const [isCreateOpen, setIsCreateOpen] = useState(false)
   const [isEditOpen, setIsEditOpen] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
+  const [teamEmails, setTeamEmails] = useState<Record<string, string>>({})
+  const [teamConfigError, setTeamConfigError] = useState<string | null>(null)
 
   const { data: users = [], isLoading, error: fetchError } = useQuery<UserResponse[]>({
     queryKey: ["users"],
     queryFn: userService.listUsers,
+  })
+
+  const {
+    data: internalTeamContacts = [],
+    isLoading: isTeamConfigLoading,
+    error: teamConfigFetchError,
+  } = useQuery<InternalTeamContact[]>({
+    queryKey: ["internal-team-contacts"],
+    queryFn: internalTeamConfigService.listContacts,
+  })
+
+  const updateTeamConfigMutation = useMutation({
+    mutationFn: internalTeamConfigService.updateContacts,
+    onSuccess: (updated) => {
+      queryClient.setQueryData(["internal-team-contacts"], updated)
+      setTeamConfigError(null)
+      toast({
+        title: "Internal team emails updated",
+        description: "Escalation notification recipients have been saved.",
+        type: "success",
+      })
+    },
+    onError: (err: unknown) => {
+      const axiosErr = err as { response?: { data?: { error?: { message?: string }; detail?: string } } }
+      setTeamConfigError(
+        axiosErr.response?.data?.error?.message ||
+          axiosErr.response?.data?.detail ||
+          "Failed to update internal team emails."
+      )
+    },
   })
 
   const createUserMutation = useMutation({
@@ -204,6 +242,23 @@ export const AdminDashboard: React.FC = () => {
     (u) => u.role.role_name === "FINANCE_MANAGER" && u.is_active
   )
 
+  React.useEffect(() => {
+    if (internalTeamContacts.length === 0) return
+    setTeamEmails(
+      Object.fromEntries(internalTeamContacts.map((team) => [team.team_key, team.email]))
+    )
+  }, [internalTeamContacts])
+
+  const handleSaveTeamEmails = () => {
+    setTeamConfigError(null)
+    updateTeamConfigMutation.mutate(
+      internalTeamContacts.map((team) => ({
+        team_key: team.team_key,
+        email: teamEmails[team.team_key] ?? team.email,
+      }))
+    )
+  }
+
   return (
     <div className="space-y-8">
       <PageBreadcrumb
@@ -215,7 +270,7 @@ export const AdminDashboard: React.FC = () => {
 
       <PageHeader
         title="System administration"
-        description="Manage user profiles, assign organizational reporting hierarchies, and configure roles."
+        description="Manage user profiles, assign organizational reporting hierarchies, configure roles, and set internal team escalation emails."
         actions={
           <Button
             variant="primary"
@@ -451,6 +506,75 @@ export const AdminDashboard: React.FC = () => {
           </CardContent>
         </Card>
       </div>
+
+      <Card>
+        <CardHeader className="mb-4 border-b border-border pb-3">
+          <CardTitle className="flex items-center gap-2">
+            <Mail className="h-5 w-5" aria-hidden />
+            Internal team notification emails
+          </CardTitle>
+          <CardDescription>
+            Configure where dispute escalation emails are sent for each internal team.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4 pt-0">
+          {teamConfigError && (
+            <div className="rounded-md border border-destructive/20 bg-destructive/10 p-3 text-xs font-medium text-destructive">
+              {teamConfigError}
+            </div>
+          )}
+
+          {isTeamConfigLoading ? (
+            <TableSkeleton rows={3} columns={2} />
+          ) : teamConfigFetchError ? (
+            <EmptyState
+              title="Failed to load internal team emails"
+              description="Ensure the Dispute service is running and the database migration has been applied."
+            />
+          ) : internalTeamContacts.length === 0 ? (
+            <EmptyState
+              title="No internal teams configured"
+              description="Run the latest dispute-service database migration to seed default team contacts."
+            />
+          ) : (
+            <>
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                {internalTeamContacts.map((team) => (
+                  <div key={team.team_key} className="space-y-2 rounded-lg border border-border p-4">
+                    <div>
+                      <Label htmlFor={`team-email-${team.team_key}`}>{team.display_name}</Label>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {INTERNAL_TEAM_CATEGORY_HINTS[team.team_key]}
+                      </p>
+                    </div>
+                    <Input
+                      id={`team-email-${team.team_key}`}
+                      type="email"
+                      value={teamEmails[team.team_key] ?? team.email}
+                      onChange={(event) =>
+                        setTeamEmails((current) => ({
+                          ...current,
+                          [team.team_key]: event.target.value,
+                        }))
+                      }
+                    />
+                  </div>
+                ))}
+              </div>
+              <div className="flex justify-end">
+                <Button
+                  variant="primary"
+                  size="sm"
+                  loading={updateTeamConfigMutation.isPending}
+                  onClick={handleSaveTeamEmails}
+                >
+                  {updateTeamConfigMutation.isPending ? "Saving…" : "Save team emails"}
+                </Button>
+              </div>
+            </>
+          )}
+        </CardContent>
+      </Card>
 
       <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
         <DialogContent className="sm:max-w-md">

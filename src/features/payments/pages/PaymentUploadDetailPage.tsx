@@ -1,5 +1,5 @@
 import React from "react"
-import { useParams, useNavigate } from "react-router-dom"
+import { useParams, useNavigate, useSearchParams } from "react-router-dom"
 import { usePaymentUpload, usePaymentUploadStatus } from "../hooks/usePayments"
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -15,6 +15,7 @@ import {
   FileText,
   Calendar,
   AlertTriangle,
+  ChevronLeft,
   RefreshCw,
   Upload,
   ScanSearch,
@@ -79,6 +80,8 @@ function getAgentStage(status: string): { stage: string; agentStatus: "running" 
 export const PaymentUploadDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const fromSessionId = searchParams.get("fromSession")
 
   const { data: upload, isLoading: isUploadLoading, error: uploadError, refetch } = usePaymentUpload(id)
   const { data: statusData } = usePaymentUploadStatus(id)
@@ -117,16 +120,34 @@ export const PaymentUploadDetailPage: React.FC = () => {
   return (
     <div className="space-y-8">
       <PageBreadcrumb
-        items={[
-          { label: "Payment history", to: "/payment-upload-history" },
-          { label: "Upload details" },
-        ]}
+        items={
+          fromSessionId
+            ? [
+                { label: "Upload documents", to: "/upload" },
+                { label: "Session", to: `/upload/sessions/${fromSessionId}` },
+                { label: "Upload details" },
+              ]
+            : [
+                { label: "Payment history", to: "/payment-upload-history" },
+                { label: "Upload details" },
+              ]
+        }
       />
 
       <PageHeader
         title="Payment ingestion details"
         actions={
           <div className="flex items-center gap-2">
+            {fromSessionId && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => navigate(`/upload/sessions/${fromSessionId}`)}
+              >
+                <ChevronLeft className="h-4 w-4" aria-hidden />
+                Back to session
+              </Button>
+            )}
             <Button
               variant="icon"
               size="sm"

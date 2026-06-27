@@ -8,7 +8,6 @@ import { AssociateEmailComposer } from "./AssociateEmailComposer"
 interface DisputeCommunicationsTabProps {
   communications: DisputeCommunication[]
   customerEmail: string | null
-  messageId?: string | null
   isLoading?: boolean
   isDrafting?: boolean
   isSending?: boolean
@@ -23,7 +22,6 @@ interface DisputeCommunicationsTabProps {
 export function DisputeCommunicationsTab({
   communications,
   customerEmail,
-  messageId,
   isLoading,
   isDrafting,
   isSending,
@@ -35,8 +33,8 @@ export function DisputeCommunicationsTab({
       <CardHeader>
         <CardTitle className="text-base">Communications</CardTitle>
         <CardDescription>
-          Email thread — received on the left, sent on the right. System and associate messages
-          both appear here.
+          Email thread — received on the left, sent on the right. Outbound messages are delivered
+          via Gmail when sending is enabled.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
@@ -64,7 +62,6 @@ export function DisputeCommunicationsTab({
                 comm={comm}
                 customerEmail={customerEmail}
                 isFirst={index === 0}
-                messageId={index === 0 ? messageId : undefined}
               />
             ))}
           </div>

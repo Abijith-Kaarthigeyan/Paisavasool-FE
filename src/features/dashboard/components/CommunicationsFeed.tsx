@@ -28,12 +28,14 @@ interface CommunicationsFeedProps {
   maxItems?: number
   /** Match the adjacent chart height on dashboard layouts. */
   height?: string
+  footer?: React.ReactNode
 }
 
 export const CommunicationsFeed: React.FC<CommunicationsFeedProps> = ({
   className,
   maxItems = 4,
   height = "h-[300px]",
+  footer,
 }) => {
   const { data: reminders = [], isLoading } = useReminderHistory()
 
@@ -54,7 +56,7 @@ export const CommunicationsFeed: React.FC<CommunicationsFeedProps> = ({
   }, [reminders, maxItems])
 
   return (
-    <Card className={cn("flex min-h-0 flex-col border-border shadow-card", height, className)}>
+    <Card className={cn("flex min-h-0 flex-col border-border shadow-card", !footer && height, footer && "h-full", className)}>
       <CardHeader className="shrink-0 border-b border-border px-3 py-2">
         <CardTitle className="text-sm">Communications</CardTitle>
       </CardHeader>
@@ -97,6 +99,9 @@ export const CommunicationsFeed: React.FC<CommunicationsFeedProps> = ({
           </ul>
         )}
       </CardContent>
+      {footer && (
+        <div className="shrink-0 border-t border-border px-3 pb-2 pt-2">{footer}</div>
+      )}
     </Card>
   )
 }

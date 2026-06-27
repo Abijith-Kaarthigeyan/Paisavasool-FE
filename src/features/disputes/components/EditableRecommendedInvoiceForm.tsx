@@ -39,11 +39,18 @@ const toNumber = (value: unknown, fallback = 0) => {
   return Number.isFinite(n) ? n : fallback
 }
 
+/** Invoice line quantities are always whole units (no fractional qty). */
+const toIntegerQuantity = (value: unknown, fallback = 0) => {
+  const n = Number(value)
+  if (!Number.isFinite(n)) return fallback
+  return Math.max(0, Math.round(n))
+}
+
 const toEditable = (invoice: Record<string, unknown>): EditableInvoiceData => {
   const rawItems = Array.isArray(invoice.items) ? invoice.items : []
   const items = rawItems.map((item) => {
     const row = item as Record<string, unknown>
-    const quantity = toNumber(row.quantity, 0)
+    const quantity = toIntegerQuantity(row.quantity, 0)
     const unitPrice = toNumber(row.unit_price ?? row.rate, 0)
     const amount = toNumber(row.amount ?? row.line_total, quantity * unitPrice)
     return {
@@ -103,7 +110,11 @@ export const EditableRecommendedInvoiceForm: React.FC<
   const updateItem = (index: number, patch: Partial<EditableInvoiceData["items"][0]>) => {
     setForm((prev) => {
       const items = [...prev.items]
-      const current = { ...items[index], ...patch }
+      const normalizedPatch = { ...patch }
+      if (patch.quantity != null) {
+        normalizedPatch.quantity = toIntegerQuantity(patch.quantity)
+      }
+      const current = { ...items[index], ...normalizedPatch }
       if (patch.quantity != null || patch.unit_price != null) {
         current.amount = Number((current.quantity * current.unit_price).toFixed(2))
       }
@@ -217,9 +228,13 @@ export const EditableRecommendedInvoiceForm: React.FC<
                 <TableCell>
                   <Input
                     type="number"
-                    step="0.0001"
+                    step="1"
+                    min="0"
+                    inputMode="numeric"
                     value={item.quantity}
-                    onChange={(e) => updateItem(index, { quantity: toNumber(e.target.value) })}
+                    onChange={(e) =>
+                      updateItem(index, { quantity: toIntegerQuantity(e.target.value) })
+                    }
                     className={cn(
                       "text-right tabular-nums",
                       isItemFieldChanged(index, "quantity", item.quantity) && changedFieldClass

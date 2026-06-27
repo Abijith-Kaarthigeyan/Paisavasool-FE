@@ -4,7 +4,6 @@ import { Provider, useDispatch, useSelector } from "react-redux"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { store, RootState } from "@/app/store"
 import { AppRoutes } from "@/app/routes"
-import { AuthDebugPanel } from "@/components/AuthDebugPanel"
 import { authService } from "@/features/auth/services/authService"
 import { setCredentials, clearCredentials, setAuthStatus } from "@/features/auth/slices/authSlice"
 import { ToastProvider } from "@/components/ui/toast"
@@ -36,6 +35,7 @@ function AppContent() {
           setCredentials({
             sub: profile.id,
             email: profile.email,
+            first_name: profile.first_name,
             role: profile.role.role_name,
             is_active: profile.is_active,
             exp,
@@ -72,6 +72,7 @@ function AppContent() {
             setCredentials({
               sub: profile.id,
               email: profile.email,
+              first_name: profile.first_name,
               role: profile.role.role_name,
               is_active: profile.is_active,
               exp,
@@ -99,7 +100,6 @@ function AppContent() {
     <BrowserRouter>
       <div className="min-h-screen bg-background">
         <AppRoutes />
-        <AuthDebugPanel />
       </div>
     </BrowserRouter>
   );

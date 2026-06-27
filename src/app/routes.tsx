@@ -149,7 +149,7 @@ export const AppRoutes = () => {
           <Route
             path="/customers"
             element={
-              <ProtectedRoute allowedRoles={["FINANCE_ASSOCIATE"]}>
+              <ProtectedRoute allowedRoles={["FINANCE_MANAGER", "FINANCE_ASSOCIATE"]}>
                 <CustomerListPage />
               </ProtectedRoute>
             }
@@ -157,7 +157,7 @@ export const AppRoutes = () => {
           <Route
             path="/customers/:id"
             element={
-              <ProtectedRoute allowedRoles={["FINANCE_ASSOCIATE"]}>
+              <ProtectedRoute allowedRoles={["FINANCE_MANAGER", "FINANCE_ASSOCIATE"]}>
                 <CustomerDetailPage />
               </ProtectedRoute>
             }

@@ -118,14 +118,6 @@ export const CaseDetailsPage: React.FC = () => {
                     {caseData.email_subject || "(No subject)"}
                   </p>
                 </div>
-                {caseData.original_message_id && (
-                  <div>
-                    <span className="text-xs font-medium text-muted-foreground">Message-ID</span>
-                    <p className="truncate font-mono text-xs text-muted-foreground">
-                      {caseData.original_message_id}
-                    </p>
-                  </div>
-                )}
               </div>
 
               <div>

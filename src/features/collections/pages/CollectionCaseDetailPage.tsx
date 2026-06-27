@@ -57,6 +57,11 @@ import {
   getStatusVariant,
 } from "@/lib/design-tokens"
 import {
+  getReminderDisplayDate,
+  getReminderStatusDescription,
+  getReminderStatusLabel,
+} from "../utils/reminderFormatters"
+import {
   Mail,
   Phone,
   MessageSquare,
@@ -659,7 +664,7 @@ export const CollectionCaseDetailPage: React.FC = () => {
                 <CardHeader className="border-b border-border pb-3">
                   <CardTitle className="text-base">Case reminder history</CardTitle>
                   <CardDescription>
-                    Generated emails and payment links sent for this case.
+                    Automated dunning emails sent via Gmail for this case.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="p-0 pt-0">
@@ -717,12 +722,13 @@ export const CollectionCaseDetailPage: React.FC = () => {
                                   <Badge
                                     variant={getStatusVariant(REMINDER_STATUS_VARIANT, rem.status)}
                                     shape="pill"
+                                    title={getReminderStatusDescription(rem.status)}
                                   >
-                                    {rem.status}
+                                    {getReminderStatusLabel(rem.status)}
                                   </Badge>
                                 </TableCell>
                                 <TableCell className="text-right tabular-nums text-muted-foreground">
-                                  {new Date(rem.sent_at || rem.created_at).toLocaleDateString()}
+                                  {new Date(getReminderDisplayDate(rem)).toLocaleDateString()}
                                 </TableCell>
                               </TableRow>
                               {isExpanded && (
@@ -748,13 +754,16 @@ export const CollectionCaseDetailPage: React.FC = () => {
                                         </div>
                                         <div>
                                           <p className="text-xs font-medium text-muted-foreground">
-                                            Sent at
+                                            {rem.status === "SENT" ? "Sent at" : "Scheduled at"}
                                           </p>
                                           <p className="text-sm text-foreground">
-                                            {new Date(
-                                              rem.sent_at || rem.scheduled_at || rem.created_at
-                                            ).toLocaleString()}
+                                            {new Date(getReminderDisplayDate(rem)).toLocaleString()}
                                           </p>
+                                          {rem.status !== "SENT" && (
+                                            <p className="mt-1 text-xs text-muted-foreground">
+                                              {getReminderStatusDescription(rem.status)}
+                                            </p>
+                                          )}
                                         </div>
                                       </div>
                                       <div>

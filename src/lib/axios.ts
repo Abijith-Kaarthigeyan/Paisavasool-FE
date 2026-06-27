@@ -109,6 +109,7 @@ const setupResponseInterceptor = (instance: typeof authApi) => {
               setCredentials({
                 sub: freshUser.id,
                 email: freshUser.email,
+                first_name: freshUser.first_name,
                 role: freshUser.role.role_name,
                 is_active: freshUser.is_active,
                 exp,

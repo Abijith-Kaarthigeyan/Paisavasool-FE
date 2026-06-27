@@ -140,7 +140,7 @@ export const PROMISE_STATUS_VARIANT: Record<string, BadgeVariant> = {
 
 export const REMINDER_STATUS_VARIANT: Record<string, BadgeVariant> = {
   SENT: "success",
-  PENDING: "default",
+  PENDING: "warning",
   FAILED: "destructive",
   CANCELLED: "outline",
 }

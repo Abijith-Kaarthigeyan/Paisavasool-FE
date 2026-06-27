@@ -206,12 +206,21 @@ export const DisputeDetailPage: React.FC = () => {
     body: string
   }) => {
     try {
-      await sendCommunicationMutation.mutateAsync(payload)
-      toast({
-        title: "Email sent",
-        description: "Your message was added to the dispute thread.",
-        type: "success",
-      })
+      const comm = await sendCommunicationMutation.mutateAsync(payload)
+      if (comm.gmail_message_id) {
+        toast({
+          title: "Email sent",
+          description: "Your message was delivered to the customer via Gmail.",
+          type: "success",
+        })
+      } else {
+        toast({
+          title: "Email saved",
+          description:
+            "Your message was recorded on the dispute thread. Gmail delivery is pending or disabled.",
+          type: "success",
+        })
+      }
     } catch {
       toast({
         title: "Send failed",
@@ -337,7 +346,6 @@ export const DisputeDetailPage: React.FC = () => {
               <DisputeCommunicationsTab
                 communications={allCommunications}
                 customerEmail={customerEmail}
-                messageId={disputeCase?.original_message_id}
                 isLoading={loading.communications}
                 isDrafting={draftCommunicationMutation.isPending}
                 isSending={sendCommunicationMutation.isPending}
