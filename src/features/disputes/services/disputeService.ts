@@ -2,6 +2,7 @@ import { disputeApi } from "@/lib/axios"
 import {
   Dispute,
   DisputeCase,
+  CaseAttachment,
   DisputeReviewQueueItem,
   DisputeActivity,
   DisputeComment,
@@ -35,6 +36,22 @@ export const disputeService = {
 
   getCaseDisputes: async (caseId: string): Promise<Dispute[]> => {
     const response = await disputeApi.get<Dispute[]>(`/cases/${caseId}/disputes`);
+    return response.data;
+  },
+
+  getCaseAttachments: async (caseId: string): Promise<CaseAttachment[]> => {
+    const response = await disputeApi.get<CaseAttachment[]>(`/cases/${caseId}/attachments`);
+    return response.data;
+  },
+
+  downloadCaseAttachmentFile: async (
+    caseId: string,
+    attachmentId: string
+  ): Promise<Blob> => {
+    const response = await disputeApi.get(
+      `/cases/${caseId}/attachments/${attachmentId}/file`,
+      { responseType: "blob" }
+    );
     return response.data;
   },
 

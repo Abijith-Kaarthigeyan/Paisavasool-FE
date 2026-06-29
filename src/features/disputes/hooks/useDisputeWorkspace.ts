@@ -9,6 +9,7 @@ import {
   useEvidence,
   useWorkflowContext,
 } from "./useDisputes"
+import { useCaseAttachments } from "./useCaseAttachments"
 import { useInvoiceItems } from "@/features/invoices/hooks/useInvoices"
 import { useCustomerDetail } from "@/features/customers/hooks/useCustomers"
 import type { DisputeCommunication } from "../types"
@@ -18,6 +19,7 @@ export function useDisputeWorkspace(disputeId: string) {
   const dispute = disputeQuery.data
 
   const caseQuery = useCase(dispute?.case_id || "")
+  const attachmentsQuery = useCaseAttachments(dispute?.case_id || "")
   const activitiesQuery = useActivities(disputeId)
   const commentsQuery = useComments(disputeId)
   const recommendationsQuery = useRecommendations(disputeId)
@@ -78,6 +80,7 @@ export function useDisputeWorkspace(disputeId: string) {
   return {
     dispute,
     disputeCase: caseQuery.data,
+    caseAttachments: attachmentsQuery.data ?? [],
     activities: activitiesQuery.data ?? [],
     comments: commentsQuery.data ?? [],
     recommendations: sortedRecommendations,
@@ -98,6 +101,7 @@ export function useDisputeWorkspace(disputeId: string) {
       comments: commentsQuery.isLoading,
       recommendations: recommendationsQuery.isLoading,
       communications: communicationsQuery.isLoading,
+      caseAttachments: attachmentsQuery.isLoading,
       invoiceItems: invoiceItemsQuery.isLoading,
       customerDetail: customerDetailQuery.isLoading,
       wfContext: wfContextQuery.isLoading,

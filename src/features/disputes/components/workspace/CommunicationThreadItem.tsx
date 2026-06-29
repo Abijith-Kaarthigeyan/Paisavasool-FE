@@ -3,7 +3,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { ChevronDown, ChevronUp, Inbox, Send } from "lucide-react"
-import type { DisputeCommunication } from "../../types"
+import type { CaseAttachment, DisputeCommunication } from "../../types"
 import {
   getCommunicationAddress,
   getCommunicationDeliveryLabel,
@@ -13,11 +13,16 @@ import {
   isCaseOriginCommunication,
   isCommunicationDelivered,
   isInternalCommunication,
+  extractAttachmentFilenamesFromBody,
+  messageHasAttachmentContent,
 } from "../../utils/disputeFormatters"
+import { CommunicationAttachmentLinks } from "./CommunicationAttachmentLinks"
 
 interface CommunicationThreadItemProps {
   comm: DisputeCommunication
   customerEmail: string | null
+  caseId?: string | null
+  caseAttachments?: CaseAttachment[]
   isFirst?: boolean
 }
 
@@ -32,6 +37,8 @@ function getCommunicationTime(comm: DisputeCommunication) {
 export function CommunicationThreadItem({
   comm,
   customerEmail,
+  caseId,
+  caseAttachments = [],
   isFirst = false,
 }: CommunicationThreadItemProps) {
   const [isExpanded, setIsExpanded] = useState(isFirst)
@@ -45,6 +52,21 @@ export function CommunicationThreadItem({
   const isAssociate = isAssociateOutboundCommunication(comm)
   const deliveryLabel = getCommunicationDeliveryLabel(comm)
   const isDelivered = isCommunicationDelivered(comm)
+  const hasAttachmentSection = messageHasAttachmentContent(body)
+  const attachmentFilenamesFromBody = extractAttachmentFilenamesFromBody(body)
+  const attachmentsToShow =
+    caseAttachments.length > 0
+      ? caseAttachments
+      : attachmentFilenamesFromBody.map((filename, index) => ({
+          id: `body-attachment-${index}`,
+          filename,
+          mime_type: "application/pdf",
+          created_at: "",
+        }))
+  const showAttachments =
+    isExpanded &&
+    attachmentsToShow.length > 0 &&
+    (isCaseOrigin || hasAttachmentSection)
 
   return (
     <div
@@ -135,6 +157,13 @@ export function CommunicationThreadItem({
               {getCommunicationPreview(body)}
             </p>
           )
+        )}
+
+        {showAttachments && (
+          <CommunicationAttachmentLinks
+            caseId={caseId}
+            attachments={attachmentsToShow}
+          />
         )}
 
         {body && (

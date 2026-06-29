@@ -109,6 +109,24 @@ export function isCaseOriginCommunication(comm: DisputeCommunication): boolean {
   return comm.id.startsWith("case-")
 }
 
+export function messageHasAttachmentContent(body: string): boolean {
+  return /ATTACHMENT\s+CONTENT:/i.test(body)
+}
+
+/** Filenames embedded in normalized email bodies, e.g. ATTACHMENT 1 (file.pdf): */
+export function extractAttachmentFilenamesFromBody(body: string): string[] {
+  const pattern = /ATTACHMENT\s+\d+\s*\(([^)]+)\)\s*:/gi
+  const filenames: string[] = []
+  let match: RegExpExecArray | null
+  while ((match = pattern.exec(body)) !== null) {
+    const filename = match[1].trim()
+    if (filename) {
+      filenames.push(filename)
+    }
+  }
+  return filenames
+}
+
 export function getCommunicationDirection(
   comm: DisputeCommunication,
   options?: { isCaseOrigin?: boolean }

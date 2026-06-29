@@ -1,14 +1,17 @@
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import { EmptyState } from "@/components/ui/empty-state"
-import type { DisputeCommunication } from "../../types"
+import type { CaseAttachment, DisputeCommunication } from "../../types"
 import { CommunicationThreadItem } from "./CommunicationThreadItem"
 import { AssociateEmailComposer } from "./AssociateEmailComposer"
 
 interface DisputeCommunicationsTabProps {
   communications: DisputeCommunication[]
   customerEmail: string | null
+  caseId?: string | null
+  caseAttachments?: CaseAttachment[]
   isLoading?: boolean
+  isLoadingAttachments?: boolean
   isDrafting?: boolean
   isSending?: boolean
   onDraftEmail: (instructions?: string) => Promise<{
@@ -22,7 +25,10 @@ interface DisputeCommunicationsTabProps {
 export function DisputeCommunicationsTab({
   communications,
   customerEmail,
+  caseId,
+  caseAttachments = [],
   isLoading,
+  isLoadingAttachments,
   isDrafting,
   isSending,
   onDraftEmail,
@@ -46,7 +52,7 @@ export function DisputeCommunicationsTab({
           onSend={onSendEmail}
         />
 
-        {isLoading ? (
+        {isLoading || isLoadingAttachments ? (
           <Skeleton className="h-32 w-full" />
         ) : communications.length === 0 ? (
           <EmptyState
@@ -61,6 +67,8 @@ export function DisputeCommunicationsTab({
                 key={comm.id}
                 comm={comm}
                 customerEmail={customerEmail}
+                caseId={caseId}
+                caseAttachments={caseAttachments}
                 isFirst={index === 0}
               />
             ))}

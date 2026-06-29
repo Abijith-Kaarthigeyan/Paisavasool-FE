@@ -41,6 +41,7 @@ export const DisputeDetailPage: React.FC = () => {
   const {
     dispute,
     disputeCase,
+    caseAttachments,
     activities,
     comments,
     recommendations,
@@ -371,7 +372,10 @@ export const DisputeDetailPage: React.FC = () => {
               <DisputeCommunicationsTab
                 communications={allCommunications}
                 customerEmail={customerEmail}
+                caseId={disputeCase?.id}
+                caseAttachments={caseAttachments}
                 isLoading={loading.communications}
+                isLoadingAttachments={loading.caseAttachments}
                 isDrafting={draftCommunicationMutation.isPending}
                 isSending={sendCommunicationMutation.isPending}
                 onDraftEmail={handleDraftCommunication}

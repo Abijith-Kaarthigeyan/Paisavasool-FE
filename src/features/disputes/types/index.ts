@@ -76,6 +76,13 @@ export interface DisputeCase {
   dispute_count?: number;
 }
 
+export interface CaseAttachment {
+  id: string;
+  filename: string;
+  mime_type: string;
+  created_at: string;
+}
+
 export interface DisputeAssignment {
   id: string;
   dispute_id: string;
