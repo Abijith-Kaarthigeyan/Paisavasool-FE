@@ -54,8 +54,8 @@ export function CommunicationThreadItem({
   const isDelivered = isCommunicationDelivered(comm)
   const hasAttachmentSection = messageHasAttachmentContent(body)
   const attachmentFilenamesFromBody = extractAttachmentFilenamesFromBody(body)
-  const attachmentsToShow =
-    caseAttachments.length > 0
+  const hasStoredFiles = caseAttachments.length > 0
+  const attachmentsToShow = hasStoredFiles
       ? caseAttachments
       : attachmentFilenamesFromBody.map((filename, index) => ({
           id: `body-attachment-${index}`,
@@ -163,6 +163,7 @@ export function CommunicationThreadItem({
           <CommunicationAttachmentLinks
             caseId={caseId}
             attachments={attachmentsToShow}
+            hasStoredFiles={hasStoredFiles}
           />
         )}
 

@@ -52,7 +52,40 @@ export const disputeService = {
       `/cases/${caseId}/attachments/${attachmentId}/file`,
       { responseType: "blob" }
     );
-    return response.data;
+    const blob = response.data as Blob;
+    if (blob.type === "application/json") {
+      const message = await blob.text();
+      throw new Error(message || "Failed to download attachment");
+    }
+    return blob;
+  },
+
+  openCaseAttachmentInTab: async (
+    targetTab: Window | null,
+    caseId: string,
+    attachmentId: string,
+    filename: string
+  ): Promise<void> => {
+    const blob = await disputeService.downloadCaseAttachmentFile(caseId, attachmentId);
+    const pdfBlob =
+      blob.type === "application/pdf"
+        ? blob
+        : new Blob([blob], { type: "application/pdf" });
+    const url = URL.createObjectURL(pdfBlob);
+
+    if (targetTab && !targetTab.closed) {
+      targetTab.location.href = url;
+      targetTab.document.title = filename;
+      window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+      return;
+    }
+
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    link.rel = "noopener";
+    link.click();
+    window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
   },
 
   getReviewQueue: async (status?: string): Promise<DisputeReviewQueueItem[]> => {
