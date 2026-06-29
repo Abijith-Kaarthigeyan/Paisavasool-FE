@@ -69,7 +69,7 @@ function ActivityMetadataBlock({ metadata }: { metadata: Record<string, unknown>
         className="h-7 px-0 text-xs text-muted-foreground"
         onClick={() => setShowTechnical((v) => !v)}
       >
-        {showTechnical ? "Hide raw JSON" : "View raw JSON"}
+        {showTechnical ? "Hide technical details" : "View technical details"}
       </Button>
       {showTechnical && (
         <pre className="overflow-x-auto rounded-md border border-border bg-muted/40 p-2 font-mono text-[11px] text-muted-foreground">

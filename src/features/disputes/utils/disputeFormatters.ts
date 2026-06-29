@@ -60,13 +60,33 @@ export function getReviewQueueDisplayConfidence(item: DisputeReviewQueueItem): n
   return 68
 }
 
+const REASONING_JARGON_REPLACEMENTS: Array<[RegExp, string]> = [
+  [/invoice JSON provided by the company/gi, "invoice on file"],
+  [/JSON provided by the company/gi, "company records"],
+  [/invoice JSON/gi, "invoice on file"],
+  [/the JSON/gi, "the system records"],
+  [/\bJSON\b/g, "system records"],
+]
+
+/** Strips technical jargon from AI reasoning before showing it in the UI. */
+export function formatReasoningForDisplay(reasoning: string): string {
+  let result = reasoning.trim()
+  for (const [pattern, replacement] of REASONING_JARGON_REPLACEMENTS) {
+    result = result.replace(pattern, replacement)
+  }
+  return result
+}
+
 export function parseRecommendationAction(action: string): {
   outcome: string
   reasoning: string
 } {
   const match = action.match(/^AMENDMENT_DECISION:\s*([A-Z_]+)\.\s*Reason:\s*(.*)$/s)
   if (match) {
-    return { outcome: match[1].replace(/_/g, " "), reasoning: match[2].trim() }
+    return {
+      outcome: match[1].replace(/_/g, " "),
+      reasoning: formatReasoningForDisplay(match[2]),
+    }
   }
   return { outcome: action, reasoning: "" }
 }
