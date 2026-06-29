@@ -1,6 +1,8 @@
 import React, { useState, useMemo } from "react"
 import { useNavigate } from "react-router-dom"
 import { useQuery } from "@tanstack/react-query"
+import { useSelector } from "react-redux"
+import { RootState } from "@/app/store"
 import { useDisputes, useReassignDispute } from "../hooks/useDisputes"
 import { userService } from "@/features/users/services/userService"
 import { Card, CardContent } from "@/components/ui/card"
@@ -36,6 +38,8 @@ import { FolderOpen, ArrowUpDown, RefreshCw, UserMinus } from "lucide-react"
 export const EscalatedDisputesPage: React.FC = () => {
   const navigate = useNavigate()
   const { toast } = useToast()
+  const { user } = useSelector((state: RootState) => state.auth)
+  const isManager = user?.role === "FINANCE_MANAGER" || user?.role === "ADMIN"
   const { data: disputes = [], isLoading, isError, refetch } = useDisputes()
   const reassignMutation = useReassignDispute()
 
@@ -60,7 +64,7 @@ export const EscalatedDisputesPage: React.FC = () => {
 
   const escalatedDisputes = useMemo(() => {
     return disputes.filter(
-      (d) => d.sla?.status === "BREACHED" && !isTerminalDisputeStatus(d.status)
+      (d) => (d.status === "ESCALATED" || d.sla?.status === "BREACHED") && !isTerminalDisputeStatus(d.status)
     )
   }, [disputes])
 
@@ -243,14 +247,16 @@ export const EscalatedDisputesPage: React.FC = () => {
                         : new Date(d.created_at).toLocaleDateString()}
                     </TableCell>
                     <TableCell className="text-right">
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        onClick={(e) => handleOpenReassign(e, d.id, d.dispute_number)}
-                      >
-                        <UserMinus className="h-3 w-3" aria-hidden />
-                        Reassign
-                      </Button>
+                      {isManager && (
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={(e) => handleOpenReassign(e, d.id, d.dispute_number)}
+                        >
+                          <UserMinus className="h-3 w-3" aria-hidden />
+                          Reassign
+                        </Button>
+                      )}
                     </TableCell>
                   </TableRow>
                 ))}

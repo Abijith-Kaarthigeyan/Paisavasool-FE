@@ -483,6 +483,20 @@ export const useAssignDispute = () => {
   });
 };
 
+export const useEscalateDispute = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, comments }: { id: string; comments?: string }) =>
+      disputeService.escalateDispute(id, { comments }),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["dispute", variables.id] });
+      queryClient.invalidateQueries({ queryKey: ["disputes"] });
+      queryClient.invalidateQueries({ queryKey: ["disputeComments", variables.id] });
+      queryClient.invalidateQueries({ queryKey: ["disputeActivities", variables.id] });
+    },
+  });
+};
+
 export const useReassignDispute = () => {
   const queryClient = useQueryClient();
   return useMutation({

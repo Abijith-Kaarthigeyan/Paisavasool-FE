@@ -23,7 +23,7 @@ export const ManagerEscalationsMenu: React.FC = () => {
   const escalatedDisputeCount = useMemo(
     () =>
       disputes.filter(
-        (d) => d.sla?.status === "BREACHED" && !isTerminalDisputeStatus(d.status)
+        (d) => (d.status === "ESCALATED" || d.sla?.status === "BREACHED") && !isTerminalDisputeStatus(d.status)
       ).length,
     [disputes]
   )

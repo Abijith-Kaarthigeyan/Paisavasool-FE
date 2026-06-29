@@ -172,6 +172,17 @@ export const disputeService = {
     return response.data;
   },
 
+  escalateDispute: async (
+    id: string,
+    payload: { comments?: string }
+  ): Promise<{ status: string; message: string }> => {
+    const response = await disputeApi.post<{ status: string; message: string }>(
+      `/disputes/${id}/escalate`,
+      payload
+    );
+    return response.data;
+  },
+
   reassignDispute: async (id: string, assignedTo: string): Promise<Dispute> => {
     const response = await disputeApi.post<Dispute>(`/disputes/${id}/reassign`, {
       assigned_to: assignedTo,

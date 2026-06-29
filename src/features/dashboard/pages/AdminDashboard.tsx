@@ -192,6 +192,7 @@ export const AdminDashboard: React.FC = () => {
   const selectedRoleEdit = watchEdit("role")
 
   const handleOpenEdit = (user: UserResponse) => {
+    setSelectedUser(user)
     resetEdit({
       first_name: user.first_name,
       last_name: user.last_name,

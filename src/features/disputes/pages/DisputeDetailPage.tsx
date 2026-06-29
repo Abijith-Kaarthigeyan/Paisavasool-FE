@@ -7,6 +7,7 @@ import {
   useOperationalDecision,
   useDraftDisputeCommunication,
   useSendDisputeCommunication,
+  useEscalateDispute,
 } from "../hooks/useDisputes"
 import { useDisputeWorkspace } from "../hooks/useDisputeWorkspace"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -61,6 +62,7 @@ export const DisputeDetailPage: React.FC = () => {
   const associateDecisionMutation = useAssociateDecision()
   const paymentReviewMutation = usePaymentReviewDecision()
   const operationalDecisionMutation = useOperationalDecision()
+  const escalateDisputeMutation = useEscalateDispute()
   const draftCommunicationMutation = useDraftDisputeCommunication(disputeId || "")
   const sendCommunicationMutation = useSendDisputeCommunication(disputeId || "")
 
@@ -181,6 +183,28 @@ export const DisputeDetailPage: React.FC = () => {
     }
   }
 
+  const handleEscalate = async (notes: string) => {
+    if (!disputeId) return
+    try {
+      await escalateDisputeMutation.mutateAsync({
+        id: disputeId,
+        comments: notes,
+      })
+      toast({
+        title: "Dispute Escalated",
+        description: "The dispute was successfully escalated to your manager.",
+        type: "success",
+      })
+      refetchDispute()
+    } catch {
+      toast({
+        title: "Escalation Failed",
+        description: "Failed to escalate the dispute. Please try again.",
+        type: "error",
+      })
+    }
+  }
+
   const handleDraftCommunication = async (instructions?: string) => {
     try {
       const draft = await draftCommunicationMutation.mutateAsync(instructions)
@@ -288,6 +312,7 @@ export const DisputeDetailPage: React.FC = () => {
         onEditAndApply={handleEditAndApply}
         onPaymentReviewDecision={handlePaymentReviewDecision}
         onOperationalDecision={handleOperationalDecision}
+        onEscalate={handleEscalate}
         />
       </div>
 

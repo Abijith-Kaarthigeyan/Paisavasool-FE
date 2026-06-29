@@ -40,7 +40,7 @@ export function DisputeWorkspaceKpis({ dispute }: DisputeWorkspaceKpisProps) {
         }
         icon={<Activity className="h-5 w-5" />}
         iconTone={
-          dispute.sla?.status === "BREACHED"
+          dispute.status === "ESCALATED" || dispute.sla?.status === "BREACHED"
             ? "destructive"
             : dispute.sla?.status === "AT_RISK"
               ? "warning"

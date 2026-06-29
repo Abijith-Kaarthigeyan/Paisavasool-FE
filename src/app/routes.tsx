@@ -257,7 +257,7 @@ export const AppRoutes = () => {
           <Route
             path="/disputes/escalated"
             element={
-              <ProtectedRoute allowedRoles={["FINANCE_MANAGER"]}>
+              <ProtectedRoute allowedRoles={["FINANCE_MANAGER", "FINANCE_ASSOCIATE"]}>
                 <EscalatedDisputesPage />
               </ProtectedRoute>
             }

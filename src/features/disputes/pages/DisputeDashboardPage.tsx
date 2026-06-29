@@ -142,12 +142,14 @@ export const DisputeDashboardPage: React.FC = () => {
           to="/disputes/waiting-internal"
           linkLabel="View waiting team"
         />
-        <KpiCard
+        <KpiWidgetWithLink
           label="Escalated"
           value={metrics.escalated}
           loading={isPageLoading}
           icon={<AlertTriangle className="h-5 w-5" />}
           iconTone="destructive"
+          to="/disputes/escalated"
+          linkLabel="View escalated disputes"
         />
         <KpiCard
           label="SLA breached"

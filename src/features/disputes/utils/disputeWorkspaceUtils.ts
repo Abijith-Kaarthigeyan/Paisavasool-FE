@@ -36,7 +36,8 @@ export function getDisputeActionState(
   const isWaitingAssociateApproval =
     currentNode === "waiting_approval_node" ||
     dispute.status === "WAITING_ASSOCIATE_APPROVAL" ||
-    dispute.status === "IN_REVIEW"
+    dispute.status === "IN_REVIEW" ||
+    dispute.status === "ESCALATED"
   const isWaitingPaymentReview =
     dispute.status === "WAITING_PAYMENT_REVIEW" ||
     (currentNode === "waiting_resolution_node" &&

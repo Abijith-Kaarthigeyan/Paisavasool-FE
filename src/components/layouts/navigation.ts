@@ -1,6 +1,5 @@
 import {
   LayoutDashboard,
-  Users,
   FileText,
   History,
   CreditCard,
@@ -40,7 +39,7 @@ export const navigationItems: NavItem[] = [
       { name: "Disputes Dashboard", path: "/disputes", roles: ["FINANCE_MANAGER", "FINANCE_ASSOCIATE"] },
       { name: "Open Disputes", path: "/disputes/open", roles: ["FINANCE_MANAGER", "FINANCE_ASSOCIATE"] },
       { name: "My Assigned Disputes", path: "/disputes/assigned", roles: ["FINANCE_ASSOCIATE"] },
-      { name: "Escalated Disputes", path: "/disputes/escalated", roles: ["FINANCE_MANAGER"] },
+      { name: "Escalated Disputes", path: "/disputes/escalated", roles: ["FINANCE_MANAGER", "FINANCE_ASSOCIATE"] },
       { name: "SLA Breaches", path: "/disputes/open?sla=breached", roles: ["FINANCE_MANAGER"] },
       { name: "Review Queue", path: "/disputes/review-queue", roles: ["FINANCE_MANAGER", "FINANCE_ASSOCIATE"] },
       { name: "Waiting Customer", path: "/disputes/waiting-customer", roles: ["FINANCE_MANAGER", "FINANCE_ASSOCIATE"] },
@@ -48,12 +47,6 @@ export const navigationItems: NavItem[] = [
       { name: "Team Disputes", path: "/disputes/open?team=true", roles: ["FINANCE_MANAGER"] },
       { name: "Dispute Cases", path: "/disputes/cases", roles: ["FINANCE_MANAGER", "FINANCE_ASSOCIATE"] },
     ],
-  },
-  {
-    name: "User Management",
-    path: "/users",
-    icon: Users,
-    roles: ["ADMIN"],
   },
   {
     name: "Invoices",

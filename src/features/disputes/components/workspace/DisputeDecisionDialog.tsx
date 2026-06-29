@@ -16,6 +16,7 @@ export type DisputeDecisionKind =
   | "acknowledge"
   | "operational_reject"
   | "edit_apply"
+  | "escalate"
 
 interface DisputeDecisionDialogProps {
   open: boolean
@@ -77,6 +78,13 @@ const decisionCopy: Record<
       "You are submitting your edited invoice changes. These will replace the AI recommendation before application.",
     confirmLabel: "Apply changes",
     variant: "primary",
+  },
+  escalate: {
+    title: "Confirm escalation",
+    description:
+      "You are manually escalating this dispute to your manager. The dispute status will change to Escalated and the manager will handle its resolution.",
+    confirmLabel: "Confirm escalation",
+    variant: "danger",
   },
 }
 

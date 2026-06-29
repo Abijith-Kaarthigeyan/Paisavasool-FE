@@ -1,4 +1,6 @@
 import { useCallback, useState } from "react"
+import { useSelector } from "react-redux"
+import type { RootState } from "@/app/store"
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
@@ -40,6 +42,7 @@ interface DisputeAttentionPanelProps {
     decision: "ACKNOWLEDGED" | "REJECTED",
     notes: string
   ) => Promise<void>
+  onEscalate?: (notes: string) => Promise<void>
 }
 
 function getAttentionCopy(actionState: DisputeActionState): { title: string; description: string } {
@@ -132,7 +135,13 @@ export function DisputeAttentionPanel({
   onEditAndApply,
   onPaymentReviewDecision,
   onOperationalDecision,
+  onEscalate,
 }: DisputeAttentionPanelProps) {
+  const { user } = useSelector((state: RootState) => state.auth)
+  const isManager = user?.role === "FINANCE_MANAGER" || user?.role === "ADMIN"
+  const isEscalated = dispute.status === "ESCALATED"
+  const canAssociateAction = !isEscalated || isManager
+
   const [decisionNotes, setDecisionNotes] = useState("")
   const [showEditApply, setShowEditApply] = useState(false)
   const [editedInvoice, setEditedInvoice] = useState<EditableInvoiceData | null>(null)
@@ -175,6 +184,9 @@ export function DisputeAttentionPanel({
         case "edit_apply":
           if (editedInvoice) await onEditAndApply(editedInvoice, decisionNotes)
           break
+        case "escalate":
+          if (onEscalate) await onEscalate(decisionNotes)
+          break
       }
       setIsConfirmOpen(false)
       setPendingDecision(null)
@@ -206,37 +218,64 @@ export function DisputeAttentionPanel({
     <div className="flex flex-wrap gap-2">
       {isWaitingAssociateApproval && (
         <>
-          <Button variant="success" size="sm" onClick={() => openConfirm("approve")}>
-            {isPaymentSettlementConfirmation ? "Confirm settlement" : "Approve"}
-          </Button>
-          {isAmendmentDispute && amendmentRec?.recommended_invoice_json && (
-            <Button variant="secondary" size="sm" onClick={() => setShowEditApply((v) => !v)}>
-              {showEditApply ? "Cancel edit" : "Edit & apply"}
+          {canAssociateAction && (
+            <>
+              <Button variant="success" size="sm" onClick={() => openConfirm("approve")}>
+                {isPaymentSettlementConfirmation ? "Confirm settlement" : "Approve"}
+              </Button>
+              {isAmendmentDispute && amendmentRec?.recommended_invoice_json && (
+                <Button variant="secondary" size="sm" onClick={() => setShowEditApply((v) => !v)}>
+                  {showEditApply ? "Cancel edit" : "Edit & apply"}
+                </Button>
+              )}
+              <Button variant="danger" size="sm" onClick={() => openConfirm("reject")}>
+                {isPaymentSettlementConfirmation ? "Settlement not confirmed" : "Decline"}
+              </Button>
+            </>
+          )}
+          {!isEscalated && user?.role === "FINANCE_ASSOCIATE" && (
+            <Button variant="secondary" size="sm" onClick={() => openConfirm("escalate")}>
+              Escalate to manager
             </Button>
           )}
-          <Button variant="danger" size="sm" onClick={() => openConfirm("reject")}>
-            {isPaymentSettlementConfirmation ? "Settlement not confirmed" : "Decline"}
-          </Button>
         </>
       )}
       {isWaitingPaymentReview && (
         <>
-          <Button variant="success" size="sm" onClick={() => openConfirm("settlement_done")}>
-            Settlement done
-          </Button>
-          <Button variant="danger" size="sm" onClick={() => openConfirm("settlement_not_done")}>
-            Settlement not done
-          </Button>
+          {canAssociateAction && (
+            <>
+              <Button variant="success" size="sm" onClick={() => openConfirm("settlement_done")}>
+                Settlement done
+              </Button>
+              <Button variant="danger" size="sm" onClick={() => openConfirm("settlement_not_done")}>
+                Settlement not done
+              </Button>
+            </>
+          )}
+          {!isEscalated && user?.role === "FINANCE_ASSOCIATE" && (
+            <Button variant="secondary" size="sm" onClick={() => openConfirm("escalate")}>
+              Escalate to manager
+            </Button>
+          )}
         </>
       )}
       {isWaitingOperationalReview && (
         <>
-          <Button variant="success" size="sm" onClick={() => openConfirm("acknowledge")}>
-            Acknowledge
-          </Button>
-          <Button variant="danger" size="sm" onClick={() => openConfirm("operational_reject")}>
-            Reject
-          </Button>
+          {canAssociateAction && (
+            <>
+              <Button variant="success" size="sm" onClick={() => openConfirm("acknowledge")}>
+                Acknowledge
+              </Button>
+              <Button variant="danger" size="sm" onClick={() => openConfirm("operational_reject")}>
+                Reject
+              </Button>
+            </>
+          )}
+          {!isEscalated && user?.role === "FINANCE_ASSOCIATE" && (
+            <Button variant="secondary" size="sm" onClick={() => openConfirm("escalate")}>
+              Escalate to manager
+            </Button>
+          )}
         </>
       )}
     </div>
@@ -290,22 +329,36 @@ export function DisputeAttentionPanel({
             </AiAgentCard>
           )}
 
-          <div className="space-y-1.5">
-            <Label htmlFor="decision-notes">Decision notes</Label>
-            <textarea
-              id="decision-notes"
-              value={decisionNotes}
-              onChange={(e) => setDecisionNotes(e.target.value)}
-              placeholder={
-                isPaymentSettlementConfirmation || isWaitingPaymentReview
-                  ? "Include settlement reference or notes…"
-                  : "Include details explaining your decision…"
-              }
-              className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring/30"
-            />
-          </div>
+          {canAssociateAction ? (
+            <>
+              <div className="space-y-1.5">
+                <Label htmlFor="decision-notes">Decision notes</Label>
+                <textarea
+                  id="decision-notes"
+                  value={decisionNotes}
+                  onChange={(e) => setDecisionNotes(e.target.value)}
+                  placeholder={
+                    isPaymentSettlementConfirmation || isWaitingPaymentReview
+                      ? "Include settlement reference or notes…"
+                      : "Include details explaining your decision…"
+                  }
+                  className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring/30"
+                />
+              </div>
 
-          {actionButtons}
+              {actionButtons}
+            </>
+          ) : (
+            <div className="rounded-lg border border-warning/50 bg-warning-muted/10 p-3.5 text-sm text-warning flex items-start gap-2.5">
+              <AlertTriangle className="h-5 w-5 shrink-0 text-warning" />
+              <div>
+                <p className="font-semibold text-warning">Escalated to Manager</p>
+                <p className="text-muted-foreground mt-0.5">
+                  This dispute has been escalated to the manager. You will be notified once a manager reviews and resolves the issue.
+                </p>
+              </div>
+            </div>
+          )}
 
           {showEditApply && amendmentRec?.recommended_invoice_json && (
             <div className="space-y-3 border-t border-border pt-4">
