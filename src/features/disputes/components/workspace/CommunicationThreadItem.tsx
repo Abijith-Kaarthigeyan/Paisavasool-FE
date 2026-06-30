@@ -14,6 +14,7 @@ import {
   isCommunicationDelivered,
   isInternalCommunication,
   extractAttachmentFilenamesFromBody,
+  formatCommunicationBodyForDisplay,
   messageHasAttachmentContent,
 } from "../../utils/disputeFormatters"
 import { CommunicationAttachmentLinks } from "./CommunicationAttachmentLinks"
@@ -47,6 +48,7 @@ export function CommunicationThreadItem({
   const isSent = direction === "Sent"
   const address = getCommunicationAddress(comm, customerEmail, { isCaseOrigin })
   const body = getCommunicationBody(comm)
+  const displayBody = formatCommunicationBodyForDisplay(body)
   const time = getCommunicationTime(comm)
   const isInternal = isInternalCommunication(comm)
   const isAssociate = isAssociateOutboundCommunication(comm)
@@ -149,12 +151,12 @@ export function CommunicationThreadItem({
 
         {isExpanded ? (
           <div className="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-muted-foreground">
-            {body}
+            {displayBody}
           </div>
         ) : (
-          body && (
+          displayBody && (
             <p className="mt-2 line-clamp-2 whitespace-pre-wrap text-sm text-muted-foreground">
-              {getCommunicationPreview(body)}
+              {getCommunicationPreview(displayBody)}
             </p>
           )
         )}
@@ -167,7 +169,7 @@ export function CommunicationThreadItem({
           />
         )}
 
-        {body && (
+        {displayBody && (
           <Button
             variant="ghost"
             size="sm"

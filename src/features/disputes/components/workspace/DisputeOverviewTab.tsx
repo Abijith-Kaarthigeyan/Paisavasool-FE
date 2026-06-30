@@ -2,6 +2,7 @@ import { Link } from "react-router-dom"
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import {
+  formatCommunicationBodyForDisplay,
   normalizeConfidence,
   parseRecommendationAction,
 } from "../../utils/disputeFormatters"
@@ -72,9 +73,9 @@ export function DisputeOverviewTab({
     dispute.status === "WAITING_INTERNAL" || dispute.status === "WAITING_INTERNAL_TEAM"
 
   const lastComm = allCommunications[allCommunications.length - 1]
-  const lastCommBody =
-    lastComm?.message_body?.slice(0, 160) ||
-    (lastComm as { body?: string })?.body?.slice(0, 160)
+  const lastCommRawBody =
+    lastComm?.message_body || (lastComm as { body?: string })?.body || ""
+  const lastCommBody = formatCommunicationBodyForDisplay(lastCommRawBody).slice(0, 160)
 
   const parsedRec = latestRecommendation
     ? parseRecommendationAction(latestRecommendation.recommended_action)

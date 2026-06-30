@@ -113,6 +113,12 @@ export function messageHasAttachmentContent(body: string): boolean {
   return /ATTACHMENT\s+CONTENT:/i.test(body)
 }
 
+/** Removes extracted attachment text from normalized email bodies for UI display only. */
+export function formatCommunicationBodyForDisplay(body: string): string {
+  if (!body.trim()) return body
+  return body.replace(/\n*\s*ATTACHMENT\s+CONTENT:\s*[\s\S]*$/i, "").trimEnd()
+}
+
 /** Filenames embedded in normalized email bodies, e.g. ATTACHMENT 1 (file.pdf): */
 export function extractAttachmentFilenamesFromBody(body: string): string[] {
   const pattern = /ATTACHMENT\s+\d+\s*\(([^)]+)\)\s*:/gi
