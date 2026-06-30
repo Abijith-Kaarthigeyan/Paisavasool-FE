@@ -1,6 +1,7 @@
 import React from "react"
 import { AlertCircle, RefreshCw } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { widgetHoverLiftClass } from "@/lib/widget-styles"
 import {
   Card,
   CardContent,
@@ -62,7 +63,7 @@ export function ChartCard({
       : { title: "No data yet", description: "Data will appear here once available." }
 
   return (
-    <Card className={cn("border-border flex h-full min-h-0 flex-col", className)}>
+    <Card className={cn("border-border flex h-full min-h-0 flex-col", widgetHoverLiftClass, className)}>
       <CardHeader
         className={cn(
           "flex shrink-0 flex-row items-start justify-between space-y-0 border-b border-border",

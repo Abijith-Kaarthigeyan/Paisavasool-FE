@@ -2,13 +2,13 @@ import React, { useState } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useDispatch, useSelector } from "react-redux"
-import { Navigate, useNavigate, useSearchParams } from "react-router-dom"
+import { Navigate, useLocation, useNavigate, useSearchParams } from "react-router-dom"
 import { loginSchema, LoginRequest } from "@/features/auth/types"
 import { authService } from "@/features/auth/services/authService"
 import { setCredentials, clearCredentials } from "@/features/auth/slices/authSlice"
 import { getCookie } from "@/lib/cookies"
 import { RootState } from "@/app/store"
-import { ROLES, RoleType } from "@/config/constants"
+import { getPostLoginPath } from "@/lib/navigation"
 import { LoginDebitCard } from "@/features/auth/components/LoginDebitCard"
 import {
   Mail,
@@ -30,6 +30,7 @@ import { cn } from "@/lib/utils"
 export const LoginPage: React.FC = () => {
   const dispatch = useDispatch()
   const navigate = useNavigate()
+  const location = useLocation()
   const [searchParams] = useSearchParams()
   const { isAuthenticated, user } = useSelector((state: RootState) => state.auth)
 
@@ -54,10 +55,7 @@ export const LoginPage: React.FC = () => {
   })
 
   if (isAuthenticated && user) {
-    const role = user.role as RoleType
-    if (role === ROLES.ADMIN) return <Navigate to="/admin" replace />
-    if (role === ROLES.FINANCE_MANAGER) return <Navigate to="/manager" replace />
-    if (role === ROLES.FINANCE_ASSOCIATE) return <Navigate to="/associate" replace />
+    return <Navigate to={getPostLoginPath(location.state?.from)} replace />
   }
 
   const onSubmit = async (data: LoginRequest) => {
@@ -82,17 +80,7 @@ export const LoginPage: React.FC = () => {
       }
 
       dispatch(setCredentials(tokenPayload))
-
-      const targetRole = profile.role.role_name as RoleType
-      if (targetRole === ROLES.ADMIN) {
-        navigate("/admin")
-      } else if (targetRole === ROLES.FINANCE_MANAGER) {
-        navigate("/manager")
-      } else if (targetRole === ROLES.FINANCE_ASSOCIATE) {
-        navigate("/associate")
-      } else {
-        navigate("/login")
-      }
+      navigate(getPostLoginPath(location.state?.from))
     } catch (err: unknown) {
       console.error(err)
       dispatch(clearCredentials())

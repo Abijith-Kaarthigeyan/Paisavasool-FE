@@ -15,7 +15,6 @@ import { DisputeCategoryChart } from "../components/DisputeCategoryChart"
 import { AgingBucketChart } from "../components/AgingBucketChart"
 import { ArrowRight, Users, HelpCircle, DollarSign } from "lucide-react"
 import { WidgetNavLink } from "../components/WidgetNavLink"
-import { cn } from "@/lib/utils"
 
 export const AssociateDashboard: React.FC = () => {
   const { user } = useSelector((state: RootState) => state.auth)
@@ -99,7 +98,12 @@ export const AssociateDashboard: React.FC = () => {
             showFooter
           />
 
-          <div className="flex h-full min-h-0 flex-col rounded-lg border border-border bg-card p-4 shadow-card">
+          <ClickableWidget
+            to="/customers"
+            title="View all customers"
+            compact
+            className="flex h-full min-h-0 flex-col"
+          >
             <div className="flex min-h-0 flex-1 flex-col">
               <div className="flex items-start justify-between">
                 <div>
@@ -137,7 +141,7 @@ export const AssociateDashboard: React.FC = () => {
             <div className="shrink-0 px-1 pb-1 pt-2">
               <WidgetNavLink to="/customers">View all customers</WidgetNavLink>
             </div>
-          </div>
+          </ClickableWidget>
         </div>
 
         {/* Row 2: Aging chart | Payment reviews */}
@@ -151,10 +155,11 @@ export const AssociateDashboard: React.FC = () => {
             showFooter
           />
 
-          <div
-            className={cn(
-              "flex h-full min-h-0 flex-col justify-between rounded-lg border border-border bg-card p-4 shadow-card"
-            )}
+          <ClickableWidget
+            to="/payment-reviews"
+            title="View payment matching reviews"
+            compact
+            className="flex h-full min-h-0 flex-col justify-between"
           >
             <div className="flex min-h-0 flex-1 flex-col">
               <div className="flex items-start justify-between">
@@ -181,7 +186,7 @@ export const AssociateDashboard: React.FC = () => {
                 <ArrowRight className="ml-1 h-3 w-3 transition-transform duration-150 group-hover:translate-x-0.5" aria-hidden />
               </Link>
             </div>
-          </div>
+          </ClickableWidget>
         </div>
       </div>
     </div>

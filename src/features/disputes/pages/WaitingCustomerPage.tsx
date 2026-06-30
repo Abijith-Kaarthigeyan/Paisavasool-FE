@@ -1,5 +1,6 @@
 import React, { useMemo } from "react"
 import { useNavigate } from "react-router-dom"
+import { buildDisputeDetailPath } from "../utils/disputeBreadcrumbs"
 import { useDisputes } from "../hooks/useDisputes"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -97,7 +98,11 @@ export const WaitingCustomerPage: React.FC = () => {
                   <TableRow
                     key={d.id}
                     className="cursor-pointer"
-                    onClick={() => navigate(`/disputes/${d.id}`)}
+                    onClick={() =>
+                      navigate(
+                        buildDisputeDetailPath(d.id, { path: "/disputes/waiting-customer" })
+                      )
+                    }
                   >
                     <TableCell className="font-medium text-primary">
                       {d.dispute_number}

@@ -137,6 +137,15 @@ export interface DisputeCommunication {
   created_at: string;
 }
 
+export interface DisputeCommunicationDraft {
+  id?: string;
+  recipient: string;
+  subject: string;
+  body: string;
+  status?: string;
+  created_at?: string;
+}
+
 export interface DisputeEvidenceSnapshot {
   id: string;
   dispute_id: string;

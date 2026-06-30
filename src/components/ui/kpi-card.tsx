@@ -2,6 +2,7 @@ import React from "react"
 import { cn } from "@/lib/utils"
 import { Card, CardContent } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
+import { widgetHoverLiftClass } from "@/lib/widget-styles"
 import { TrendingDown, TrendingUp, Minus } from "lucide-react"
 
 const iconToneStyles = {
@@ -52,7 +53,7 @@ export function KpiCard({
         : "text-muted-foreground"
 
   return (
-    <Card className={cn("transition-shadow hover:shadow-card", className)}>
+    <Card className={cn(widgetHoverLiftClass, className)}>
       <CardContent className="flex items-center justify-between p-5">
         <div className="min-w-0 space-y-1">
           <p className="text-sm font-medium text-muted-foreground">{label}</p>

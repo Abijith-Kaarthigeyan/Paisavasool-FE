@@ -3,6 +3,7 @@ import { CreditCard, X } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useFocusTrap } from "@/lib/use-focus-trap"
 import { useOverlay } from "@/lib/use-overlay"
+import { SidebarTooltip } from "@/components/ui/sidebar-tooltip"
 import { SidebarNav } from "./SidebarNav"
 import { UserMenu } from "./UserMenu"
 import type { NavItem } from "./navigation"
@@ -20,13 +21,14 @@ function SidebarBrand({ iconOnly = false }: { iconOnly?: boolean }) {
   if (iconOnly) {
     return (
       <div className="flex h-14 shrink-0 items-center justify-center border-b border-border">
-        <span
-          className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10"
-          title="Paisa Vasool"
-          aria-label="Paisa Vasool"
-        >
-          <CreditCard className="h-5 w-5 text-primary" aria-hidden />
-        </span>
+        <SidebarTooltip label="Paisa Vasool">
+          <span
+            className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10"
+            aria-label="Paisa Vasool"
+          >
+            <CreditCard className="h-5 w-5 text-primary" aria-hidden />
+          </span>
+        </SidebarTooltip>
       </div>
     )
   }

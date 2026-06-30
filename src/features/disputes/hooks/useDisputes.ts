@@ -273,6 +273,23 @@ export const useCommunications = (disputeId: string) => {
   });
 };
 
+export const useLatestCommunicationDraft = (
+  disputeId: string,
+  options?: { pollForInboundDraft?: boolean }
+) => {
+  return useQuery({
+    queryKey: ["disputeCommunicationDraft", disputeId],
+    queryFn: () => disputeService.getLatestCommunicationDraft(disputeId),
+    enabled: !!disputeId,
+    refetchInterval: (query) => {
+      const draft = query.state.data;
+      if (draft?.status === "GENERATING") return 3000;
+      if (options?.pollForInboundDraft && !draft) return 3000;
+      return false;
+    },
+  });
+};
+
 export const useDraftDisputeCommunication = (disputeId: string) => {
   const queryClient = useQueryClient();
   return useMutation({
@@ -280,6 +297,7 @@ export const useDraftDisputeCommunication = (disputeId: string) => {
       disputeService.draftCommunication(disputeId, instructions ? { instructions } : undefined),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["disputeCommunications", disputeId] });
+      queryClient.invalidateQueries({ queryKey: ["disputeCommunicationDraft", disputeId] });
     },
   });
 };
@@ -291,6 +309,7 @@ export const useSendDisputeCommunication = (disputeId: string) => {
       disputeService.sendCommunication(disputeId, payload),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["disputeCommunications", disputeId] });
+      queryClient.invalidateQueries({ queryKey: ["disputeCommunicationDraft", disputeId] });
       queryClient.invalidateQueries({ queryKey: ["disputeComments", disputeId] });
       queryClient.invalidateQueries({ queryKey: ["disputeActivities", disputeId] });
     },

@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from "react"
 import { useNavigate } from "react-router-dom"
+import { buildDisputeDetailPath } from "../utils/disputeBreadcrumbs"
 import { useQuery } from "@tanstack/react-query"
 import { useSelector } from "react-redux"
 import { RootState } from "@/app/store"
@@ -32,7 +33,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog"
-import { isTerminalDisputeStatus } from "../utils/disputeFormatters"
+import { isEscalatedDispute } from "../utils/disputeFormatters"
 import { FolderOpen, ArrowUpDown, RefreshCw, UserMinus } from "lucide-react"
 
 export const EscalatedDisputesPage: React.FC = () => {
@@ -62,11 +63,10 @@ export const EscalatedDisputesPage: React.FC = () => {
   const [currentPage, setCurrentPage] = useState(1)
   const itemsPerPage = 10
 
-  const escalatedDisputes = useMemo(() => {
-    return disputes.filter(
-      (d) => (d.status === "ESCALATED" || d.sla?.status === "BREACHED") && !isTerminalDisputeStatus(d.status)
-    )
-  }, [disputes])
+  const escalatedDisputes = useMemo(
+    () => disputes.filter(isEscalatedDispute),
+    [disputes]
+  )
 
   const filteredEscalated = useMemo(() => {
     return escalatedDisputes
@@ -226,7 +226,11 @@ export const EscalatedDisputesPage: React.FC = () => {
                   <TableRow
                     key={d.id}
                     className="cursor-pointer"
-                    onClick={() => navigate(`/disputes/${d.id}`)}
+                    onClick={() =>
+                      navigate(
+                        buildDisputeDetailPath(d.id, { path: "/disputes/escalated" })
+                      )
+                    }
                   >
                     <TableCell className="font-medium text-primary">
                       {d.dispute_number}

@@ -2,6 +2,7 @@ import React from "react"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Users, Percent } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { widgetHoverLiftClass } from "@/lib/widget-styles"
 
 export interface AssociatePerformanceRow {
   id: string
@@ -26,6 +27,7 @@ export const AssociatePerformanceWidget: React.FC<AssociatePerformanceWidgetProp
     <div
       className={cn(
         "flex h-full min-h-0 flex-col rounded-lg border border-border bg-card p-4 shadow-card",
+        widgetHoverLiftClass,
         className
       )}
     >

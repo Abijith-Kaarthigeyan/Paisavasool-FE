@@ -4,6 +4,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { AlertTriangle } from "lucide-react"
 import { WidgetNavLink } from "./WidgetNavLink"
 import { cn } from "@/lib/utils"
+import { widgetHoverLiftClass } from "@/lib/widget-styles"
 import type { CollectionCase } from "@/features/collections/types"
 
 interface RecentEscalationsWidgetProps {
@@ -26,6 +27,7 @@ export const RecentEscalationsWidget: React.FC<RecentEscalationsWidgetProps> = (
     <div
       className={cn(
         "flex h-full min-h-0 flex-col rounded-lg border border-border bg-card p-4 shadow-card",
+        widgetHoverLiftClass,
         className
       )}
     >

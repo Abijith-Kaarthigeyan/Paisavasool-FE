@@ -73,7 +73,9 @@ export function extractPaymentReference(...texts: (string | null | undefined)[])
     if (!text) continue
     const utrMatch = text.match(/\bUTR[:\s-]*([A-Z0-9]{8,22})\b/i)
     if (utrMatch) return utrMatch[1]
-    const refMatch = text.match(/\b(?:ref(?:erence)?|txn|transaction)[:\s#-]*([A-Z0-9]{6,22})\b/i)
+    const refMatch = text.match(
+      /\b(?:ref(?:erence)?(?![a-z])|txn|transaction)[:\s#-]+([A-Z0-9]{6,22})\b/i
+    )
     if (refMatch) return refMatch[1]
   }
   return null

@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from "react"
-import { useNavigate, useSearchParams } from "react-router-dom"
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom"
+import { buildDisputeDetailPath } from "../utils/disputeBreadcrumbs"
 import { Dispute } from "../types"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -62,6 +63,7 @@ export const DisputesTable: React.FC<DisputesTableProps> = ({
   breadcrumbItems,
 }) => {
   const navigate = useNavigate()
+  const location = useLocation()
   const [searchParams] = useSearchParams()
 
   const [searchTerm, setSearchTerm] = useState("")
@@ -405,7 +407,13 @@ export const DisputesTable: React.FC<DisputesTableProps> = ({
                     <TableRow
                       key={d.id}
                       className="cursor-pointer"
-                      onClick={() => navigate(`/disputes/${d.id}`)}
+                      onClick={() =>
+                        navigate(
+                          buildDisputeDetailPath(d.id, {
+                            path: `${location.pathname}${location.search}`,
+                          })
+                        )
+                      }
                     >
                       <TableCell className="font-medium text-primary">
                         {d.dispute_number}

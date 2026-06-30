@@ -1,5 +1,7 @@
+import { useSearchParams } from "react-router-dom"
 import { Badge } from "@/components/ui/badge"
 import { PageBreadcrumb } from "@/components/ui/page-breadcrumb"
+import { buildDisputeDetailBreadcrumbs } from "../../utils/disputeBreadcrumbs"
 import {
   DISPUTE_STATUS_VARIANT,
   PRIORITY_VARIANT,
@@ -14,16 +16,17 @@ interface DisputeWorkspaceHeaderProps {
 }
 
 export function DisputeWorkspaceHeader({ dispute }: DisputeWorkspaceHeaderProps) {
+  const [searchParams] = useSearchParams()
   const priorityKey = getDisputePriorityKey(dispute)
+  const breadcrumbItems = buildDisputeDetailBreadcrumbs(
+    dispute.dispute_number,
+    searchParams.get("from"),
+    searchParams.get("fromLabel")
+  )
 
   return (
     <header className="space-y-4 border-b border-border pb-5">
-      <PageBreadcrumb
-        items={[
-          { label: "Disputes", to: "/disputes" },
-          { label: dispute.dispute_number },
-        ]}
-      />
+      <PageBreadcrumb items={breadcrumbItems} />
 
       <div className="space-y-2">
         <div className="flex flex-wrap items-center gap-2">

@@ -1,7 +1,7 @@
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import { EmptyState } from "@/components/ui/empty-state"
-import type { CaseAttachment, DisputeCommunication } from "../../types"
+import type { CaseAttachment, DisputeCommunication, DisputeCommunicationDraft } from "../../types"
 import { CommunicationThreadItem } from "./CommunicationThreadItem"
 import { AssociateEmailComposer } from "./AssociateEmailComposer"
 
@@ -12,13 +12,11 @@ interface DisputeCommunicationsTabProps {
   caseAttachments?: CaseAttachment[]
   isLoading?: boolean
   isLoadingAttachments?: boolean
+  initialDraft?: DisputeCommunicationDraft | null
+  isLoadingDraft?: boolean
   isDrafting?: boolean
   isSending?: boolean
-  onDraftEmail: (instructions?: string) => Promise<{
-    recipient: string
-    subject: string
-    body: string
-  }>
+  onDraftEmail: (instructions?: string) => Promise<DisputeCommunicationDraft>
   onSendEmail: (payload: { recipient: string; subject: string; body: string }) => Promise<void>
 }
 
@@ -29,6 +27,8 @@ export function DisputeCommunicationsTab({
   caseAttachments = [],
   isLoading,
   isLoadingAttachments,
+  initialDraft,
+  isLoadingDraft,
   isDrafting,
   isSending,
   onDraftEmail,
@@ -44,14 +44,6 @@ export function DisputeCommunicationsTab({
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
-        <AssociateEmailComposer
-          customerEmail={customerEmail}
-          isDrafting={isDrafting}
-          isSending={isSending}
-          onDraft={onDraftEmail}
-          onSend={onSendEmail}
-        />
-
         {isLoading || isLoadingAttachments ? (
           <Skeleton className="h-32 w-full" />
         ) : communications.length === 0 ? (
@@ -74,6 +66,16 @@ export function DisputeCommunicationsTab({
             ))}
           </div>
         )}
+
+        <AssociateEmailComposer
+          customerEmail={customerEmail}
+          initialDraft={initialDraft}
+          isLoadingDraft={isLoadingDraft}
+          isDrafting={isDrafting}
+          isSending={isSending}
+          onDraft={onDraftEmail}
+          onSend={onSendEmail}
+        />
       </CardContent>
     </Card>
   )

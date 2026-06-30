@@ -1,6 +1,7 @@
 import React from "react"
 import { Bot, Loader2 } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { widgetHoverLiftClass } from "@/lib/widget-styles"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { ConfidenceMeter } from "@/components/ui/confidence-meter"
@@ -40,7 +41,7 @@ export function AiAgentCard({
   const clampedProgress = showProgress ? Math.min(100, Math.max(0, progress)) : 0
 
   return (
-    <Card className={cn("border-primary/20 bg-primary/[0.02]", className)}>
+    <Card className={cn("border-primary/20 bg-primary/[0.02]", widgetHoverLiftClass, className)}>
       <CardHeader className="pb-3">
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-start gap-3">

@@ -21,6 +21,7 @@ import {
   isNonClosedDispute,
   needsAssociateInput,
   isWaitingInternalTeamDispute,
+  isEscalatedDispute,
 } from "../utils/disputeFormatters"
 import { CHART_COLORS, SLA_HEALTH_COLORS } from "@/lib/design-tokens"
 import { ChartHoverTooltip } from "@/components/ui/chart-tooltip"
@@ -44,7 +45,7 @@ export const DisputeDashboardPage: React.FC = () => {
       open: disputes.filter(isNonClosedDispute).length,
       waitingCustomer: disputes.filter((d) => d.status === "WAITING_CUSTOMER").length,
       waitingInternal: disputes.filter(isWaitingInternalTeamDispute).length,
-      escalated: disputes.filter((d) => d.sla?.status === "BREACHED" && !isTerminalDisputeStatus(d.status)).length,
+      escalated: disputes.filter(isEscalatedDispute).length,
       slaBreached: disputes.filter((d) => d.sla?.status === "BREACHED" && !isTerminalDisputeStatus(d.status)).length,
       all: disputes.length,
       reviewQueueCount: disputes.filter(needsAssociateInput).length,

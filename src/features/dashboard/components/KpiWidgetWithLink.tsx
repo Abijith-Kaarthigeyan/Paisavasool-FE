@@ -1,7 +1,8 @@
 import React from "react"
+import { cn } from "@/lib/utils"
+import { widgetHoverLiftClass } from "@/lib/widget-styles"
 import { Card, CardContent } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
-import { cn } from "@/lib/utils"
 import { WidgetNavLink } from "./WidgetNavLink"
 import type { KpiCardProps } from "@/components/ui/kpi-card"
 
@@ -30,7 +31,7 @@ export const KpiWidgetWithLink: React.FC<KpiWidgetWithLinkProps> = ({
   linkLabel,
 }) => {
   return (
-    <Card className={cn("flex flex-col border-border shadow-card", className)}>
+    <Card className={cn("flex flex-col border-border shadow-card", widgetHoverLiftClass, className)}>
       <CardContent className="flex flex-1 items-center justify-between p-5">
         <div className="min-w-0 space-y-1">
           <p className="text-sm font-medium text-muted-foreground">{label}</p>

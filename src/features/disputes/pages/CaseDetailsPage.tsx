@@ -1,5 +1,6 @@
 import React from "react"
 import { useParams, Link, useNavigate } from "react-router-dom"
+import { buildDisputeDetailPath } from "../utils/disputeBreadcrumbs"
 import { useCase } from "../hooks/useDisputes"
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -59,6 +60,16 @@ export const CaseDetailsPage: React.FC = () => {
   const disputes = caseData.disputes || []
   const uniqueInvoices = Array.from(new Set(disputes.map((d) => d.invoice_number)))
   const uniqueCategories = Array.from(new Set(disputes.map((d) => d.dispute_category)))
+  const caseListPath = `/disputes/cases/${caseId}`
+  const caseListLabel = `Case ${caseData.case_number}`
+
+  const openDispute = (disputeId: string) =>
+    navigate(
+      buildDisputeDetailPath(disputeId, {
+        path: caseListPath,
+        label: caseListLabel,
+      })
+    )
 
   return (
     <div className="space-y-6 animate-in fade-in duration-150">
@@ -161,7 +172,7 @@ export const CaseDetailsPage: React.FC = () => {
                       <TableRow
                         key={d.id}
                         className="cursor-pointer"
-                        onClick={() => navigate(`/disputes/${d.id}`)}
+                        onClick={() => openDispute(d.id)}
                       >
                         <TableCell className="font-medium text-primary">
                           {d.dispute_number}
@@ -175,7 +186,10 @@ export const CaseDetailsPage: React.FC = () => {
                         </TableCell>
                         <TableCell className="text-right">
                           <Link
-                            to={`/disputes/${d.id}`}
+                            to={buildDisputeDetailPath(d.id, {
+                              path: caseListPath,
+                              label: caseListLabel,
+                            })}
                             className="inline-flex items-center gap-0.5 text-sm font-medium text-primary hover:underline"
                             onClick={(e) => e.stopPropagation()}
                           >

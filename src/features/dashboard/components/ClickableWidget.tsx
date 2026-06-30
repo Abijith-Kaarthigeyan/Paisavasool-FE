@@ -1,6 +1,7 @@
 import React from "react"
 import { Link } from "react-router-dom"
 import { cn } from "@/lib/utils"
+import { widgetInteractiveClass } from "@/lib/widget-styles"
 
 interface ClickableWidgetBaseProps {
   className?: string
@@ -25,15 +26,17 @@ export type ClickableWidgetProps = ClickableWidgetLinkProps | ClickableWidgetBut
 
 const widgetClassName = (compact?: boolean) =>
   cn(
-    "block h-full min-h-0 w-full rounded-lg border border-border bg-card text-left shadow-card",
+    "block h-full min-h-0 w-full text-left",
+    widgetInteractiveClass,
     compact ? "p-3" : "p-5",
-    "cursor-pointer transition-shadow hover:shadow-md",
+    "cursor-pointer",
     "focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring/30"
   )
 
 const plainClassName = cn(
   "block w-full text-left",
-  "cursor-pointer transition-opacity hover:opacity-95",
+  "cursor-pointer transition-[box-shadow,transform] duration-200 ease-out hover:-translate-y-0.5 hover:shadow-widget-hover",
+  "motion-reduce:transition-none motion-reduce:hover:translate-y-0",
   "focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring/30 rounded-lg"
 )
 

@@ -1,4 +1,5 @@
 import { disputeApi } from "@/lib/axios"
+import { isAxiosError } from "axios"
 import {
   Dispute,
   DisputeCase,
@@ -8,6 +9,7 @@ import {
   DisputeComment,
   DisputeResolutionRecommendation,
   DisputeCommunication,
+  DisputeCommunicationDraft,
   DisputeEvidenceSnapshot,
   DisputeWorkflowContext,
   DisputeSLA,
@@ -141,11 +143,27 @@ export const disputeService = {
     return response.data;
   },
 
+  getLatestCommunicationDraft: async (
+    disputeId: string
+  ): Promise<DisputeCommunicationDraft | null> => {
+    try {
+      const response = await disputeApi.get<DisputeCommunicationDraft>(
+        `/disputes/${disputeId}/communications/draft/latest`
+      );
+      return response.data;
+    } catch (error) {
+      if (isAxiosError(error) && error.response?.status === 404) {
+        return null;
+      }
+      throw error;
+    }
+  },
+
   draftCommunication: async (
     disputeId: string,
     payload?: { instructions?: string }
-  ): Promise<{ recipient: string; subject: string; body: string }> => {
-    const response = await disputeApi.post<{ recipient: string; subject: string; body: string }>(
+  ): Promise<DisputeCommunicationDraft> => {
+    const response = await disputeApi.post<DisputeCommunicationDraft>(
       `/disputes/${disputeId}/communications/draft`,
       payload ?? {}
     );

@@ -4,7 +4,7 @@ import { AlertTriangle, FolderOpen, Scale } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useEscalatedCases } from "@/features/collections/hooks/useCollections"
 import { useDisputes } from "@/features/disputes/hooks/useDisputes"
-import { isTerminalDisputeStatus } from "@/features/disputes/utils/disputeFormatters"
+import { isEscalatedDispute } from "@/features/disputes/utils/disputeFormatters"
 import { cn } from "@/lib/utils"
 
 const ESCALATION_ROUTES = {
@@ -21,10 +21,7 @@ export const ManagerEscalationsMenu: React.FC = () => {
   const { data: disputes = [] } = useDisputes()
 
   const escalatedDisputeCount = useMemo(
-    () =>
-      disputes.filter(
-        (d) => (d.status === "ESCALATED" || d.sla?.status === "BREACHED") && !isTerminalDisputeStatus(d.status)
-      ).length,
+    () => disputes.filter(isEscalatedDispute).length,
     [disputes]
   )
 

@@ -1,6 +1,7 @@
 import React from "react"
 import { NavLink, useLocation } from "react-router-dom"
 import { cn } from "@/lib/utils"
+import { SidebarTooltip } from "@/components/ui/sidebar-tooltip"
 import { NAV_ICON_COLORS } from "@/lib/design-tokens"
 import type { NavItem } from "./navigation"
 
@@ -75,26 +76,26 @@ export const SidebarNav: React.FC<SidebarNavProps> = ({
           const colors = getNavColors(item.name)
 
           return (
-            <NavLink
-              key={item.name}
-              to={target}
-              end={target === "/collections"}
-              title={item.name}
-              aria-label={item.name}
-              onClick={onNavigate}
-              className={cn(
-                "flex h-10 w-10 items-center justify-center rounded-full transition-colors duration-150",
-                "focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-primary/40",
-                active ? "" : "hover:bg-muted/80"
-              )}
-              style={active ? { backgroundColor: colors.activeBg } : undefined}
-            >
-              <item.icon
-                className="h-5 w-5 shrink-0"
-                style={{ color: colors.icon }}
-                aria-hidden
-              />
-            </NavLink>
+            <SidebarTooltip key={item.name} label={item.name}>
+              <NavLink
+                to={target}
+                end={target === "/collections"}
+                aria-label={item.name}
+                onClick={onNavigate}
+                className={cn(
+                  "flex h-10 w-10 items-center justify-center rounded-full transition-colors duration-150",
+                  "focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-primary/40",
+                  active ? "" : "hover:bg-muted/80"
+                )}
+                style={active ? { backgroundColor: colors.activeBg } : undefined}
+              >
+                <item.icon
+                  className="h-5 w-5 shrink-0"
+                  style={{ color: colors.icon }}
+                  aria-hidden
+                />
+              </NavLink>
+            </SidebarTooltip>
           )
         })}
       </nav>

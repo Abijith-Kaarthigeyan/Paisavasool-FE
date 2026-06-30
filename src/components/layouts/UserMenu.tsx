@@ -2,6 +2,7 @@ import React from "react"
 import { LogOut, User } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { SidebarTooltip } from "@/components/ui/sidebar-tooltip"
 import { cn } from "@/lib/utils"
 import type { SidebarNavVariant } from "./SidebarNav"
 
@@ -32,18 +33,19 @@ export const UserMenu: React.FC<UserMenuProps> = ({
   if (variant === "icon") {
     return (
       <div className="flex shrink-0 flex-col items-center border-t border-border px-2 py-3">
-        <button
-          type="button"
-          onClick={onLogout}
-          title="Sign out"
-          aria-label="Sign out"
-          className={cn(
-            "flex h-9 w-9 items-center justify-center rounded-full text-[#6B7280] transition-colors",
-            "hover:bg-muted hover:text-[#DC2626] focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-primary/40"
-          )}
-        >
-          <LogOut className="h-4 w-4" aria-hidden />
-        </button>
+        <SidebarTooltip label="Sign out">
+          <button
+            type="button"
+            onClick={onLogout}
+            aria-label="Sign out"
+            className={cn(
+              "flex h-9 w-9 items-center justify-center rounded-full text-[#6B7280] transition-colors",
+              "hover:bg-muted hover:text-[#DC2626] focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-primary/40"
+            )}
+          >
+            <LogOut className="h-4 w-4" aria-hidden />
+          </button>
+        </SidebarTooltip>
       </div>
     )
   }

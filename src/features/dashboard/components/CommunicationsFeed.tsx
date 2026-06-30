@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { EmptyState } from "@/components/ui/empty-state"
 import { cn } from "@/lib/utils"
+import { widgetHoverLiftClass } from "@/lib/widget-styles"
 
 interface FeedItem {
   id: string
@@ -56,7 +57,7 @@ export const CommunicationsFeed: React.FC<CommunicationsFeedProps> = ({
   }, [reminders, maxItems])
 
   return (
-    <Card className={cn("flex min-h-0 flex-col border-border shadow-card", !footer && height, footer && "h-full", className)}>
+    <Card className={cn("flex min-h-0 flex-col border-border shadow-card", widgetHoverLiftClass, !footer && height, footer && "h-full", className)}>
       <CardHeader className="shrink-0 border-b border-border px-3 py-2">
         <CardTitle className="text-sm">Communications</CardTitle>
       </CardHeader>

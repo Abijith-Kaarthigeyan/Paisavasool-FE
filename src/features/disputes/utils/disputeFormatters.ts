@@ -37,6 +37,17 @@ export function isTerminalDisputeStatus(status?: string | null): boolean {
   return !!status && TERMINAL_DISPUTE_STATUSES.has(status)
 }
 
+/** Disputes in the escalated queue: manually escalated or SLA-breached, still active. */
+export function isEscalatedDispute(dispute: {
+  status?: string | null
+  sla?: { status?: string | null } | null
+}): boolean {
+  return (
+    (dispute.status === "ESCALATED" || dispute.sla?.status === "BREACHED") &&
+    !isTerminalDisputeStatus(dispute.status)
+  )
+}
+
 export function normalizeConfidence(confidence: number): number {
   let pct = confidence
   if (pct <= 1) {

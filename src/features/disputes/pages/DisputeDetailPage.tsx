@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react"
+import React, { useEffect, useMemo, useRef, useState } from "react"
 import { useParams } from "react-router-dom"
 import {
   useCreateComment,
@@ -7,6 +7,7 @@ import {
   useOperationalDecision,
   useDraftDisputeCommunication,
   useSendDisputeCommunication,
+  useLatestCommunicationDraft,
   useEscalateDispute,
 } from "../hooks/useDisputes"
 import { useDisputeWorkspace } from "../hooks/useDisputeWorkspace"
@@ -66,6 +67,43 @@ export const DisputeDetailPage: React.FC = () => {
   const escalateDisputeMutation = useEscalateDispute()
   const draftCommunicationMutation = useDraftDisputeCommunication(disputeId || "")
   const sendCommunicationMutation = useSendDisputeCommunication(disputeId || "")
+
+  const latestCustomerCommId = useMemo(() => {
+    const customerComms = allCommunications.filter(
+      (comm) => comm.communication_type === "CUSTOMER"
+    )
+    return customerComms.length > 0 ? customerComms[customerComms.length - 1].id : null
+  }, [allCommunications])
+
+  const prevCustomerCommIdRef = useRef<string | null>(null)
+  const [pollForInboundDraft, setPollForInboundDraft] = useState(false)
+
+  useEffect(() => {
+    if (
+      latestCustomerCommId &&
+      prevCustomerCommIdRef.current &&
+      latestCustomerCommId !== prevCustomerCommIdRef.current
+    ) {
+      setPollForInboundDraft(true)
+    }
+    prevCustomerCommIdRef.current = latestCustomerCommId
+  }, [latestCustomerCommId])
+
+  const { data: latestCommunicationDraft } = useLatestCommunicationDraft(disputeId || "", {
+      pollForInboundDraft,
+    })
+
+  useEffect(() => {
+    if (latestCommunicationDraft?.status === "READY") {
+      setPollForInboundDraft(false)
+    }
+  }, [latestCommunicationDraft?.status])
+
+  useEffect(() => {
+    if (!pollForInboundDraft) return
+    const timeout = window.setTimeout(() => setPollForInboundDraft(false), 90_000)
+    return () => window.clearTimeout(timeout)
+  }, [pollForInboundDraft])
 
   const handleSendComment = async (comment: string, commentType: "INTERNAL" | "CUSTOMER") => {
     if (!disputeId) return
@@ -376,6 +414,8 @@ export const DisputeDetailPage: React.FC = () => {
                 caseAttachments={caseAttachments}
                 isLoading={loading.communications}
                 isLoadingAttachments={loading.caseAttachments}
+                initialDraft={latestCommunicationDraft}
+                isLoadingDraft={latestCommunicationDraft?.status === "GENERATING"}
                 isDrafting={draftCommunicationMutation.isPending}
                 isSending={sendCommunicationMutation.isPending}
                 onDraftEmail={handleDraftCommunication}
