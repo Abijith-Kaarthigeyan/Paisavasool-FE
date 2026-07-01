@@ -69,10 +69,14 @@ export function CommunicationThreadItem({
           mime_type: "application/pdf",
           created_at: "",
         }))
+  const isInboundCustomer =
+    !isSent && comm.communication_type === "CUSTOMER"
   const showAttachments =
     isExpanded &&
     attachmentsToShow.length > 0 &&
-    (isCaseOrigin || hasAttachmentSection)
+    (isCaseOrigin ||
+      hasAttachmentSection ||
+      (hasStoredFiles && isInboundCustomer && isFirst))
 
   return (
     <div
