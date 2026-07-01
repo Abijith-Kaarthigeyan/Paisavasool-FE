@@ -6,7 +6,7 @@ import { disputeService } from "../services/disputeService"
 import { invoiceService } from "@/features/invoices/services/invoiceService"
 import { customerService } from "@/features/customers/services/customerService"
 import { userService } from "@/features/users/services/userService"
-import { Dispute, DisputeCase, DisputeReviewQueueItem, DisputeComment } from "../types"
+import { Dispute, DisputeCase, DisputeReviewQueueItem, DisputeComment, DisputeClosePayload } from "../types"
 
 // Helper function to enrich disputes with Invoice, Customer, and User details
 const useEnrichedDisputes = (
@@ -533,13 +533,9 @@ export const useCloseDispute = () => {
   return useMutation({
     mutationFn: ({
       id,
-      resolution_outcome,
-      comments,
-    }: {
-      id: string;
-      resolution_outcome: "CUSTOMER_CORRECT" | "COMPANY_CORRECT";
-      comments: string;
-    }) => disputeService.closeDispute(id, { resolution_outcome, comments }),
+      ...payload
+    }: { id: string } & DisputeClosePayload) =>
+      disputeService.closeDispute(id, payload),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["dispute", variables.id] });
       queryClient.invalidateQueries({ queryKey: ["disputes"] });

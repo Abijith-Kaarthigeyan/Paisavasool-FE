@@ -13,6 +13,7 @@ import {
   DisputeEvidenceSnapshot,
   DisputeWorkflowContext,
   DisputeSLA,
+  DisputeClosePayload,
 } from "../types"
 
 export const disputeService = {
@@ -258,10 +259,7 @@ export const disputeService = {
     return response.data;
   },
 
-  closeDispute: async (
-    id: string,
-    payload: { resolution_outcome: "CUSTOMER_CORRECT" | "COMPANY_CORRECT"; comments: string }
-  ): Promise<Dispute> => {
+  closeDispute: async (id: string, payload: DisputeClosePayload): Promise<Dispute> => {
     const response = await disputeApi.post<Dispute>(`/disputes/${id}/close`, payload);
     return response.data;
   },

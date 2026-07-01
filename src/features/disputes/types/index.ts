@@ -15,6 +15,15 @@ export type DisputeStatus =
 
 export type SLAStatus = "ON_TRACK" | "AT_RISK" | "BREACHED" | "CLOSED";
 
+export type DisputeResolutionMethod = "PHONE" | "IN_PERSON" | "EMAIL" | "OTHER";
+export type DisputeCloseOutcome = "CUSTOMER_CORRECT" | "COMPANY_CORRECT";
+
+export interface DisputeClosePayload {
+  resolution_method: DisputeResolutionMethod;
+  resolution_outcome: DisputeCloseOutcome;
+  comments: string;
+}
+
 export interface DisputeSLA {
   id: string;
   dispute_id: string;

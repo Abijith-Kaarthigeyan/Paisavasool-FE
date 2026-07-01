@@ -30,6 +30,7 @@ import { DisputeCommentsTab } from "../components/workspace/DisputeCommentsTab"
 import { DisputeRecommendationsTab } from "../components/workspace/DisputeRecommendationsTab"
 import { DisputeActivityTab } from "../components/workspace/DisputeActivityTab"
 import { DisputeCloseDialog } from "../components/workspace/DisputeCloseDialog"
+import type { DisputeClosePayload } from "../types"
 import { cn } from "@/lib/utils"
 
 import { getDisputeActionState } from "../utils/disputeWorkspaceUtils"
@@ -249,10 +250,7 @@ export const DisputeDetailPage: React.FC = () => {
     }
   }
 
-  const handleCloseDispute = async (payload: {
-    resolution_outcome: "CUSTOMER_CORRECT" | "COMPANY_CORRECT"
-    comments: string
-  }) => {
+  const handleCloseDispute = async (payload: DisputeClosePayload) => {
     if (!disputeId) return
     try {
       await closeDisputeMutation.mutateAsync({
@@ -369,7 +367,12 @@ export const DisputeDetailPage: React.FC = () => {
         dispute={dispute}
         actions={
           isNonClosedDispute(dispute) ? (
-            <Button variant="danger" size="sm" onClick={() => setIsCloseOpen(true)}>
+            <Button
+              variant="secondary"
+              size="sm"
+              className="border-destructive/30 text-destructive hover:bg-destructive/5"
+              onClick={() => setIsCloseOpen(true)}
+            >
               Close dispute
             </Button>
           ) : null
@@ -491,7 +494,6 @@ export const DisputeDetailPage: React.FC = () => {
       <DisputeCloseDialog
         open={isCloseOpen}
         onOpenChange={setIsCloseOpen}
-        hasPendingAction={actionState?.hasPendingAction}
         onConfirm={handleCloseDispute}
         isSubmitting={closeDisputeMutation.isPending}
       />

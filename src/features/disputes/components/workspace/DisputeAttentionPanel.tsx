@@ -263,10 +263,15 @@ export function DisputeAttentionPanel({
         <>
           {canAssociateAction && (
             <>
-              <Button variant="success" size="sm" onClick={() => openConfirm("acknowledge")}>
+              <Button variant="primary" size="sm" onClick={() => openConfirm("acknowledge")}>
                 Acknowledge
               </Button>
-              <Button variant="danger" size="sm" onClick={() => openConfirm("operational_reject")}>
+              <Button
+                variant="secondary"
+                size="sm"
+                className="border-destructive/30 text-destructive hover:bg-destructive/5"
+                onClick={() => openConfirm("operational_reject")}
+              >
                 Reject
               </Button>
             </>

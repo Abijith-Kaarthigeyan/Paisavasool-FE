@@ -1,66 +1,88 @@
 import { useEffect, useState } from "react"
-import { AlertCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { cn } from "@/lib/utils"
-
-export type DisputeCloseOutcome = "CUSTOMER_CORRECT" | "COMPANY_CORRECT"
+import type {
+  DisputeCloseOutcome,
+  DisputeClosePayload,
+  DisputeResolutionMethod,
+} from "../../types"
 
 interface DisputeCloseDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  hasPendingAction?: boolean
-  onConfirm: (payload: { resolution_outcome: DisputeCloseOutcome; comments: string }) => void
+  onConfirm: (payload: DisputeClosePayload) => void
   isSubmitting?: boolean
 }
+
+const methodOptions: Array<{
+  value: DisputeResolutionMethod
+  label: string
+}> = [
+  { value: "PHONE", label: "Phone call" },
+  { value: "IN_PERSON", label: "In-person discussion" },
+  { value: "EMAIL", label: "Email conversation" },
+  {
+    value: "OTHER",
+    label: "Any other mutual agreement reached outside paisavasool",
+  },
+]
 
 const outcomeOptions: Array<{
   value: DisputeCloseOutcome
   label: string
-  description: string
 }> = [
-  {
-    value: "CUSTOMER_CORRECT",
-    label: "Customer is correct",
-    description: "The dispute is valid and the company will adjust or credit as needed.",
-  },
-  {
-    value: "COMPANY_CORRECT",
-    label: "Company is correct",
-    description: "The invoice and charges stand; no adjustment is required.",
-  },
+  { value: "CUSTOMER_CORRECT", label: "Customer correct" },
+  { value: "COMPANY_CORRECT", label: "Company correct" },
 ]
+
+function getMethodLabel(value: DisputeResolutionMethod): string {
+  return methodOptions.find((o) => o.value === value)?.label ?? value
+}
+
+function getOutcomeLabel(value: DisputeCloseOutcome): string {
+  return outcomeOptions.find((o) => o.value === value)?.label ?? value
+}
 
 export function DisputeCloseDialog({
   open,
   onOpenChange,
-  hasPendingAction = false,
   onConfirm,
   isSubmitting,
 }: DisputeCloseDialogProps) {
+  const [step, setStep] = useState<"form" | "review">("form")
+  const [resolutionMethod, setResolutionMethod] = useState<DisputeResolutionMethod | null>(null)
   const [outcome, setOutcome] = useState<DisputeCloseOutcome>("CUSTOMER_CORRECT")
   const [comments, setComments] = useState("")
 
   useEffect(() => {
     if (!open) {
+      setStep("form")
+      setResolutionMethod(null)
       setOutcome("CUSTOMER_CORRECT")
       setComments("")
     }
   }, [open])
 
-  const canSubmit = comments.trim().length > 0
+  const canConfirm =
+    resolutionMethod !== null && outcome !== null && comments.trim().length > 0
+
+  const handleConfirm = () => {
+    if (!canConfirm || !resolutionMethod) return
+    setStep("review")
+  }
 
   const handleSubmit = () => {
-    if (!canSubmit) return
+    if (!canConfirm || !resolutionMethod) return
     onConfirm({
+      resolution_method: resolutionMethod,
       resolution_outcome: outcome,
       comments: comments.trim(),
     })
@@ -68,89 +90,140 @@ export function DisputeCloseDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent className="max-w-lg font-sans">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-destructive">
-            <AlertCircle className="h-5 w-5" aria-hidden />
-            Close dispute
-          </DialogTitle>
-          <DialogDescription>
-            Manually close this dispute after resolving it offline (for example, by phone).
-            No automated closing email will be sent.
-          </DialogDescription>
+          <DialogTitle className="text-foreground">Close dispute</DialogTitle>
+          <p className="text-xs text-muted-foreground">
+            Step {step === "form" ? "1" : "2"} of 2
+          </p>
         </DialogHeader>
 
-        <div className="space-y-4">
-          {hasPendingAction && (
-            <p className="rounded-md border border-warning/50 bg-warning-muted/10 px-3 py-2 text-sm text-warning">
-              This will close the dispute without completing the pending workflow step.
-            </p>
-          )}
+        {step === "form" ? (
+          <div className="space-y-5">
+            <fieldset className="space-y-2">
+              <legend className="text-sm font-medium text-foreground">
+                How did you solve the dispute?
+              </legend>
+              {methodOptions.map((option) => (
+                <label
+                  key={option.value}
+                  className={cn(
+                    "flex cursor-pointer gap-3 rounded-lg border p-3 transition-colors",
+                    resolutionMethod === option.value
+                      ? "border-primary bg-primary/5"
+                      : "border-border hover:border-primary/40"
+                  )}
+                >
+                  <input
+                    type="radio"
+                    name="dispute-close-method"
+                    value={option.value}
+                    checked={resolutionMethod === option.value}
+                    onChange={() => setResolutionMethod(option.value)}
+                    className="mt-0.5"
+                  />
+                  <span className="text-sm font-medium text-foreground">{option.label}</span>
+                </label>
+              ))}
+            </fieldset>
 
-          <fieldset className="space-y-2">
-            <legend className="text-sm font-medium text-foreground">Resolution outcome</legend>
-            {outcomeOptions.map((option) => (
-              <label
-                key={option.value}
-                className={cn(
-                  "flex cursor-pointer gap-3 rounded-md border p-3 transition-colors",
-                  outcome === option.value
-                    ? "border-primary bg-primary/5"
-                    : "border-border hover:border-primary/40"
-                )}
-              >
-                <input
-                  type="radio"
-                  name="dispute-close-outcome"
-                  value={option.value}
-                  checked={outcome === option.value}
-                  onChange={() => setOutcome(option.value)}
-                  className="mt-1"
-                />
-                <span className="space-y-0.5">
-                  <span className="block text-sm font-medium text-foreground">
-                    {option.label}
-                  </span>
-                  <span className="block text-sm text-muted-foreground">
-                    {option.description}
-                  </span>
-                </span>
-              </label>
-            ))}
-          </fieldset>
+            <fieldset className="space-y-2">
+              <legend className="text-sm font-medium text-foreground">
+                What was the resolution?
+              </legend>
+              {outcomeOptions.map((option) => (
+                <label
+                  key={option.value}
+                  className={cn(
+                    "flex cursor-pointer gap-3 rounded-lg border p-3 transition-colors",
+                    outcome === option.value
+                      ? "border-primary bg-primary/5"
+                      : "border-border hover:border-primary/40"
+                  )}
+                >
+                  <input
+                    type="radio"
+                    name="dispute-close-outcome"
+                    value={option.value}
+                    checked={outcome === option.value}
+                    onChange={() => setOutcome(option.value)}
+                    className="mt-0.5"
+                  />
+                  <span className="text-sm font-medium text-foreground">{option.label}</span>
+                </label>
+              ))}
+            </fieldset>
 
-          <div className="space-y-1.5">
-            <Label htmlFor="close-dispute-notes">Resolution notes</Label>
-            <textarea
-              id="close-dispute-notes"
-              value={comments}
-              onChange={(e) => setComments(e.target.value)}
-              placeholder="Describe how the dispute was resolved (required for audit)…"
-              className="flex min-h-[88px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring/30"
-            />
+            <div className="space-y-1.5">
+              <Label htmlFor="close-dispute-notes">Resolution notes</Label>
+              <textarea
+                id="close-dispute-notes"
+                value={comments}
+                onChange={(e) => setComments(e.target.value)}
+                placeholder="Describe how the dispute was resolved…"
+                className="flex min-h-[88px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring/30"
+              />
+            </div>
           </div>
-        </div>
+        ) : (
+          <div className="space-y-4 rounded-lg border border-border bg-muted/30 p-4 text-sm">
+            <div>
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                How solved
+              </p>
+              <p className="mt-1 font-medium text-foreground">
+                {resolutionMethod ? getMethodLabel(resolutionMethod) : "—"}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                Resolution
+              </p>
+              <p className="mt-1 font-medium text-foreground">{getOutcomeLabel(outcome)}</p>
+            </div>
+            <div>
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                Notes
+              </p>
+              <p className="mt-1 whitespace-pre-wrap text-foreground">{comments.trim()}</p>
+            </div>
+          </div>
+        )}
 
         <DialogFooter>
-          <Button
-            type="button"
-            variant="secondary"
-            size="sm"
-            onClick={() => onOpenChange(false)}
-            disabled={isSubmitting}
-          >
-            Cancel
-          </Button>
-          <Button
-            type="button"
-            variant="danger"
-            size="sm"
-            loading={isSubmitting}
-            disabled={!canSubmit}
-            onClick={handleSubmit}
-          >
-            Close dispute
-          </Button>
+          {step === "form" ? (
+            <Button
+              type="button"
+              variant="primary"
+              size="sm"
+              disabled={!canConfirm}
+              onClick={handleConfirm}
+            >
+              Confirm
+            </Button>
+          ) : (
+            <>
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={() => setStep("form")}
+                disabled={isSubmitting}
+              >
+                Back
+              </Button>
+              <Button
+                type="button"
+                variant="danger"
+                size="sm"
+                loading={isSubmitting}
+                disabled={!canConfirm}
+                onClick={handleSubmit}
+              >
+                Close dispute
+              </Button>
+            </>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>

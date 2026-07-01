@@ -107,6 +107,30 @@ export function getDisputeActivityConfig(activityType: string): DisputeActivityC
 
 const HIDDEN_METADATA_KEYS = new Set(["stack_trace", "raw_state", "workflow_state"])
 
+const RESOLUTION_METHOD_LABELS: Record<string, string> = {
+  PHONE: "Phone call",
+  IN_PERSON: "In-person discussion",
+  EMAIL: "Email conversation",
+  OTHER: "Mutual agreement outside paisavasool",
+}
+
+const OUTCOME_LABELS: Record<string, string> = {
+  CUSTOMER_CORRECT: "Customer correct",
+  COMPANY_CORRECT: "Company correct",
+}
+
+function formatMetadataValue(key: string, value: unknown): string {
+  if (value == null) return "—"
+  const str = typeof value === "object" ? JSON.stringify(value) : String(value)
+  if (key === "resolution_method" && RESOLUTION_METHOD_LABELS[str]) {
+    return RESOLUTION_METHOD_LABELS[str]
+  }
+  if (key === "outcome" && OUTCOME_LABELS[str]) {
+    return OUTCOME_LABELS[str]
+  }
+  return str
+}
+
 export function formatActivityMetadata(
   metadata: Record<string, unknown> | null | undefined
 ): Array<{ key: string; value: string }> {
@@ -116,12 +140,7 @@ export function formatActivityMetadata(
     .filter(([key]) => !HIDDEN_METADATA_KEYS.has(key))
     .map(([key, value]) => ({
       key: key.replace(/_/g, " "),
-      value:
-        value == null
-          ? "—"
-          : typeof value === "object"
-            ? JSON.stringify(value)
-            : String(value),
+      value: formatMetadataValue(key, value),
     }))
     .filter((row) => row.value !== "—" && row.value !== "{}")
 }
