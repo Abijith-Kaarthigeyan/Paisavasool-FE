@@ -83,6 +83,13 @@ export function getDisputeActivityConfig(activityType: string): DisputeActivityC
       label: "Associate decision",
     }
   }
+  if (type.includes("MANUAL_CLOSE")) {
+    return {
+      icon: <CheckCircle2 className="h-2.5 w-2.5" />,
+      tone: "success",
+      label: "Manually closed",
+    }
+  }
   if (type.includes("RESOLV") || type.includes("CLOSED")) {
     return {
       icon: <CheckCircle2 className="h-2.5 w-2.5" />,

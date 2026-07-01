@@ -8,6 +8,7 @@ export type DisputeStatus =
   | "WAITING_INTERNAL_TEAM"
   | "WAITING_ASSOCIATE_APPROVAL"
   | "WAITING_PAYMENT_REVIEW"
+  | "ESCALATED"
   | "RESOLVED"
   | "CLOSED"
   | "FAILED";

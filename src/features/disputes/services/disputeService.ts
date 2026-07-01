@@ -257,6 +257,14 @@ export const disputeService = {
     });
     return response.data;
   },
+
+  closeDispute: async (
+    id: string,
+    payload: { resolution_outcome: "CUSTOMER_CORRECT" | "COMPANY_CORRECT"; comments: string }
+  ): Promise<Dispute> => {
+    const response = await disputeApi.post<Dispute>(`/disputes/${id}/close`, payload);
+    return response.data;
+  },
 };
 
 export default disputeService;

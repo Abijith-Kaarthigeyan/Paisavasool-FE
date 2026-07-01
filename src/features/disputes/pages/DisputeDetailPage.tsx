@@ -9,6 +9,7 @@ import {
   useSendDisputeCommunication,
   useLatestCommunicationDraft,
   useEscalateDispute,
+  useCloseDispute,
 } from "../hooks/useDisputes"
 import { useDisputeWorkspace } from "../hooks/useDisputeWorkspace"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -28,9 +29,11 @@ import { DisputeCommunicationsTab } from "../components/workspace/DisputeCommuni
 import { DisputeCommentsTab } from "../components/workspace/DisputeCommentsTab"
 import { DisputeRecommendationsTab } from "../components/workspace/DisputeRecommendationsTab"
 import { DisputeActivityTab } from "../components/workspace/DisputeActivityTab"
+import { DisputeCloseDialog } from "../components/workspace/DisputeCloseDialog"
 import { cn } from "@/lib/utils"
 
 import { getDisputeActionState } from "../utils/disputeWorkspaceUtils"
+import { isNonClosedDispute } from "../utils/disputeFormatters"
 
 export const DisputeDetailPage: React.FC = () => {
   const { disputeId } = useParams<{ disputeId: string }>()
@@ -65,8 +68,10 @@ export const DisputeDetailPage: React.FC = () => {
   const paymentReviewMutation = usePaymentReviewDecision()
   const operationalDecisionMutation = useOperationalDecision()
   const escalateDisputeMutation = useEscalateDispute()
+  const closeDisputeMutation = useCloseDispute()
   const draftCommunicationMutation = useDraftDisputeCommunication(disputeId || "")
   const sendCommunicationMutation = useSendDisputeCommunication(disputeId || "")
+  const [isCloseOpen, setIsCloseOpen] = useState(false)
 
   const latestCustomerCommId = useMemo(() => {
     const customerComms = allCommunications.filter(
@@ -244,6 +249,32 @@ export const DisputeDetailPage: React.FC = () => {
     }
   }
 
+  const handleCloseDispute = async (payload: {
+    resolution_outcome: "CUSTOMER_CORRECT" | "COMPANY_CORRECT"
+    comments: string
+  }) => {
+    if (!disputeId) return
+    try {
+      await closeDisputeMutation.mutateAsync({
+        id: disputeId,
+        ...payload,
+      })
+      setIsCloseOpen(false)
+      toast({
+        title: "Dispute closed",
+        description: "The dispute was closed manually without sending an automated email.",
+        type: "success",
+      })
+      refetchDispute()
+    } catch {
+      toast({
+        title: "Close failed",
+        description: "Unable to close the dispute. Please try again.",
+        type: "error",
+      })
+    }
+  }
+
   const handleDraftCommunication = async (instructions?: string) => {
     try {
       const draft = await draftCommunicationMutation.mutateAsync(instructions)
@@ -334,7 +365,16 @@ export const DisputeDetailPage: React.FC = () => {
 
   return (
     <div className="space-y-6 animate-in fade-in duration-150">
-      <DisputeWorkspaceHeader dispute={dispute} />
+      <DisputeWorkspaceHeader
+        dispute={dispute}
+        actions={
+          isNonClosedDispute(dispute) ? (
+            <Button variant="danger" size="sm" onClick={() => setIsCloseOpen(true)}>
+              Close dispute
+            </Button>
+          ) : null
+        }
+      />
       <DisputeWorkspaceKpis dispute={dispute} />
 
       <div ref={attentionRef}>
@@ -447,6 +487,14 @@ export const DisputeDetailPage: React.FC = () => {
           </Tabs>
         </div>
       </div>
+
+      <DisputeCloseDialog
+        open={isCloseOpen}
+        onOpenChange={setIsCloseOpen}
+        hasPendingAction={actionState?.hasPendingAction}
+        onConfirm={handleCloseDispute}
+        isSubmitting={closeDisputeMutation.isPending}
+      />
     </div>
   )
 }

@@ -527,3 +527,26 @@ export const useReassignDispute = () => {
     },
   });
 };
+
+export const useCloseDispute = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      id,
+      resolution_outcome,
+      comments,
+    }: {
+      id: string;
+      resolution_outcome: "CUSTOMER_CORRECT" | "COMPANY_CORRECT";
+      comments: string;
+    }) => disputeService.closeDispute(id, { resolution_outcome, comments }),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["dispute", variables.id] });
+      queryClient.invalidateQueries({ queryKey: ["disputes"] });
+      queryClient.invalidateQueries({ queryKey: ["disputeComments", variables.id] });
+      queryClient.invalidateQueries({ queryKey: ["disputeActivities", variables.id] });
+      queryClient.invalidateQueries({ queryKey: ["disputeWorkflowContext", variables.id] });
+      queryClient.invalidateQueries({ queryKey: ["disputeSLA", variables.id] });
+    },
+  });
+};
