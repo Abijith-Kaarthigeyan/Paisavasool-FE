@@ -10,6 +10,7 @@ import {
   DisputeResolutionRecommendation,
   DisputeCommunication,
   DisputeCommunicationDraft,
+  AssociateCommunicationSendPayload,
   DisputeEvidenceSnapshot,
   DisputeWorkflowContext,
   DisputeSLA,
@@ -173,7 +174,7 @@ export const disputeService = {
 
   sendCommunication: async (
     disputeId: string,
-    payload: { recipient: string; subject: string; body: string }
+    payload: AssociateCommunicationSendPayload
   ): Promise<DisputeCommunication> => {
     const response = await disputeApi.post<DisputeCommunication>(
       `/disputes/${disputeId}/communications/send`,

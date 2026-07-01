@@ -1,9 +1,21 @@
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Sparkles, Send, Loader2 } from "lucide-react"
-import type { DisputeCommunicationDraft } from "../../types"
+import { Sparkles, Send, Loader2, Paperclip, X } from "lucide-react"
+import type {
+  AssociateCommunicationSendPayload,
+  DisputeCommunicationDraft,
+  OutboundEmailAttachment,
+} from "../../types"
+
+const MAX_ATTACHMENTS = 5
+const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024
+
+interface PendingAttachment {
+  id: string
+  file: File
+}
 
 interface AssociateEmailComposerProps {
   customerEmail: string | null
@@ -12,7 +24,17 @@ interface AssociateEmailComposerProps {
   isDrafting?: boolean
   isSending?: boolean
   onDraft: (instructions?: string) => Promise<DisputeCommunicationDraft>
-  onSend: (payload: { recipient: string; subject: string; body: string }) => Promise<void>
+  onSend: (payload: AssociateCommunicationSendPayload) => Promise<void>
+}
+
+async function fileToBase64(file: File): Promise<string> {
+  const buffer = await file.arrayBuffer()
+  const bytes = new Uint8Array(buffer)
+  let binary = ""
+  for (let i = 0; i < bytes.length; i += 1) {
+    binary += String.fromCharCode(bytes[i])
+  }
+  return btoa(binary)
 }
 
 export function AssociateEmailComposer({
@@ -29,6 +51,9 @@ export function AssociateEmailComposer({
   const [subject, setSubject] = useState("")
   const [body, setBody] = useState("")
   const [hasDraft, setHasDraft] = useState(false)
+  const [attachments, setAttachments] = useState<PendingAttachment[]>([])
+  const [attachmentError, setAttachmentError] = useState<string | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     if (customerEmail && !recipient && !hasDraft && !initialDraft) {
@@ -52,13 +77,68 @@ export function AssociateEmailComposer({
     setHasDraft(true)
   }
 
+  const handleAddAttachments = (files: FileList | null) => {
+    if (!files?.length) return
+    setAttachmentError(null)
+
+    const next: PendingAttachment[] = [...attachments]
+    for (const file of Array.from(files)) {
+      if (next.length >= MAX_ATTACHMENTS) {
+        setAttachmentError(`You can attach at most ${MAX_ATTACHMENTS} PDF files.`)
+        break
+      }
+      if (!file.name.toLowerCase().endsWith(".pdf")) {
+        setAttachmentError("Only PDF files can be attached.")
+        continue
+      }
+      if (file.type && file.type !== "application/pdf") {
+        setAttachmentError("Only PDF files can be attached.")
+        continue
+      }
+      if (file.size > MAX_ATTACHMENT_BYTES) {
+        setAttachmentError(`${file.name} exceeds the 10 MB size limit.`)
+        continue
+      }
+      if (next.some((item) => item.file.name === file.name && item.file.size === file.size)) {
+        continue
+      }
+      next.push({ id: `${file.name}-${file.size}-${file.lastModified}`, file })
+    }
+
+    setAttachments(next)
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ""
+    }
+  }
+
+  const handleRemoveAttachment = (id: string) => {
+    setAttachments((current) => current.filter((item) => item.id !== id))
+    setAttachmentError(null)
+  }
+
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!recipient.trim() || !subject.trim() || !body.trim()) return
-    await onSend({ recipient: recipient.trim(), subject: subject.trim(), body: body.trim() })
+
+    const encodedAttachments: OutboundEmailAttachment[] = await Promise.all(
+      attachments.map(async (item) => ({
+        filename: item.file.name,
+        content_base64: await fileToBase64(item.file),
+        mime_type: "application/pdf",
+      }))
+    )
+
+    await onSend({
+      recipient: recipient.trim(),
+      subject: subject.trim(),
+      body: body.trim(),
+      attachments: encodedAttachments.length ? encodedAttachments : undefined,
+    })
     setInstructions("")
     setSubject("")
     setBody("")
+    setAttachments([])
+    setAttachmentError(null)
     setHasDraft(false)
     setRecipient(customerEmail || recipient.trim())
   }
@@ -144,6 +224,67 @@ export function AssociateEmailComposer({
             className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm leading-relaxed text-foreground shadow-xs focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring/30"
           />
         </div>
+
+        <div className="space-y-2">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <Label className="text-xs text-muted-foreground">Attachments:</Label>
+            <div>
+              <input
+                ref={fileInputRef}
+                id="compose-attachments"
+                type="file"
+                accept="application/pdf,.pdf"
+                multiple
+                className="sr-only"
+                disabled={fieldsDisabled || attachments.length >= MAX_ATTACHMENTS}
+                onChange={(e) => handleAddAttachments(e.target.files)}
+              />
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                disabled={fieldsDisabled || attachments.length >= MAX_ATTACHMENTS}
+                onClick={() => fileInputRef.current?.click()}
+              >
+                <Paperclip className="h-3.5 w-3.5" aria-hidden />
+                Add PDF
+              </Button>
+            </div>
+          </div>
+          {attachmentError && (
+            <p className="text-xs text-destructive" role="alert">
+              {attachmentError}
+            </p>
+          )}
+          {attachments.length > 0 ? (
+            <ul className="space-y-1 rounded-md border border-border bg-background px-3 py-2">
+              {attachments.map((item) => (
+                <li
+                  key={item.id}
+                  className="flex items-center justify-between gap-2 text-xs text-foreground"
+                >
+                  <span className="truncate font-medium">{item.file.name}</span>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 px-1 text-muted-foreground"
+                    disabled={fieldsDisabled}
+                    onClick={() => handleRemoveAttachment(item.id)}
+                    aria-label={`Remove ${item.file.name}`}
+                  >
+                    <X className="h-3.5 w-3.5" aria-hidden />
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-xs text-muted-foreground">
+              PDF files from your computer will be sent to the customer with this email.
+            </p>
+          )}
+        </div>
+
         <div className="flex justify-end">
           <Button
             type="submit"

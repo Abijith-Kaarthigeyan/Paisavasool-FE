@@ -6,7 +6,7 @@ import { disputeService } from "../services/disputeService"
 import { invoiceService } from "@/features/invoices/services/invoiceService"
 import { customerService } from "@/features/customers/services/customerService"
 import { userService } from "@/features/users/services/userService"
-import { Dispute, DisputeCase, DisputeReviewQueueItem, DisputeComment, DisputeClosePayload } from "../types"
+import { Dispute, DisputeCase, DisputeReviewQueueItem, DisputeComment, DisputeClosePayload, AssociateCommunicationSendPayload } from "../types"
 
 // Helper function to enrich disputes with Invoice, Customer, and User details
 const useEnrichedDisputes = (
@@ -305,7 +305,7 @@ export const useDraftDisputeCommunication = (disputeId: string) => {
 export const useSendDisputeCommunication = (disputeId: string) => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (payload: { recipient: string; subject: string; body: string }) =>
+    mutationFn: (payload: AssociateCommunicationSendPayload) =>
       disputeService.sendCommunication(disputeId, payload),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["disputeCommunications", disputeId] });

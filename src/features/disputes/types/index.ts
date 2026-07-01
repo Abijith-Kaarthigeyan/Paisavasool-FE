@@ -147,6 +147,19 @@ export interface DisputeCommunication {
   created_at: string;
 }
 
+export interface OutboundEmailAttachment {
+  filename: string;
+  content_base64: string;
+  mime_type?: string;
+}
+
+export interface AssociateCommunicationSendPayload {
+  recipient: string;
+  subject: string;
+  body: string;
+  attachments?: OutboundEmailAttachment[];
+}
+
 export interface DisputeCommunicationDraft {
   id?: string;
   recipient: string;

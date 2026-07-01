@@ -14,6 +14,7 @@ import {
   isCommunicationDelivered,
   isInternalCommunication,
   extractAttachmentFilenamesFromBody,
+  extractComposeAttachmentFilenamesFromBody,
   formatCommunicationBodyForDisplay,
   messageHasAttachmentContent,
 } from "../../utils/disputeFormatters"
@@ -55,7 +56,10 @@ export function CommunicationThreadItem({
   const deliveryLabel = getCommunicationDeliveryLabel(comm)
   const isDelivered = isCommunicationDelivered(comm)
   const hasAttachmentSection = messageHasAttachmentContent(body)
-  const attachmentFilenamesFromBody = extractAttachmentFilenamesFromBody(body)
+  const attachmentFilenamesFromBody = [
+    ...extractAttachmentFilenamesFromBody(body),
+    ...extractComposeAttachmentFilenamesFromBody(body),
+  ]
   const hasStoredFiles = caseAttachments.length > 0
   const attachmentsToShow = hasStoredFiles
       ? caseAttachments

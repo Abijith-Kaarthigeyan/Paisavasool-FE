@@ -30,7 +30,7 @@ import { DisputeCommentsTab } from "../components/workspace/DisputeCommentsTab"
 import { DisputeRecommendationsTab } from "../components/workspace/DisputeRecommendationsTab"
 import { DisputeActivityTab } from "../components/workspace/DisputeActivityTab"
 import { DisputeCloseDialog } from "../components/workspace/DisputeCloseDialog"
-import type { DisputeClosePayload } from "../types"
+import type { AssociateCommunicationSendPayload, DisputeClosePayload } from "../types"
 import { cn } from "@/lib/utils"
 
 import { getDisputeActionState } from "../utils/disputeWorkspaceUtils"
@@ -292,11 +292,7 @@ export const DisputeDetailPage: React.FC = () => {
     }
   }
 
-  const handleSendCommunication = async (payload: {
-    recipient: string
-    subject: string
-    body: string
-  }) => {
+  const handleSendCommunication = async (payload: AssociateCommunicationSendPayload) => {
     try {
       const comm = await sendCommunicationMutation.mutateAsync(payload)
       if (comm.gmail_message_id) {

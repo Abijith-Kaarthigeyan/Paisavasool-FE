@@ -120,14 +120,31 @@ export function isCaseOriginCommunication(comm: DisputeCommunication): boolean {
   return comm.id.startsWith("case-")
 }
 
-export function messageHasAttachmentContent(body: string): boolean {
-  return /ATTACHMENT\s+CONTENT:/i.test(body)
+/** Filenames listed under a compose-reply Attachments section in outbound bodies. */
+export function extractComposeAttachmentFilenamesFromBody(body: string): string[] {
+  const match = body.match(/\nAttachments:\s*\n([\s\S]*?)(?:\n\n|$)/i)
+  if (!match) return []
+  return match[1]
+    .split("\n")
+    .map((line) => line.replace(/^\s*[-•]\s*/, "").trim())
+    .filter(Boolean)
+}
+
+export function messageHasComposeAttachmentList(body: string): boolean {
+  return extractComposeAttachmentFilenamesFromBody(body).length > 0
 }
 
 /** Removes extracted attachment text from normalized email bodies for UI display only. */
 export function formatCommunicationBodyForDisplay(body: string): string {
   if (!body.trim()) return body
-  return body.replace(/\n*\s*ATTACHMENT\s+CONTENT:\s*[\s\S]*$/i, "").trimEnd()
+  return body
+    .replace(/\n*\s*ATTACHMENT\s+CONTENT:\s*[\s\S]*$/i, "")
+    .replace(/\n*\s*Attachments:\s*\n[\s\S]*$/i, "")
+    .trimEnd()
+}
+
+export function messageHasAttachmentContent(body: string): boolean {
+  return /ATTACHMENT\s+CONTENT:/i.test(body) || messageHasComposeAttachmentList(body)
 }
 
 /** Filenames embedded in normalized email bodies, e.g. ATTACHMENT 1 (file.pdf): */

@@ -1,7 +1,7 @@
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import { EmptyState } from "@/components/ui/empty-state"
-import type { CaseAttachment, DisputeCommunication, DisputeCommunicationDraft } from "../../types"
+import type { CaseAttachment, DisputeCommunication, DisputeCommunicationDraft, AssociateCommunicationSendPayload } from "../../types"
 import { CommunicationThreadItem } from "./CommunicationThreadItem"
 import { AssociateEmailComposer } from "./AssociateEmailComposer"
 
@@ -17,7 +17,7 @@ interface DisputeCommunicationsTabProps {
   isDrafting?: boolean
   isSending?: boolean
   onDraftEmail: (instructions?: string) => Promise<DisputeCommunicationDraft>
-  onSendEmail: (payload: { recipient: string; subject: string; body: string }) => Promise<void>
+  onSendEmail: (payload: AssociateCommunicationSendPayload) => Promise<void>
 }
 
 export function DisputeCommunicationsTab({
