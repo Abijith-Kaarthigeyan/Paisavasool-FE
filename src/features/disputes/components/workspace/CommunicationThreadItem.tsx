@@ -26,6 +26,7 @@ interface CommunicationThreadItemProps {
   caseId?: string | null
   caseAttachments?: CaseAttachment[]
   isFirst?: boolean
+  layout?: "inline" | "panel"
 }
 
 function getCommunicationBody(comm: DisputeCommunication) {
@@ -42,6 +43,7 @@ export function CommunicationThreadItem({
   caseId,
   caseAttachments = [],
   isFirst = false,
+  layout = "inline",
 }: CommunicationThreadItemProps) {
   const [isExpanded, setIsExpanded] = useState(isFirst)
   const isCaseOrigin = isCaseOriginCommunication(comm)
@@ -87,7 +89,8 @@ export function CommunicationThreadItem({
     >
       <div
         className={cn(
-          "max-w-[88%] rounded-lg border text-sm transition-colors",
+          "rounded-lg border text-sm transition-colors",
+          layout === "panel" ? "max-w-[95%]" : "max-w-[88%]",
           isSent
             ? "border-primary/20 bg-primary/[0.03]"
             : "border-border bg-card",
@@ -115,6 +118,11 @@ export function CommunicationThreadItem({
           {isAssociate && (
             <Badge variant="secondary" shape="pill">
               Associate
+            </Badge>
+          )}
+          {isAssociate && comm.pause_sla_till_reply && (
+            <Badge variant="outline" shape="pill" title="SLA paused until customer replies">
+              SLA paused
             </Badge>
           )}
           {deliveryLabel && (

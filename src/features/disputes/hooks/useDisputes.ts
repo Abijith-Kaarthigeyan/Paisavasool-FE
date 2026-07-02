@@ -312,6 +312,8 @@ export const useSendDisputeCommunication = (disputeId: string) => {
       queryClient.invalidateQueries({ queryKey: ["disputeCommunicationDraft", disputeId] });
       queryClient.invalidateQueries({ queryKey: ["disputeComments", disputeId] });
       queryClient.invalidateQueries({ queryKey: ["disputeActivities", disputeId] });
+      queryClient.invalidateQueries({ queryKey: ["disputeSLA", disputeId] });
+      queryClient.invalidateQueries({ queryKey: ["dispute", disputeId] });
     },
   });
 };

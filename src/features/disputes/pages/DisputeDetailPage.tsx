@@ -17,7 +17,7 @@ import { EmptyState } from "@/components/ui/empty-state"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { useToast } from "@/components/ui/toast"
-import { AlertTriangle } from "lucide-react"
+import { AlertTriangle, MessageSquare } from "lucide-react"
 import { EditableInvoiceData } from "../components/EditableRecommendedInvoiceForm"
 import { DisputeWorkspaceHeader } from "../components/workspace/DisputeWorkspaceHeader"
 import { DisputeWorkspaceKpis } from "../components/workspace/DisputeWorkspaceKpis"
@@ -25,21 +25,23 @@ import { DisputeAttentionPanel } from "../components/workspace/DisputeAttentionP
 import { DisputeCustomerCard } from "../components/workspace/DisputeContextRail"
 import { DisputeOverviewTab } from "../components/workspace/DisputeOverviewTab"
 import { DisputeInvoicePaymentTab } from "../components/workspace/DisputeInvoicePaymentTab"
-import { DisputeCommunicationsTab } from "../components/workspace/DisputeCommunicationsTab"
+import { DisputeCommunicationsSheet } from "../components/workspace/DisputeCommunicationsSheet"
 import { DisputeCommentsTab } from "../components/workspace/DisputeCommentsTab"
 import { DisputeRecommendationsTab } from "../components/workspace/DisputeRecommendationsTab"
 import { DisputeActivityTab } from "../components/workspace/DisputeActivityTab"
 import { DisputeCloseDialog } from "../components/workspace/DisputeCloseDialog"
 import type { AssociateCommunicationSendPayload, DisputeClosePayload } from "../types"
 import { cn } from "@/lib/utils"
+import { Badge } from "@/components/ui/badge"
 
-import { getDisputeActionState } from "../utils/disputeWorkspaceUtils"
+import { getDisputeActionState, getCommunicationsAttentionState } from "../utils/disputeWorkspaceUtils"
 import { isNonClosedDispute } from "../utils/disputeFormatters"
 
 export const DisputeDetailPage: React.FC = () => {
   const { disputeId } = useParams<{ disputeId: string }>()
   const { toast } = useToast()
   const [activeTab, setActiveTab] = useState("overview")
+  const [isCommsPanelOpen, setIsCommsPanelOpen] = useState(false)
   const attentionRef = useRef<HTMLDivElement>(null)
 
   const workspace = useDisputeWorkspace(disputeId || "")
@@ -320,12 +322,27 @@ export const DisputeDetailPage: React.FC = () => {
   }
 
   const actionState = dispute ? getDisputeActionState(dispute, wfContext) : null
+  const communicationsAttention = dispute
+    ? getCommunicationsAttentionState(dispute, latestCommunicationDraft, pollForInboundDraft)
+    : { needsAttention: false, label: null }
+  const allowPauseSlaTillReply =
+    dispute?.status === "WAITING_ASSOCIATE_APPROVAL" ||
+    dispute?.status === "WAITING_INTERNAL_TEAM" ||
+    dispute?.status === "WAITING_PAYMENT_REVIEW"
 
   useEffect(() => {
     if (actionState?.hasPendingAction && attentionRef.current) {
       attentionRef.current.scrollIntoView({ behavior: "smooth", block: "start" })
     }
   }, [actionState?.hasPendingAction, dispute?.id])
+
+  const handleTabChange = (value: string) => {
+    if (value === "communications") {
+      setIsCommsPanelOpen(true)
+      return
+    }
+    setActiveTab(value)
+  }
 
   if (isLoading) {
     return (
@@ -362,16 +379,37 @@ export const DisputeDetailPage: React.FC = () => {
       <DisputeWorkspaceHeader
         dispute={dispute}
         actions={
-          isNonClosedDispute(dispute) ? (
+          <div className="flex flex-wrap items-center gap-2">
             <Button
               variant="secondary"
               size="sm"
-              className="border-destructive/30 text-destructive hover:bg-destructive/5"
-              onClick={() => setIsCloseOpen(true)}
+              onClick={() => setIsCommsPanelOpen(true)}
+              className="relative"
             >
-              Close dispute
+              <MessageSquare className="h-3.5 w-3.5" aria-hidden />
+              Messages
+              {communicationsAttention.needsAttention && (
+                <Badge
+                  variant="warning"
+                  shape="pill"
+                  className="ml-1.5"
+                  title={communicationsAttention.label ?? undefined}
+                >
+                  {communicationsAttention.label ?? "Attention"}
+                </Badge>
+              )}
             </Button>
-          ) : null
+            {isNonClosedDispute(dispute) ? (
+              <Button
+                variant="secondary"
+                size="sm"
+                className="border-destructive/30 text-destructive hover:bg-destructive/5"
+                onClick={() => setIsCloseOpen(true)}
+              >
+                Close dispute
+              </Button>
+            ) : null}
+          </div>
         }
       />
       <DisputeWorkspaceKpis dispute={dispute} />
@@ -395,7 +433,7 @@ export const DisputeDetailPage: React.FC = () => {
       </div>
 
       <div className="w-full">
-        <Tabs value={activeTab} onValueChange={setActiveTab} defaultValue="overview">
+        <Tabs value={activeTab} onValueChange={handleTabChange} defaultValue="overview">
           <TabsList className="w-full justify-start overflow-x-auto">
               <TabsTrigger value="overview" className="relative">
                 Overview
@@ -410,7 +448,24 @@ export const DisputeDetailPage: React.FC = () => {
                 )}
               </TabsTrigger>
               <TabsTrigger value="invoice-payment">Invoice &amp; payment</TabsTrigger>
-              <TabsTrigger value="communications">Communications</TabsTrigger>
+              <TabsTrigger
+                value="communications"
+                className={cn(
+                  isCommsPanelOpen &&
+                    "text-foreground after:absolute after:bottom-0 after:left-0 after:h-0.5 after:w-full after:bg-primary"
+                )}
+              >
+                Communications
+                {communicationsAttention.needsAttention && (
+                  <span
+                    className={cn(
+                      "ml-1.5 inline-block h-2 w-2 rounded-full bg-warning",
+                      !isCommsPanelOpen && "animate-pulse"
+                    )}
+                    aria-label={communicationsAttention.label ?? "Communications need attention"}
+                  />
+                )}
+              </TabsTrigger>
               <TabsTrigger value="comments">Comments</TabsTrigger>
               <TabsTrigger value="recommendations">Recommendations</TabsTrigger>
               <TabsTrigger value="customer">Customer</TabsTrigger>
@@ -436,23 +491,6 @@ export const DisputeDetailPage: React.FC = () => {
                 evidence={evidence}
                 isLoadingInvoiceItems={loading.invoiceItems}
                 isLoadingCustomer={loading.customerDetail}
-              />
-            </TabsContent>
-
-            <TabsContent value="communications" className="mt-4 overflow-hidden">
-              <DisputeCommunicationsTab
-                communications={allCommunications}
-                customerEmail={customerEmail}
-                caseId={disputeCase?.id}
-                caseAttachments={caseAttachments}
-                isLoading={loading.communications}
-                isLoadingAttachments={loading.caseAttachments}
-                initialDraft={latestCommunicationDraft}
-                isLoadingDraft={latestCommunicationDraft?.status === "GENERATING"}
-                isDrafting={draftCommunicationMutation.isPending}
-                isSending={sendCommunicationMutation.isPending}
-                onDraftEmail={handleDraftCommunication}
-                onSendEmail={handleSendCommunication}
               />
             </TabsContent>
 
@@ -493,6 +531,24 @@ export const DisputeDetailPage: React.FC = () => {
         onOpenChange={setIsCloseOpen}
         onConfirm={handleCloseDispute}
         isSubmitting={closeDisputeMutation.isPending}
+      />
+
+      <DisputeCommunicationsSheet
+        open={isCommsPanelOpen}
+        onOpenChange={setIsCommsPanelOpen}
+        communications={allCommunications}
+        customerEmail={customerEmail}
+        allowPauseSlaTillReply={allowPauseSlaTillReply}
+        caseId={disputeCase?.id}
+        caseAttachments={caseAttachments}
+        isLoading={loading.communications}
+        isLoadingAttachments={loading.caseAttachments}
+        initialDraft={latestCommunicationDraft}
+        isLoadingDraft={latestCommunicationDraft?.status === "GENERATING"}
+        isDrafting={draftCommunicationMutation.isPending}
+        isSending={sendCommunicationMutation.isPending}
+        onDraftEmail={handleDraftCommunication}
+        onSendEmail={handleSendCommunication}
       />
     </div>
   )

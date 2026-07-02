@@ -33,6 +33,7 @@ export interface DisputeSLA {
   resumed_at: string | null;
   breached_at: string | null;
   is_paused: boolean;
+  pause_reason?: string | null;
   current_percentage: number;
   accumulated_paused_minutes: number;
   status: SLAStatus;
@@ -143,6 +144,7 @@ export interface DisputeCommunication {
   communication_type: "CUSTOMER" | "INTERNAL" | "ASSOCIATE_OUTBOUND" | string;
   gmail_message_id?: string | null;
   rfc_message_id?: string | null;
+  pause_sla_till_reply?: boolean;
   sent_time: string;
   created_at: string;
 }
@@ -158,6 +160,7 @@ export interface AssociateCommunicationSendPayload {
   subject: string;
   body: string;
   attachments?: OutboundEmailAttachment[];
+  pause_sla_till_reply?: boolean;
 }
 
 export interface DisputeCommunicationDraft {

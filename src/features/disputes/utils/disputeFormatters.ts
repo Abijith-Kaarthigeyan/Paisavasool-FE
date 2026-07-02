@@ -112,7 +112,7 @@ export function formatSlaStatusLabel(
   }
   if (!status) return "No SLA"
   const label = status.replace(/_/g, " ")
-  const showPaused = isPaused && disputeStatus === "WAITING_CUSTOMER"
+  const showPaused = isPaused && !isTerminalDisputeStatus(disputeStatus)
   return showPaused ? `${label} (Paused)` : label
 }
 

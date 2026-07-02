@@ -20,10 +20,12 @@ interface PendingAttachment {
 
 interface AssociateEmailComposerProps {
   customerEmail: string | null
+  allowPauseSlaTillReply?: boolean
   initialDraft?: DisputeCommunicationDraft | null
   isLoadingDraft?: boolean
   isDrafting?: boolean
   isSending?: boolean
+  variant?: "inline" | "panel"
   onDraft: (instructions?: string) => Promise<DisputeCommunicationDraft>
   onSend: (payload: AssociateCommunicationSendPayload) => Promise<void>
 }
@@ -49,10 +51,12 @@ function getComposePreview(subject: string, body: string): string | null {
 
 export function AssociateEmailComposer({
   customerEmail,
+  allowPauseSlaTillReply = false,
   initialDraft,
   isLoadingDraft,
   isDrafting,
   isSending,
+  variant = "inline",
   onDraft,
   onSend,
 }: AssociateEmailComposerProps) {
@@ -61,6 +65,7 @@ export function AssociateEmailComposer({
   const [recipient, setRecipient] = useState(customerEmail || "")
   const [subject, setSubject] = useState("")
   const [body, setBody] = useState("")
+  const [pauseSlaTillReply, setPauseSlaTillReply] = useState(false)
   const [hasDraft, setHasDraft] = useState(false)
   const [attachments, setAttachments] = useState<PendingAttachment[]>([])
   const [attachmentError, setAttachmentError] = useState<string | null>(null)
@@ -146,10 +151,12 @@ export function AssociateEmailComposer({
       subject: subject.trim(),
       body: body.trim(),
       attachments: encodedAttachments.length ? encodedAttachments : undefined,
+      ...(pauseSlaTillReply ? { pause_sla_till_reply: true } : {}),
     })
     setInstructions("")
     setSubject("")
     setBody("")
+    setPauseSlaTillReply(false)
     setAttachments([])
     setAttachmentError(null)
     setHasDraft(false)
@@ -160,6 +167,8 @@ export function AssociateEmailComposer({
   const isGeneratingDraft = isLoadingDraft
   const fieldsDisabled = isSending || isDrafting || isGeneratingDraft
   const preview = getComposePreview(subject, body)
+  const expandedMaxHeight =
+    variant === "panel" ? "max-h-[min(50vh,420px)]" : "max-h-[min(40vh,300px)]"
 
   return (
     <div className="rounded-lg border border-border bg-muted/20">
@@ -242,10 +251,10 @@ export function AssociateEmailComposer({
       <div
         className={cn(
           "overflow-hidden border-t border-border transition-[max-height,opacity] duration-200 ease-in-out",
-          isExpanded ? "max-h-[min(40vh,300px)] opacity-100" : "max-h-0 opacity-0"
+          isExpanded ? cn(expandedMaxHeight, "opacity-100") : "max-h-0 opacity-0"
         )}
       >
-        <div className="max-h-[min(40vh,300px)] space-y-3 overflow-y-auto px-4 pb-4 pt-3">
+        <div className={cn(expandedMaxHeight, "space-y-3 overflow-y-auto px-4 pb-4 pt-3")}>
           <div className="space-y-1">
             <Label htmlFor="compose-instructions" className="text-xs text-muted-foreground">
               Optional instructions for the AI
@@ -357,6 +366,24 @@ export function AssociateEmailComposer({
                 </p>
               )}
             </div>
+
+            {allowPauseSlaTillReply && (
+              <label className="flex cursor-pointer items-start gap-2 text-sm text-foreground">
+                <input
+                  type="checkbox"
+                  className="mt-0.5 h-4 w-4 rounded border-border"
+                  checked={pauseSlaTillReply}
+                  onChange={(e) => setPauseSlaTillReply(e.target.checked)}
+                  disabled={fieldsDisabled}
+                />
+                <span>
+                  Pause SLA until customer replies
+                  <span className="mt-0.5 block text-xs text-muted-foreground">
+                    The SLA clock stops until the customer sends a reply on this dispute.
+                  </span>
+                </span>
+              </label>
+            )}
 
             <div className="flex justify-end">
               <Button

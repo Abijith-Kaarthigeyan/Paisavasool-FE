@@ -1,4 +1,4 @@
-import type { Dispute, DisputeWorkflowContext } from "../types"
+import type { Dispute, DisputeCommunicationDraft, DisputeWorkflowContext } from "../types"
 
 export function isPaymentDisputeCategory(category: string): boolean {
   return ["PAYMENT_ALREADY_DONE", "PAYMENT_NOT_REFLECTED", "SHORT_PAYMENT"].includes(category)
@@ -79,4 +79,29 @@ export function extractPaymentReference(...texts: (string | null | undefined)[])
     if (refMatch) return refMatch[1]
   }
   return null
+}
+
+export interface CommunicationsAttentionState {
+  needsAttention: boolean
+  label: string | null
+}
+
+export function getCommunicationsAttentionState(
+  dispute: Dispute,
+  draft?: DisputeCommunicationDraft | null,
+  pollForInboundDraft = false
+): CommunicationsAttentionState {
+  if (pollForInboundDraft) {
+    return { needsAttention: true, label: "Draft generating" }
+  }
+  if (draft?.status === "READY") {
+    return { needsAttention: true, label: "Draft ready" }
+  }
+  if (dispute.status === "WAITING_CUSTOMER") {
+    return { needsAttention: true, label: "Waiting on customer" }
+  }
+  if (dispute.status === "WAITING_ASSOCIATE_APPROVAL") {
+    return { needsAttention: true, label: "Reply needed" }
+  }
+  return { needsAttention: false, label: null }
 }
