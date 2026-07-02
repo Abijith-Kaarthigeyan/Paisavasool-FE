@@ -23,6 +23,7 @@ interface DisputeCommunicationsPanelProps {
   isDrafting?: boolean
   isSending?: boolean
   isOpen?: boolean
+  onOpenCompose: () => void
   onDraftEmail: (instructions?: string) => Promise<DisputeCommunicationDraft>
   onSendEmail: (payload: AssociateCommunicationSendPayload) => Promise<void>
 }
@@ -30,16 +31,14 @@ interface DisputeCommunicationsPanelProps {
 export function DisputeCommunicationsPanel({
   communications,
   customerEmail,
-  allowPauseSlaTillReply = false,
   caseId,
   caseAttachments = [],
   isLoading,
   isLoadingAttachments,
   initialDraft,
   isLoadingDraft,
-  isDrafting,
-  isSending,
   isOpen = true,
+  onOpenCompose,
   onDraftEmail,
   onSendEmail,
 }: DisputeCommunicationsPanelProps) {
@@ -80,12 +79,10 @@ export function DisputeCommunicationsPanel({
       <div className="shrink-0 border-t border-border bg-card p-3">
         <AssociateEmailComposer
           customerEmail={customerEmail}
-          allowPauseSlaTillReply={allowPauseSlaTillReply}
           initialDraft={initialDraft}
           isLoadingDraft={isLoadingDraft}
-          isDrafting={isDrafting}
-          isSending={isSending}
-          variant="panel"
+          mode="trigger"
+          onOpen={onOpenCompose}
           onDraft={onDraftEmail}
           onSend={onSendEmail}
         />

@@ -26,6 +26,7 @@ import { DisputeCustomerCard } from "../components/workspace/DisputeContextRail"
 import { DisputeOverviewTab } from "../components/workspace/DisputeOverviewTab"
 import { DisputeInvoicePaymentTab } from "../components/workspace/DisputeInvoicePaymentTab"
 import { DisputeCommunicationsSheet } from "../components/workspace/DisputeCommunicationsSheet"
+import { DisputeComposePane } from "../components/workspace/DisputeComposePane"
 import { DisputeCommentsTab } from "../components/workspace/DisputeCommentsTab"
 import { DisputeRecommendationsTab } from "../components/workspace/DisputeRecommendationsTab"
 import { DisputeActivityTab } from "../components/workspace/DisputeActivityTab"
@@ -42,6 +43,7 @@ export const DisputeDetailPage: React.FC = () => {
   const { toast } = useToast()
   const [activeTab, setActiveTab] = useState("overview")
   const [isCommsPanelOpen, setIsCommsPanelOpen] = useState(false)
+  const [isComposePaneOpen, setIsComposePaneOpen] = useState(false)
   const attentionRef = useRef<HTMLDivElement>(null)
 
   const workspace = useDisputeWorkspace(disputeId || "")
@@ -336,6 +338,13 @@ export const DisputeDetailPage: React.FC = () => {
     }
   }, [actionState?.hasPendingAction, dispute?.id])
 
+  const handleCommsPanelOpenChange = (open: boolean) => {
+    setIsCommsPanelOpen(open)
+    if (!open) {
+      setIsComposePaneOpen(false)
+    }
+  }
+
   const handleTabChange = (value: string) => {
     if (value === "communications") {
       setIsCommsPanelOpen(true)
@@ -535,7 +544,7 @@ export const DisputeDetailPage: React.FC = () => {
 
       <DisputeCommunicationsSheet
         open={isCommsPanelOpen}
-        onOpenChange={setIsCommsPanelOpen}
+        onOpenChange={handleCommsPanelOpenChange}
         communications={allCommunications}
         customerEmail={customerEmail}
         allowPauseSlaTillReply={allowPauseSlaTillReply}
@@ -547,8 +556,24 @@ export const DisputeDetailPage: React.FC = () => {
         isLoadingDraft={latestCommunicationDraft?.status === "GENERATING"}
         isDrafting={draftCommunicationMutation.isPending}
         isSending={sendCommunicationMutation.isPending}
+        onOpenCompose={() => setIsComposePaneOpen(true)}
         onDraftEmail={handleDraftCommunication}
         onSendEmail={handleSendCommunication}
+      />
+
+      <DisputeComposePane
+        open={isComposePaneOpen}
+        commsSheetOpen={isCommsPanelOpen}
+        customerEmail={customerEmail}
+        allowPauseSlaTillReply={allowPauseSlaTillReply}
+        initialDraft={latestCommunicationDraft}
+        isLoadingDraft={latestCommunicationDraft?.status === "GENERATING"}
+        isDrafting={draftCommunicationMutation.isPending}
+        isSending={sendCommunicationMutation.isPending}
+        onClose={() => setIsComposePaneOpen(false)}
+        onDraft={handleDraftCommunication}
+        onSend={handleSendCommunication}
+        onSent={() => setIsComposePaneOpen(false)}
       />
     </div>
   )

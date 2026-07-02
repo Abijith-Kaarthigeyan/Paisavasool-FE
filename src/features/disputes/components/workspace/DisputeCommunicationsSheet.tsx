@@ -27,6 +27,7 @@ interface DisputeCommunicationsSheetProps {
   isLoadingDraft?: boolean
   isDrafting?: boolean
   isSending?: boolean
+  onOpenCompose: () => void
   onDraftEmail: (instructions?: string) => Promise<DisputeCommunicationDraft>
   onSendEmail: (payload: AssociateCommunicationSendPayload) => Promise<void>
 }
@@ -45,6 +46,7 @@ export function DisputeCommunicationsSheet({
   isLoadingDraft,
   isDrafting,
   isSending,
+  onOpenCompose,
   onDraftEmail,
   onSendEmail,
 }: DisputeCommunicationsSheetProps) {
@@ -76,6 +78,7 @@ export function DisputeCommunicationsSheet({
             isDrafting={isDrafting}
             isSending={isSending}
             isOpen={open}
+            onOpenCompose={onOpenCompose}
             onDraftEmail={onDraftEmail}
             onSendEmail={onSendEmail}
           />
