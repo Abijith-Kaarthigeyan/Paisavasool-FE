@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Sparkles, Send, Loader2, Paperclip, X } from "lucide-react"
+import { Sparkles, Send, Loader2, Paperclip, X, Maximize2, Minimize2 } from "lucide-react"
+import { cn } from "@/lib/utils"
 import type {
   AssociateCommunicationSendPayload,
   DisputeCommunicationDraft,
@@ -37,6 +38,15 @@ async function fileToBase64(file: File): Promise<string> {
   return btoa(binary)
 }
 
+function getComposePreview(subject: string, body: string): string | null {
+  if (subject.trim()) return subject.trim()
+  if (body.trim()) {
+    const line = body.trim().split("\n")[0]
+    return line.length > 80 ? `${line.slice(0, 80)}…` : line
+  }
+  return null
+}
+
 export function AssociateEmailComposer({
   customerEmail,
   initialDraft,
@@ -46,6 +56,7 @@ export function AssociateEmailComposer({
   onDraft,
   onSend,
 }: AssociateEmailComposerProps) {
+  const [isExpanded, setIsExpanded] = useState(false)
   const [instructions, setInstructions] = useState("")
   const [recipient, setRecipient] = useState(customerEmail || "")
   const [subject, setSubject] = useState("")
@@ -67,6 +78,7 @@ export function AssociateEmailComposer({
     setSubject(initialDraft.subject)
     setBody(initialDraft.body)
     setHasDraft(true)
+    setIsExpanded(true)
   }, [initialDraft, customerEmail])
 
   const handleDraft = async () => {
@@ -75,6 +87,7 @@ export function AssociateEmailComposer({
     setSubject(draft.subject)
     setBody(draft.body)
     setHasDraft(true)
+    setIsExpanded(true)
   }
 
   const handleAddAttachments = (files: FileList | null) => {
@@ -140,166 +153,228 @@ export function AssociateEmailComposer({
     setAttachments([])
     setAttachmentError(null)
     setHasDraft(false)
+    setIsExpanded(false)
     setRecipient(customerEmail || recipient.trim())
   }
 
   const isGeneratingDraft = isLoadingDraft
   const fieldsDisabled = isSending || isDrafting || isGeneratingDraft
+  const preview = getComposePreview(subject, body)
 
   return (
-    <div className="rounded-lg border border-border bg-muted/20 p-4">
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <div>
+    <div className="rounded-lg border border-border bg-muted/20">
+      <div
+        role={isExpanded ? undefined : "button"}
+        tabIndex={isExpanded ? undefined : 0}
+        onClick={isExpanded ? undefined : () => setIsExpanded(true)}
+        onKeyDown={
+          isExpanded
+            ? undefined
+            : (e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault()
+                  setIsExpanded(true)
+                }
+              }
+        }
+        className={cn(
+          "flex items-center justify-between gap-2 p-3",
+          !isExpanded && "cursor-pointer hover:bg-muted/30"
+        )}
+      >
+        <div className="min-w-0 flex-1">
           <p className="text-sm font-medium text-foreground">Compose reply</p>
-          <p className="text-xs text-muted-foreground">
-            {isGeneratingDraft
-              ? "Generating draft from dispute context…"
-              : "AI drafts from dispute context — edit before sending via Gmail."}
-          </p>
-        </div>
-        <Button
-          type="button"
-          variant="secondary"
-          size="sm"
-          disabled={isDrafting || isSending || isGeneratingDraft}
-          onClick={handleDraft}
-        >
-          {isDrafting ? (
-            <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
-          ) : (
-            <Sparkles className="h-3.5 w-3.5" aria-hidden />
-          )}
-          Regenerate draft
-        </Button>
-      </div>
-
-      <div className="mb-3 space-y-1">
-        <Label htmlFor="compose-instructions" className="text-xs text-muted-foreground">
-          Optional instructions for the AI
-        </Label>
-        <Input
-          id="compose-instructions"
-          value={instructions}
-          onChange={(e) => setInstructions(e.target.value)}
-          placeholder="e.g. Ask for bank statement and UTR for INV-2487"
-          disabled={fieldsDisabled}
-        />
-      </div>
-
-      <form onSubmit={handleSend} className="space-y-3 border-t border-border pt-3">
-        <div className="space-y-1">
-          <Label htmlFor="compose-recipient" className="text-xs text-muted-foreground">
-            To
-          </Label>
-          <Input
-            id="compose-recipient"
-            value={recipient}
-            onChange={(e) => setRecipient(e.target.value)}
-            disabled={fieldsDisabled}
-          />
-        </div>
-        <div className="space-y-1">
-          <Label htmlFor="compose-subject" className="text-xs text-muted-foreground">
-            Subject
-          </Label>
-          <Input
-            id="compose-subject"
-            value={subject}
-            onChange={(e) => setSubject(e.target.value)}
-            disabled={fieldsDisabled}
-            placeholder={isGeneratingDraft ? "Generating subject…" : undefined}
-          />
-        </div>
-        <div className="space-y-1">
-          <Label htmlFor="compose-body" className="text-xs text-muted-foreground">
-            Message
-          </Label>
-          <textarea
-            id="compose-body"
-            value={body}
-            onChange={(e) => setBody(e.target.value)}
-            disabled={fieldsDisabled}
-            rows={8}
-            placeholder={isGeneratingDraft ? "Generating message…" : undefined}
-            className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm leading-relaxed text-foreground shadow-xs focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring/30"
-          />
-        </div>
-
-        <div className="space-y-2">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <Label className="text-xs text-muted-foreground">Attachments:</Label>
-            <div>
-              <input
-                ref={fileInputRef}
-                id="compose-attachments"
-                type="file"
-                accept="application/pdf,.pdf"
-                multiple
-                className="sr-only"
-                disabled={fieldsDisabled || attachments.length >= MAX_ATTACHMENTS}
-                onChange={(e) => handleAddAttachments(e.target.files)}
-              />
-              <Button
-                type="button"
-                variant="secondary"
-                size="sm"
-                disabled={fieldsDisabled || attachments.length >= MAX_ATTACHMENTS}
-                onClick={() => fileInputRef.current?.click()}
-              >
-                <Paperclip className="h-3.5 w-3.5" aria-hidden />
-                Add PDF
-              </Button>
-            </div>
-          </div>
-          {attachmentError && (
-            <p className="text-xs text-destructive" role="alert">
-              {attachmentError}
-            </p>
-          )}
-          {attachments.length > 0 ? (
-            <ul className="space-y-1 rounded-md border border-border bg-background px-3 py-2">
-              {attachments.map((item) => (
-                <li
-                  key={item.id}
-                  className="flex items-center justify-between gap-2 text-xs text-foreground"
-                >
-                  <span className="truncate font-medium">{item.file.name}</span>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="h-6 px-1 text-muted-foreground"
-                    disabled={fieldsDisabled}
-                    onClick={() => handleRemoveAttachment(item.id)}
-                    aria-label={`Remove ${item.file.name}`}
-                  >
-                    <X className="h-3.5 w-3.5" aria-hidden />
-                  </Button>
-                </li>
-              ))}
-            </ul>
-          ) : (
+          {isExpanded ? (
             <p className="text-xs text-muted-foreground">
-              PDF files from your computer will be sent to the customer with this email.
+              {isGeneratingDraft
+                ? "Generating draft from dispute context…"
+                : "AI drafts from dispute context — edit before sending via Gmail."}
+            </p>
+          ) : (
+            <p className="truncate text-xs text-muted-foreground">
+              {isGeneratingDraft
+                ? "Generating draft…"
+                : preview || "Click to expand and compose a reply"}
             </p>
           )}
         </div>
-
-        <div className="flex justify-end">
+        <div className="flex shrink-0 items-center gap-1">
+          {isExpanded && (
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              disabled={isDrafting || isSending || isGeneratingDraft}
+              onClick={(e) => {
+                e.stopPropagation()
+                handleDraft()
+              }}
+            >
+              {isDrafting ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+              ) : (
+                <Sparkles className="h-3.5 w-3.5" aria-hidden />
+              )}
+              Regenerate draft
+            </Button>
+          )}
           <Button
-            type="submit"
+            type="button"
+            variant="ghost"
             size="sm"
-            disabled={fieldsDisabled || !recipient.trim() || !subject.trim() || !body.trim()}
+            className="h-8 w-8 p-0 text-muted-foreground"
+            onClick={(e) => {
+              e.stopPropagation()
+              setIsExpanded((v) => !v)
+            }}
+            aria-label={isExpanded ? "Minimize compose reply" : "Expand compose reply"}
+            aria-expanded={isExpanded}
           >
-            {isSending ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+            {isExpanded ? (
+              <Minimize2 className="h-4 w-4" aria-hidden />
             ) : (
-              <Send className="h-3.5 w-3.5" aria-hidden />
+              <Maximize2 className="h-4 w-4" aria-hidden />
             )}
-            Send to customer
           </Button>
         </div>
-      </form>
+      </div>
+
+      <div
+        className={cn(
+          "overflow-hidden border-t border-border transition-[max-height,opacity] duration-200 ease-in-out",
+          isExpanded ? "max-h-[min(40vh,300px)] opacity-100" : "max-h-0 opacity-0"
+        )}
+      >
+        <div className="max-h-[min(40vh,300px)] space-y-3 overflow-y-auto px-4 pb-4 pt-3">
+          <div className="space-y-1">
+            <Label htmlFor="compose-instructions" className="text-xs text-muted-foreground">
+              Optional instructions for the AI
+            </Label>
+            <Input
+              id="compose-instructions"
+              value={instructions}
+              onChange={(e) => setInstructions(e.target.value)}
+              placeholder="e.g. Ask for bank statement and UTR for INV-2487"
+              disabled={fieldsDisabled}
+            />
+          </div>
+
+          <form onSubmit={handleSend} className="space-y-3 border-t border-border pt-3">
+            <div className="space-y-1">
+              <Label htmlFor="compose-recipient" className="text-xs text-muted-foreground">
+                To
+              </Label>
+              <Input
+                id="compose-recipient"
+                value={recipient}
+                onChange={(e) => setRecipient(e.target.value)}
+                disabled={fieldsDisabled}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="compose-subject" className="text-xs text-muted-foreground">
+                Subject
+              </Label>
+              <Input
+                id="compose-subject"
+                value={subject}
+                onChange={(e) => setSubject(e.target.value)}
+                disabled={fieldsDisabled}
+                placeholder={isGeneratingDraft ? "Generating subject…" : undefined}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="compose-body" className="text-xs text-muted-foreground">
+                Message
+              </Label>
+              <textarea
+                id="compose-body"
+                value={body}
+                onChange={(e) => setBody(e.target.value)}
+                disabled={fieldsDisabled}
+                rows={4}
+                placeholder={isGeneratingDraft ? "Generating message…" : undefined}
+                className="w-full resize-none rounded-md border border-border bg-background px-3 py-2 text-sm leading-relaxed text-foreground shadow-xs focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring/30"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <Label className="text-xs text-muted-foreground">Attachments:</Label>
+                <div>
+                  <input
+                    ref={fileInputRef}
+                    id="compose-attachments"
+                    type="file"
+                    accept="application/pdf,.pdf"
+                    multiple
+                    className="sr-only"
+                    disabled={fieldsDisabled || attachments.length >= MAX_ATTACHMENTS}
+                    onChange={(e) => handleAddAttachments(e.target.files)}
+                  />
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    disabled={fieldsDisabled || attachments.length >= MAX_ATTACHMENTS}
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    <Paperclip className="h-3.5 w-3.5" aria-hidden />
+                    Add PDF
+                  </Button>
+                </div>
+              </div>
+              {attachmentError && (
+                <p className="text-xs text-destructive" role="alert">
+                  {attachmentError}
+                </p>
+              )}
+              {attachments.length > 0 ? (
+                <ul className="space-y-1 rounded-md border border-border bg-background px-3 py-2">
+                  {attachments.map((item) => (
+                    <li
+                      key={item.id}
+                      className="flex items-center justify-between gap-2 text-xs text-foreground"
+                    >
+                      <span className="truncate font-medium">{item.file.name}</span>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 px-1 text-muted-foreground"
+                        disabled={fieldsDisabled}
+                        onClick={() => handleRemoveAttachment(item.id)}
+                        aria-label={`Remove ${item.file.name}`}
+                      >
+                        <X className="h-3.5 w-3.5" aria-hidden />
+                      </Button>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  PDF files from your computer will be sent to the customer with this email.
+                </p>
+              )}
+            </div>
+
+            <div className="flex justify-end">
+              <Button
+                type="submit"
+                size="sm"
+                disabled={fieldsDisabled || !recipient.trim() || !subject.trim() || !body.trim()}
+              >
+                {isSending ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+                ) : (
+                  <Send className="h-3.5 w-3.5" aria-hidden />
+                )}
+                Send to customer
+              </Button>
+            </div>
+          </form>
+        </div>
+      </div>
     </div>
   )
 }

@@ -22,7 +22,7 @@ import { EditableInvoiceData } from "../components/EditableRecommendedInvoiceFor
 import { DisputeWorkspaceHeader } from "../components/workspace/DisputeWorkspaceHeader"
 import { DisputeWorkspaceKpis } from "../components/workspace/DisputeWorkspaceKpis"
 import { DisputeAttentionPanel } from "../components/workspace/DisputeAttentionPanel"
-import { DisputeContextRail } from "../components/workspace/DisputeContextRail"
+import { DisputeCustomerCard } from "../components/workspace/DisputeContextRail"
 import { DisputeOverviewTab } from "../components/workspace/DisputeOverviewTab"
 import { DisputeInvoicePaymentTab } from "../components/workspace/DisputeInvoicePaymentTab"
 import { DisputeCommunicationsTab } from "../components/workspace/DisputeCommunicationsTab"
@@ -394,16 +394,9 @@ export const DisputeDetailPage: React.FC = () => {
         />
       </div>
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        <DisputeContextRail
-          dispute={dispute}
-          customerDetail={customerDetail}
-          isLoadingCustomer={loading.customerDetail}
-        />
-
-        <div className="lg:col-span-2">
-          <Tabs value={activeTab} onValueChange={setActiveTab} defaultValue="overview">
-            <TabsList className="w-full justify-start overflow-x-auto">
+      <div className="w-full">
+        <Tabs value={activeTab} onValueChange={setActiveTab} defaultValue="overview">
+          <TabsList className="w-full justify-start overflow-x-auto">
               <TabsTrigger value="overview" className="relative">
                 Overview
                 {actionState!.hasPendingAction && (
@@ -420,6 +413,7 @@ export const DisputeDetailPage: React.FC = () => {
               <TabsTrigger value="communications">Communications</TabsTrigger>
               <TabsTrigger value="comments">Comments</TabsTrigger>
               <TabsTrigger value="recommendations">Recommendations</TabsTrigger>
+              <TabsTrigger value="customer">Customer</TabsTrigger>
               <TabsTrigger value="activities">Activity</TabsTrigger>
             </TabsList>
 
@@ -445,7 +439,7 @@ export const DisputeDetailPage: React.FC = () => {
               />
             </TabsContent>
 
-            <TabsContent value="communications" className="mt-4 min-h-[300px]">
+            <TabsContent value="communications" className="mt-4 overflow-hidden">
               <DisputeCommunicationsTab
                 communications={allCommunications}
                 customerEmail={customerEmail}
@@ -483,8 +477,15 @@ export const DisputeDetailPage: React.FC = () => {
             <TabsContent value="activities" className="mt-4 min-h-[300px]">
               <DisputeActivityTab activities={activities} isLoading={loading.activities} />
             </TabsContent>
+
+            <TabsContent value="customer" className="mt-4 min-h-[300px]">
+              <DisputeCustomerCard
+                dispute={dispute}
+                customerDetail={customerDetail}
+                isLoading={loading.customerDetail}
+              />
+            </TabsContent>
           </Tabs>
-        </div>
       </div>
 
       <DisputeCloseDialog

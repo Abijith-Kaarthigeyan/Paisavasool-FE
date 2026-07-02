@@ -1,4 +1,4 @@
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import { EmptyState } from "@/components/ui/empty-state"
 import type { CaseAttachment, DisputeCommunication, DisputeCommunicationDraft, AssociateCommunicationSendPayload } from "../../types"
@@ -35,26 +35,19 @@ export function DisputeCommunicationsTab({
   onSendEmail,
 }: DisputeCommunicationsTabProps) {
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-base">Communications</CardTitle>
-        <CardDescription>
-          Email thread — received on the left, sent on the right. Outbound messages are delivered
-          via Gmail when sending is enabled.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-6">
-        {isLoading || isLoadingAttachments ? (
-          <Skeleton className="h-32 w-full" />
-        ) : communications.length === 0 ? (
-          <EmptyState
-            title="No correspondence"
-            description="No communications have been recorded for this dispute yet."
-            className="py-8"
-          />
-        ) : (
-          <div className="space-y-6">
-            {communications.map((comm, index) => (
+    <Card className="flex max-h-[min(calc(100dvh-22rem),680px)] flex-col overflow-hidden">
+      <CardContent className="flex min-h-0 flex-1 flex-col space-y-4 overflow-hidden pt-5">
+        <div className="max-h-[300px] space-y-3 overflow-y-auto pr-2">
+          {isLoading || isLoadingAttachments ? (
+            <Skeleton className="h-20 w-full" />
+          ) : communications.length === 0 ? (
+            <EmptyState
+              title="No correspondence"
+              description="No communications have been recorded for this dispute yet."
+              className="py-6"
+            />
+          ) : (
+            communications.map((comm, index) => (
               <CommunicationThreadItem
                 key={comm.id}
                 comm={comm}
@@ -63,19 +56,21 @@ export function DisputeCommunicationsTab({
                 caseAttachments={caseAttachments}
                 isFirst={index === 0}
               />
-            ))}
-          </div>
-        )}
+            ))
+          )}
+        </div>
 
-        <AssociateEmailComposer
-          customerEmail={customerEmail}
-          initialDraft={initialDraft}
-          isLoadingDraft={isLoadingDraft}
-          isDrafting={isDrafting}
-          isSending={isSending}
-          onDraft={onDraftEmail}
-          onSend={onSendEmail}
-        />
+        <div className="shrink-0 border-t border-border pt-4">
+          <AssociateEmailComposer
+            customerEmail={customerEmail}
+            initialDraft={initialDraft}
+            isLoadingDraft={isLoadingDraft}
+            isDrafting={isDrafting}
+            isSending={isSending}
+            onDraft={onDraftEmail}
+            onSend={onSendEmail}
+          />
+        </div>
       </CardContent>
     </Card>
   )

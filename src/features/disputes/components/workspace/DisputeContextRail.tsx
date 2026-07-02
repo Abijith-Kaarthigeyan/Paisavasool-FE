@@ -10,7 +10,7 @@ interface DisputeContextRailProps {
   isLoadingCustomer?: boolean
 }
 
-function CustomerCard({
+export function DisputeCustomerCard({
   dispute,
   customerDetail,
   isLoading,
@@ -56,7 +56,7 @@ function CustomerCard({
             </div>
             <div className="flex justify-between gap-4">
               <span className="text-muted-foreground">Email</span>
-              <span className="max-w-[160px] truncate font-mono text-xs font-medium text-foreground">
+              <span className="max-w-[240px] truncate text-right font-mono text-xs font-medium text-foreground">
                 {customer?.email || "N/A"}
               </span>
             </div>
@@ -74,7 +74,7 @@ export function DisputeContextRail({
 }: DisputeContextRailProps) {
   return (
     <div className="space-y-6">
-      <CustomerCard
+      <DisputeCustomerCard
         dispute={dispute}
         customerDetail={customerDetail}
         isLoading={isLoadingCustomer}
