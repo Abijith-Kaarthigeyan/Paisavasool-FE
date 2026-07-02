@@ -13,10 +13,8 @@ import {
   isCaseOriginCommunication,
   isCommunicationDelivered,
   isInternalCommunication,
-  extractAttachmentFilenamesFromBody,
-  extractComposeAttachmentFilenamesFromBody,
   formatCommunicationBodyForDisplay,
-  messageHasAttachmentContent,
+  resolveMessageAttachments,
 } from "../../utils/disputeFormatters"
 import { CommunicationAttachmentLinks } from "./CommunicationAttachmentLinks"
 
@@ -57,28 +55,8 @@ export function CommunicationThreadItem({
   const isAssociate = isAssociateOutboundCommunication(comm)
   const deliveryLabel = getCommunicationDeliveryLabel(comm)
   const isDelivered = isCommunicationDelivered(comm)
-  const hasAttachmentSection = messageHasAttachmentContent(body)
-  const attachmentFilenamesFromBody = [
-    ...extractAttachmentFilenamesFromBody(body),
-    ...extractComposeAttachmentFilenamesFromBody(body),
-  ]
-  const hasStoredFiles = caseAttachments.length > 0
-  const attachmentsToShow = hasStoredFiles
-      ? caseAttachments
-      : attachmentFilenamesFromBody.map((filename, index) => ({
-          id: `body-attachment-${index}`,
-          filename,
-          mime_type: "application/pdf",
-          created_at: "",
-        }))
-  const isInboundCustomer =
-    !isSent && comm.communication_type === "CUSTOMER"
-  const showAttachments =
-    isExpanded &&
-    attachmentsToShow.length > 0 &&
-    (isCaseOrigin ||
-      hasAttachmentSection ||
-      (hasStoredFiles && isInboundCustomer && isFirst))
+  const attachmentsToShow = resolveMessageAttachments(body, caseAttachments)
+  const showAttachments = isExpanded && attachmentsToShow.length > 0
 
   return (
     <div
@@ -181,7 +159,6 @@ export function CommunicationThreadItem({
           <CommunicationAttachmentLinks
             caseId={caseId}
             attachments={attachmentsToShow}
-            hasStoredFiles={hasStoredFiles}
           />
         )}
 

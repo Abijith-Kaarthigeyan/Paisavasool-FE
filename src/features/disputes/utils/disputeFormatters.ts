@@ -1,4 +1,4 @@
-import type { DisputeCommunication, DisputeReviewQueueItem } from "../types"
+import type { CaseAttachment, DisputeCommunication, DisputeReviewQueueItem } from "../types"
 
 const TERMINAL_DISPUTE_STATUSES = new Set(["CLOSED", "RESOLVED", "FAILED"])
 
@@ -161,6 +161,80 @@ export function extractAttachmentFilenamesFromBody(body: string): string[] {
   return filenames
 }
 
+function normalizeFilenameForMatch(filename: string): string {
+  return filename
+    .toLowerCase()
+    .replace(/\.pdf$/i, "")
+    .replace(/[_\-\s]+/g, "")
+}
+
+/** Matches stored attachment names to body-embedded filenames, including shorthand variants. */
+export function filenamesMatch(storedFilename: string, bodyFilename: string): boolean {
+  const stored = normalizeFilenameForMatch(storedFilename)
+  const body = normalizeFilenameForMatch(bodyFilename)
+  if (stored === body) return true
+  return stored.includes(body) || body.includes(stored)
+}
+
+/** Resolves which attachments belong to a single thread message. */
+export function resolveMessageAttachments(
+  body: string,
+  caseAttachments: CaseAttachment[]
+): CaseAttachment[] {
+  const bodyFilenames = [
+    ...extractAttachmentFilenamesFromBody(body),
+    ...extractComposeAttachmentFilenamesFromBody(body),
+  ]
+
+  if (bodyFilenames.length === 0) return []
+
+  if (caseAttachments.length > 0) {
+    const matched = caseAttachments.filter((attachment) =>
+      bodyFilenames.some((filename) => filenamesMatch(attachment.filename, filename))
+    )
+    if (matched.length > 0) return matched
+  }
+
+  return bodyFilenames.map((filename, index) => ({
+    id: `body-attachment-${index}`,
+    filename,
+    mime_type: "application/pdf",
+    created_at: "",
+  }))
+}
+
+/** Strips quoted prior messages so reply-chain text does not affect direction heuristics. */
+export function stripQuotedReplyContent(body: string): string {
+  if (!body.trim()) return body
+
+  const onWroteIndex = body.search(/\nOn .+ wrote:\s*(\n|$)/i)
+  if (onWroteIndex >= 0) {
+    return body.slice(0, onWroteIndex).trim()
+  }
+
+  const originalMessageIndex = body.search(/\n-{2,}\s*Original Message\s*-{2,}/i)
+  if (originalMessageIndex >= 0) {
+    return body.slice(0, originalMessageIndex).trim()
+  }
+
+  const outlookReplyIndex = body.search(/\nFrom:\s*.+\nSent:\s*.+\nTo:\s*/i)
+  if (outlookReplyIndex >= 0) {
+    return body.slice(0, outlookReplyIndex).trim()
+  }
+
+  const lines = body.split("\n")
+  const firstQuoteLine = lines.findIndex((line) => line.trimStart().startsWith(">"))
+  if (firstQuoteLine > 0) {
+    return lines.slice(0, firstQuoteLine).join("\n").trim()
+  }
+
+  return body.trim()
+}
+
+function getCommunicationBodyText(comm: DisputeCommunication): string {
+  return comm.message_body || (comm as { body?: string }).body || ""
+}
+
 export function getCommunicationDirection(
   comm: DisputeCommunication,
   options?: { isCaseOrigin?: boolean }
@@ -174,8 +248,13 @@ export function getCommunicationDirection(
   if (comm.communication_type === "INTERNAL") {
     return "Sent"
   }
+  // AI/system outbound customer emails are persisted as CUSTOMER and get a Gmail id after send.
+  if (comm.communication_type === "CUSTOMER" && comm.gmail_message_id) {
+    return "Sent"
+  }
+
   const subject = (comm.subject || "").toLowerCase()
-  const body = (comm.message_body || "").toLowerCase()
+  const body = stripQuotedReplyContent(getCommunicationBodyText(comm)).toLowerCase()
   const outboundMarkers = [
     "paisa vasool",
     "escalation request",
