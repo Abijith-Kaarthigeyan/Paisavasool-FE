@@ -71,23 +71,27 @@ export const CustomerListPage: React.FC = () => {
         }
       />
 
-      <FilterBar
-        searchValue={searchTerm}
-        onSearchChange={(value) => {
-          setSearchTerm(value)
-          setCurrentPage(1)
-        }}
-        searchPlaceholder="Search by name, customer code, or email…"
-      >
-        <span className="text-sm text-muted-foreground">
-          Total customers:{" "}
-          <span className="font-semibold tabular-nums text-foreground">
-            {filteredCustomers.length}
-          </span>
-        </span>
-      </FilterBar>
-
       <Card>
+        <div className="border-b border-border p-3">
+          <FilterBar
+            variant="toolbar"
+            size="sm"
+            searchValue={searchTerm}
+            onSearchChange={(value) => {
+              setSearchTerm(value)
+              setCurrentPage(1)
+            }}
+            searchPlaceholder="Search by name, customer code, or email…"
+            footer={
+              <>
+                Total customers:{" "}
+                <span className="font-semibold tabular-nums text-foreground">
+                  {filteredCustomers.length}
+                </span>
+              </>
+            }
+          />
+        </div>
         <CardContent className="p-0">
           {isLoading ? (
             <div className="p-4">

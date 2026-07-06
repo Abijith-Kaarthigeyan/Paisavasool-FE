@@ -165,21 +165,24 @@ export const EscalatedDisputesPage: React.FC = () => {
         }
       />
 
-      <FilterBar
-        searchValue={searchTerm}
-        onSearchChange={(value) => {
-          setSearchTerm(value)
-          setCurrentPage(1)
-        }}
-        searchPlaceholder="Search by dispute number or category…"
-        showClear={!!searchTerm}
-        onClear={() => {
-          setSearchTerm("")
-          setCurrentPage(1)
-        }}
-      />
-
       <Card>
+        <div className="border-b border-border p-3">
+          <FilterBar
+            variant="toolbar"
+            size="sm"
+            searchValue={searchTerm}
+            onSearchChange={(value) => {
+              setSearchTerm(value)
+              setCurrentPage(1)
+            }}
+            searchPlaceholder="Search by dispute number or category…"
+            showClear={!!searchTerm}
+            onClear={() => {
+              setSearchTerm("")
+              setCurrentPage(1)
+            }}
+          />
+        </div>
         <CardContent className="p-0">
           {isLoading ? (
             <TableSkeleton rows={8} columns={7} />

@@ -7,12 +7,10 @@ import { TableSkeleton } from "@/components/ui/skeleton"
 import { Pagination } from "@/components/ui/pagination"
 import { PageHeader } from "@/components/ui/page-header"
 import { PageBreadcrumb } from "@/components/ui/page-breadcrumb"
-import { FilterBar } from "@/components/ui/filter-bar"
+import { FilterBar, FilterSelect } from "@/components/ui/filter-bar"
 import { getDashboardPath } from "@/lib/navigation"
 import { EmptyState } from "@/components/ui/empty-state"
 import { Button } from "@/components/ui/button"
-import { Label } from "@/components/ui/label"
-import { Select } from "@/components/ui/select"
 import {
   Table,
   TableBody,
@@ -118,9 +116,10 @@ export const InvoiceListPage: React.FC = () => {
       />
 
       <Card>
-        <CardContent className="space-y-4 p-4">
+        <div className="border-b border-border p-3">
           <FilterBar
-            className="sm:items-end lg:flex-nowrap"
+            variant="toolbar"
+            size="sm"
             searchValue={searchTerm}
             onSearchChange={(value) => {
               setSearchTerm(value)
@@ -129,55 +128,48 @@ export const InvoiceListPage: React.FC = () => {
             searchPlaceholder="Search by invoice number or customer…"
             showClear={hasActiveFilters}
             onClear={clearFilters}
+            footer={
+              <>
+                Total open balance:{" "}
+                <span className="font-semibold tabular-nums text-foreground">
+                  {formatCurrency(totalOpenBalance)}
+                </span>
+              </>
+            }
           >
-            <div className="flex min-w-0 flex-1 flex-wrap items-end gap-3 lg:flex-nowrap">
-              <div className="min-w-[9rem] flex-1 space-y-1.5">
-                <Label htmlFor="status-filter">Status</Label>
-                <Select
-                  id="status-filter"
-                  value={statusFilter}
-                  onChange={(e) => {
-                    setStatusFilter(e.target.value)
-                    setCurrentPage(1)
-                  }}
-                >
-                  <option value="">All statuses</option>
-                  <option value="PENDING">Pending</option>
-                  <option value="PARTIALLY_PAID">Partially paid</option>
-                  <option value="PAID">Paid</option>
-                  <option value="DISPUTED">Disputed</option>
-                </Select>
-              </div>
-              <div className="min-w-[9rem] flex-1 space-y-1.5">
-                <Label htmlFor="customer-filter">Customer</Label>
-                <Select
-                  id="customer-filter"
-                  value={customerFilter}
-                  onChange={(e) => {
-                    setCustomerFilter(e.target.value)
-                    setCurrentPage(1)
-                  }}
-                >
-                  <option value="">All customers</option>
-                  {filterOptions.customers.map((cust) => (
-                    <option key={cust} value={cust}>
-                      {cust}
-                    </option>
-                  ))}
-                </Select>
-              </div>
-            </div>
+            <FilterSelect
+              id="status-filter"
+              aria-label="Status"
+              value={statusFilter}
+              onChange={(e) => {
+                setStatusFilter(e.target.value)
+                setCurrentPage(1)
+              }}
+            >
+              <option value="">All statuses</option>
+              <option value="PENDING">Pending</option>
+              <option value="PARTIALLY_PAID">Partially paid</option>
+              <option value="PAID">Paid</option>
+              <option value="DISPUTED">Disputed</option>
+            </FilterSelect>
+            <FilterSelect
+              id="customer-filter"
+              aria-label="Customer"
+              value={customerFilter}
+              onChange={(e) => {
+                setCustomerFilter(e.target.value)
+                setCurrentPage(1)
+              }}
+            >
+              <option value="">All customers</option>
+              {filterOptions.customers.map((cust) => (
+                <option key={cust} value={cust}>
+                  {cust}
+                </option>
+              ))}
+            </FilterSelect>
           </FilterBar>
-          <p className="text-sm text-muted-foreground">
-            Total open balance:{" "}
-            <span className="font-semibold tabular-nums text-foreground">
-              {formatCurrency(totalOpenBalance)}
-            </span>
-          </p>
-        </CardContent>
-      </Card>
-
-      <Card>
+        </div>
         <CardContent className="p-0">
           {isLoading ? (
             <div className="p-4">

@@ -97,8 +97,10 @@ export const CasesListPage: React.FC = () => {
       />
 
       <Card>
-        <CardContent className="p-4">
+        <div className="border-b border-border p-3">
           <FilterBar
+            variant="toolbar"
+            size="sm"
             searchValue={searchTerm}
             onSearchChange={(value) => {
               setSearchTerm(value)
@@ -111,10 +113,7 @@ export const CasesListPage: React.FC = () => {
               setCurrentPage(1)
             }}
           />
-        </CardContent>
-      </Card>
-
-      <Card>
+        </div>
         <CardContent className="p-0">
           {isLoading ? (
             <TableSkeleton rows={8} columns={5} />

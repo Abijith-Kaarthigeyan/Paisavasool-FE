@@ -9,13 +9,12 @@ import { Badge } from "@/components/ui/badge"
 import { TableSkeleton } from "@/components/ui/skeleton"
 import { PageHeader } from "@/components/ui/page-header"
 import { PageBreadcrumb } from "@/components/ui/page-breadcrumb"
-import { FilterBar } from "@/components/ui/filter-bar"
+import { FilterBar, FilterSelect } from "@/components/ui/filter-bar"
 import { Pagination } from "@/components/ui/pagination"
 import { getDashboardPath } from "@/lib/navigation"
 import { EmptyState } from "@/components/ui/empty-state"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
-import { Select } from "@/components/ui/select"
 import { Input } from "@/components/ui/input"
 import { ConfidenceMeter } from "@/components/ui/confidence-meter"
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter } from "@/components/ui/sheet"
@@ -309,11 +308,12 @@ export const ReviewQueuePage: React.FC = () => {
         title="Payment matching reviews"
       />
 
-      {!isLoading && !isError && reviews.length > 0 && (
-        <Card>
-          <CardContent className="p-4">
+      <Card>
+        {!isLoading && !isError && reviews.length > 0 && (
+          <div className="border-b border-border p-3">
             <FilterBar
-              className="sm:items-end lg:flex-nowrap"
+              variant="toolbar"
+              size="sm"
               searchValue={searchTerm}
               onSearchChange={(value) => {
                 setSearchTerm(value)
@@ -323,64 +323,53 @@ export const ReviewQueuePage: React.FC = () => {
               showClear={hasActiveFilters}
               onClear={clearFilters}
             >
-              <div className="flex min-w-0 flex-1 flex-wrap items-end gap-3 lg:flex-nowrap">
-                <div className="min-w-[8rem] flex-1 space-y-1.5">
-                  <Label htmlFor="filter-status">Status</Label>
-                  <Select
-                    id="filter-status"
-                    value={statusFilter}
-                    onChange={(e) => {
-                      setStatusFilter(e.target.value)
-                      setCurrentPage(1)
-                    }}
-                  >
-                    <option value="">All statuses</option>
-                    <option value="PENDING">Pending</option>
-                    <option value="APPROVED">Approved</option>
-                    <option value="REJECTED">Rejected</option>
-                  </Select>
-                </div>
-                <div className="min-w-[8rem] flex-1 space-y-1.5">
-                  <Label htmlFor="filter-reason">Review reason</Label>
-                  <Select
-                    id="filter-reason"
-                    value={reasonFilter}
-                    onChange={(e) => {
-                      setReasonFilter(e.target.value)
-                      setCurrentPage(1)
-                    }}
-                  >
-                    <option value="">All reasons</option>
-                    {filterOptions.reasons.map((reason) => (
-                      <option key={reason} value={reason}>
-                        {reason.replace(/_/g, " ")}
-                      </option>
-                    ))}
-                  </Select>
-                </div>
-                <div className="min-w-[8rem] flex-1 space-y-1.5">
-                  <Label htmlFor="filter-confidence">Confidence</Label>
-                  <Select
-                    id="filter-confidence"
-                    value={confidenceFilter}
-                    onChange={(e) => {
-                      setConfidenceFilter(e.target.value)
-                      setCurrentPage(1)
-                    }}
-                  >
-                    <option value="">All confidence levels</option>
-                    <option value="high">High (80%+)</option>
-                    <option value="medium">Medium (50–79%)</option>
-                    <option value="low">Low (&lt;50%)</option>
-                  </Select>
-                </div>
-              </div>
+              <FilterSelect
+                id="filter-status"
+                aria-label="Status"
+                value={statusFilter}
+                onChange={(e) => {
+                  setStatusFilter(e.target.value)
+                  setCurrentPage(1)
+                }}
+              >
+                <option value="">All statuses</option>
+                <option value="PENDING">Pending</option>
+                <option value="APPROVED">Approved</option>
+                <option value="REJECTED">Rejected</option>
+              </FilterSelect>
+              <FilterSelect
+                id="filter-reason"
+                aria-label="Review reason"
+                value={reasonFilter}
+                onChange={(e) => {
+                  setReasonFilter(e.target.value)
+                  setCurrentPage(1)
+                }}
+              >
+                <option value="">All reasons</option>
+                {filterOptions.reasons.map((reason) => (
+                  <option key={reason} value={reason}>
+                    {reason.replace(/_/g, " ")}
+                  </option>
+                ))}
+              </FilterSelect>
+              <FilterSelect
+                id="filter-confidence"
+                aria-label="Confidence"
+                value={confidenceFilter}
+                onChange={(e) => {
+                  setConfidenceFilter(e.target.value)
+                  setCurrentPage(1)
+                }}
+              >
+                <option value="">All confidence levels</option>
+                <option value="high">High (80%+)</option>
+                <option value="medium">Medium (50–79%)</option>
+                <option value="low">Low (&lt;50%)</option>
+              </FilterSelect>
             </FilterBar>
-          </CardContent>
-        </Card>
-      )}
-
-      <Card>
+          </div>
+        )}
         <CardContent className="p-0">
           {isLoading ? (
             <div className="p-4">

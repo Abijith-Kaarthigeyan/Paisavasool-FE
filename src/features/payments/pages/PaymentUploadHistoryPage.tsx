@@ -7,12 +7,10 @@ import { TableSkeleton } from "@/components/ui/skeleton"
 import { Pagination } from "@/components/ui/pagination"
 import { PageHeader } from "@/components/ui/page-header"
 import { PageBreadcrumb } from "@/components/ui/page-breadcrumb"
-import { FilterBar } from "@/components/ui/filter-bar"
+import { FilterBar, FilterSelect } from "@/components/ui/filter-bar"
 import { getDashboardPath } from "@/lib/navigation"
 import { EmptyState } from "@/components/ui/empty-state"
 import { Button } from "@/components/ui/button"
-import { Label } from "@/components/ui/label"
-import { Select } from "@/components/ui/select"
 import {
   Table,
   TableBody,
@@ -105,11 +103,12 @@ export const PaymentUploadHistoryPage: React.FC = () => {
         }
       />
 
-      {!isLoading && !isError && uploads.length > 0 && (
-        <Card>
-          <CardContent className="p-4">
+      <Card>
+        {!isLoading && !isError && uploads.length > 0 && (
+          <div className="border-b border-border p-3">
             <FilterBar
-              className="sm:items-end lg:flex-nowrap"
+              variant="toolbar"
+              size="sm"
               searchValue={searchTerm}
               onSearchChange={(value) => {
                 setSearchTerm(value)
@@ -119,50 +118,41 @@ export const PaymentUploadHistoryPage: React.FC = () => {
               showClear={hasActiveFilters}
               onClear={clearFilters}
             >
-              <div className="flex min-w-0 flex-1 flex-wrap items-end gap-3 lg:flex-nowrap">
-                <div className="min-w-[9rem] flex-1 space-y-1.5">
-                  <Label htmlFor="filter-status">Ingestion status</Label>
-                  <Select
-                    id="filter-status"
-                    value={statusFilter}
-                    onChange={(e) => {
-                      setStatusFilter(e.target.value)
-                      setCurrentPage(1)
-                    }}
-                  >
-                    <option value="">All statuses</option>
-                    <option value="UPLOADED">Uploaded</option>
-                    <option value="PROCESSING">Processing</option>
-                    <option value="MATCHED">Matched</option>
-                    <option value="REVIEW_REQUIRED">Review required</option>
-                    <option value="FAILED">Failed</option>
-                  </Select>
-                </div>
-                <div className="min-w-[9rem] flex-1 space-y-1.5">
-                  <Label htmlFor="filter-uploader">Uploaded by</Label>
-                  <Select
-                    id="filter-uploader"
-                    value={uploaderFilter}
-                    onChange={(e) => {
-                      setUploaderFilter(e.target.value)
-                      setCurrentPage(1)
-                    }}
-                  >
-                    <option value="">All uploaders</option>
-                    {filterOptions.uploaders.map((uploader) => (
-                      <option key={uploader} value={uploader}>
-                        {uploader}
-                      </option>
-                    ))}
-                  </Select>
-                </div>
-              </div>
+              <FilterSelect
+                id="filter-status"
+                aria-label="Ingestion status"
+                value={statusFilter}
+                onChange={(e) => {
+                  setStatusFilter(e.target.value)
+                  setCurrentPage(1)
+                }}
+              >
+                <option value="">All statuses</option>
+                <option value="UPLOADED">Uploaded</option>
+                <option value="PROCESSING">Processing</option>
+                <option value="MATCHED">Matched</option>
+                <option value="REVIEW_REQUIRED">Review required</option>
+                <option value="FAILED">Failed</option>
+              </FilterSelect>
+              <FilterSelect
+                id="filter-uploader"
+                aria-label="Uploaded by"
+                value={uploaderFilter}
+                onChange={(e) => {
+                  setUploaderFilter(e.target.value)
+                  setCurrentPage(1)
+                }}
+              >
+                <option value="">All uploaders</option>
+                {filterOptions.uploaders.map((uploader) => (
+                  <option key={uploader} value={uploader}>
+                    {uploader}
+                  </option>
+                ))}
+              </FilterSelect>
             </FilterBar>
-          </CardContent>
-        </Card>
-      )}
-
-      <Card>
+          </div>
+        )}
         <CardContent className="p-0">
           {isLoading ? (
             <div className="p-4">

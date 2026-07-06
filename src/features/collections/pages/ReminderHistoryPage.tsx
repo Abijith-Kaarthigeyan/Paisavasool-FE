@@ -6,11 +6,9 @@ import { TableSkeleton } from "@/components/ui/skeleton"
 import { Pagination } from "@/components/ui/pagination"
 import { PageHeader } from "@/components/ui/page-header"
 import { PageBreadcrumb } from "@/components/ui/page-breadcrumb"
-import { FilterBar } from "@/components/ui/filter-bar"
+import { FilterBar, FilterSelect } from "@/components/ui/filter-bar"
 import { EmptyState } from "@/components/ui/empty-state"
 import { Button } from "@/components/ui/button"
-import { Label } from "@/components/ui/label"
-import { Select } from "@/components/ui/select"
 import {
   Table,
   TableBody,
@@ -93,8 +91,10 @@ export const ReminderHistoryPage: React.FC = () => {
       />
 
       <Card>
-        <CardContent className="space-y-4 p-4">
+        <div className="border-b border-border p-3">
           <FilterBar
+            variant="toolbar"
+            size="sm"
             searchValue={searchTerm}
             onSearchChange={(value) => {
               setSearchTerm(value)
@@ -103,11 +103,10 @@ export const ReminderHistoryPage: React.FC = () => {
             searchPlaceholder="Search by subject, email, or content…"
             showClear={hasActiveFilters}
             onClear={clearFilters}
-          />
-          <div className="max-w-xs space-y-1.5">
-            <Label htmlFor="filter-reminder-status">Status</Label>
-            <Select
+          >
+            <FilterSelect
               id="filter-reminder-status"
+              aria-label="Status"
               value={statusFilter}
               onChange={(e) => {
                 setStatusFilter(e.target.value)
@@ -119,12 +118,9 @@ export const ReminderHistoryPage: React.FC = () => {
               <option value="PENDING">Pending</option>
               <option value="FAILED">Failed</option>
               <option value="CANCELLED">Cancelled</option>
-            </Select>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
+            </FilterSelect>
+          </FilterBar>
+        </div>
         <CardContent className="p-0">
           {isLoading ? (
             <TableSkeleton rows={8} columns={5} />

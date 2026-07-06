@@ -8,11 +8,9 @@ import { TableSkeleton } from "@/components/ui/skeleton"
 import { Pagination } from "@/components/ui/pagination"
 import { PageHeader } from "@/components/ui/page-header"
 import { PageBreadcrumb, type BreadcrumbItem } from "@/components/ui/page-breadcrumb"
-import { FilterBar } from "@/components/ui/filter-bar"
+import { FilterBar, FilterSelect } from "@/components/ui/filter-bar"
 import { EmptyState } from "@/components/ui/empty-state"
 import { Button } from "@/components/ui/button"
-import { Label } from "@/components/ui/label"
-import { Select } from "@/components/ui/select"
 import {
   Table,
   TableBody,
@@ -229,8 +227,10 @@ export const DisputesTable: React.FC<DisputesTableProps> = ({
       />
 
       <Card>
-        <CardContent className="space-y-4 p-4">
+        <div className="border-b border-border p-3">
           <FilterBar
+            variant="toolbar"
+            size="sm"
             searchValue={searchTerm}
             onSearchChange={(value) => {
               setSearchTerm(value)
@@ -239,104 +239,90 @@ export const DisputesTable: React.FC<DisputesTableProps> = ({
             searchPlaceholder="Search by dispute ID, invoice, or customer…"
             showClear={hasActiveFilters}
             onClear={clearFilters}
-          />
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-            <div className="space-y-1.5">
-              <Label htmlFor="filter-category">Category</Label>
-              <Select
-                id="filter-category"
-                value={categoryFilter}
-                onChange={(e) => {
-                  setCategoryFilter(e.target.value)
-                  setCurrentPage(1)
-                }}
-              >
-                <option value="">All categories</option>
-                {filterOptions.categories.map((cat) => (
-                  <option key={cat} value={cat}>
-                    {cat}
-                  </option>
-                ))}
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="filter-status">Status</Label>
-              <Select
-                id="filter-status"
-                value={statusFilter}
-                onChange={(e) => {
-                  setStatusFilter(e.target.value)
-                  setCurrentPage(1)
-                }}
-              >
-                <option value="">All statuses</option>
-                <option value="OPEN">Open</option>
-                <option value="IN_REVIEW">In review</option>
-                <option value="WAITING_CUSTOMER">Waiting customer</option>
-                <option value="WAITING_INTERNAL">Waiting internal</option>
-                <option value="RESOLVED">Resolved</option>
-                <option value="CLOSED">Closed</option>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="filter-invoice">Invoice</Label>
-              <Select
-                id="filter-invoice"
-                value={invoiceFilter}
-                onChange={(e) => {
-                  setInvoiceFilter(e.target.value)
-                  setCurrentPage(1)
-                }}
-              >
-                <option value="">All invoices</option>
-                {filterOptions.invoices.map((inv) => (
-                  <option key={inv} value={inv}>
-                    {inv}
-                  </option>
-                ))}
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="filter-customer">Customer</Label>
-              <Select
-                id="filter-customer"
-                value={customerFilter}
-                onChange={(e) => {
-                  setCustomerFilter(e.target.value)
-                  setCurrentPage(1)
-                }}
-              >
-                <option value="">All customers</option>
-                {filterOptions.customers.map((cust) => (
-                  <option key={cust} value={cust}>
-                    {cust}
-                  </option>
-                ))}
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="filter-assignee">Assignee</Label>
-              <Select
-                id="filter-assignee"
-                value={assigneeFilter}
-                onChange={(e) => {
-                  setAssigneeFilter(e.target.value)
-                  setCurrentPage(1)
-                }}
-              >
-                <option value="">All assignees</option>
-                {filterOptions.assignees.map((a) => (
-                  <option key={a} value={a}>
-                    {a}
-                  </option>
-                ))}
-              </Select>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
+          >
+            <FilterSelect
+              id="filter-category"
+              aria-label="Category"
+              value={categoryFilter}
+              onChange={(e) => {
+                setCategoryFilter(e.target.value)
+                setCurrentPage(1)
+              }}
+            >
+              <option value="">All categories</option>
+              {filterOptions.categories.map((cat) => (
+                <option key={cat} value={cat}>
+                  {cat}
+                </option>
+              ))}
+            </FilterSelect>
+            <FilterSelect
+              id="filter-status"
+              aria-label="Status"
+              value={statusFilter}
+              onChange={(e) => {
+                setStatusFilter(e.target.value)
+                setCurrentPage(1)
+              }}
+            >
+              <option value="">All statuses</option>
+              <option value="OPEN">Open</option>
+              <option value="IN_REVIEW">In review</option>
+              <option value="WAITING_CUSTOMER">Waiting customer</option>
+              <option value="WAITING_INTERNAL">Waiting internal</option>
+              <option value="RESOLVED">Resolved</option>
+              <option value="CLOSED">Closed</option>
+            </FilterSelect>
+            <FilterSelect
+              id="filter-invoice"
+              aria-label="Invoice"
+              value={invoiceFilter}
+              onChange={(e) => {
+                setInvoiceFilter(e.target.value)
+                setCurrentPage(1)
+              }}
+            >
+              <option value="">All invoices</option>
+              {filterOptions.invoices.map((inv) => (
+                <option key={inv} value={inv}>
+                  {inv}
+                </option>
+              ))}
+            </FilterSelect>
+            <FilterSelect
+              id="filter-customer"
+              aria-label="Customer"
+              value={customerFilter}
+              onChange={(e) => {
+                setCustomerFilter(e.target.value)
+                setCurrentPage(1)
+              }}
+            >
+              <option value="">All customers</option>
+              {filterOptions.customers.map((cust) => (
+                <option key={cust} value={cust}>
+                  {cust}
+                </option>
+              ))}
+            </FilterSelect>
+            <FilterSelect
+              id="filter-assignee"
+              aria-label="Assignee"
+              value={assigneeFilter}
+              onChange={(e) => {
+                setAssigneeFilter(e.target.value)
+                setCurrentPage(1)
+              }}
+            >
+              <option value="">All assignees</option>
+              {filterOptions.assignees.map((a) => (
+                <option key={a} value={a}>
+                  {a}
+                </option>
+              ))}
+            </FilterSelect>
+          </FilterBar>
+        </div>
         <CardContent className="p-0">
           {isLoading ? (
             <TableSkeleton rows={8} columns={8} />

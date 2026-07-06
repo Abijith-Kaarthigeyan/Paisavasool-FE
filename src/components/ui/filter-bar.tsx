@@ -3,6 +3,7 @@ import { Search, X } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
+import { Select, type SelectProps } from "@/components/ui/select"
 
 export interface FilterBarProps {
   searchValue: string
@@ -12,6 +13,10 @@ export interface FilterBarProps {
   onClear?: () => void
   showClear?: boolean
   className?: string
+  /** default = standalone bordered card; toolbar = compact row inside a table card */
+  variant?: "default" | "toolbar"
+  size?: "default" | "sm"
+  footer?: React.ReactNode
 }
 
 export function FilterBar({
@@ -22,46 +27,81 @@ export function FilterBar({
   onClear,
   showClear,
   className,
+  variant = "default",
+  size = "default",
+  footer,
 }: FilterBarProps) {
+  const isToolbar = variant === "toolbar"
+  const isCompact = size === "sm" || isToolbar
+
   return (
-    <div
-      className={cn(
-        "flex flex-col gap-3 rounded-lg border border-border bg-card p-4 sm:flex-row sm:flex-wrap sm:items-center",
-        className
-      )}
-    >
-      <div className="relative min-w-[12rem] flex-1 sm:max-w-xs">
-        <Search
-          className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
-          aria-hidden
-        />
-        <Input
-          type="search"
-          value={searchValue}
-          onChange={(e) => onSearchChange(e.target.value)}
-          placeholder={searchPlaceholder}
-          className="pl-9"
-          aria-label={searchPlaceholder}
-        />
+    <div className={cn(isToolbar ? "space-y-2" : undefined, className)}>
+      <div
+        className={cn(
+          "flex flex-wrap items-center gap-2",
+          !isToolbar && "flex-col gap-3 rounded-lg border border-border bg-card p-4 sm:flex-row sm:items-center"
+        )}
+      >
+        <div
+          className={cn(
+            "relative min-w-[10rem] flex-1",
+            isCompact ? "sm:max-w-[14rem]" : "sm:max-w-xs"
+          )}
+        >
+          <Search
+            className={cn(
+              "pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground",
+              isCompact ? "h-3.5 w-3.5" : "left-3 h-4 w-4"
+            )}
+            aria-hidden
+          />
+          <Input
+            type="search"
+            value={searchValue}
+            onChange={(e) => onSearchChange(e.target.value)}
+            placeholder={searchPlaceholder}
+            className={cn(isCompact ? "h-8 pl-8 text-xs" : "pl-9")}
+            aria-label={searchPlaceholder}
+          />
+        </div>
+
+        {children && (
+          <div className="flex min-w-0 flex-wrap items-center gap-2">{children}</div>
+        )}
+
+        {showClear && onClear && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={onClear}
+            className={cn(
+              "shrink-0 text-muted-foreground",
+              isCompact && "h-8 px-2"
+            )}
+            aria-label="Clear filters"
+          >
+            <X className="h-3.5 w-3.5" aria-hidden />
+            <span className={cn(isCompact && "hidden sm:inline")}>Clear filters</span>
+          </Button>
+        )}
       </div>
 
-      {children && (
-        <div className="flex min-w-0 flex-1 flex-wrap items-end gap-2">{children}</div>
-      )}
-
-      {showClear && onClear && (
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          onClick={onClear}
-          className="shrink-0 text-muted-foreground"
-        >
-          <X className="h-3.5 w-3.5" aria-hidden />
-          Clear filters
-        </Button>
+      {footer && (
+        <div className="text-xs text-muted-foreground sm:text-sm">{footer}</div>
       )}
     </div>
+  )
+}
+
+/** Compact select sized for filter toolbars — use with aria-label instead of a visible Label */
+export function FilterSelect({ className, compact = true, ...props }: SelectProps) {
+  return (
+    <Select
+      compact={compact}
+      className={cn("w-[9.5rem] shrink-0", className)}
+      {...props}
+    />
   )
 }
 

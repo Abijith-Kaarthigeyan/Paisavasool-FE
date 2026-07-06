@@ -7,11 +7,9 @@ import { TableSkeleton } from "@/components/ui/skeleton"
 import { Pagination } from "@/components/ui/pagination"
 import { PageHeader } from "@/components/ui/page-header"
 import { PageBreadcrumb, type BreadcrumbItem } from "@/components/ui/page-breadcrumb"
-import { FilterBar } from "@/components/ui/filter-bar"
+import { FilterBar, FilterSelect } from "@/components/ui/filter-bar"
 import { EmptyState } from "@/components/ui/empty-state"
 import { Button } from "@/components/ui/button"
-import { Label } from "@/components/ui/label"
-import { Select } from "@/components/ui/select"
 import {
   Table,
   TableBody,
@@ -198,8 +196,10 @@ export const CollectionsCasesTable: React.FC<CollectionsCasesTableProps> = ({
       />
 
       <Card>
-        <CardContent className="space-y-4 p-4">
+        <div className="border-b border-border p-3">
           <FilterBar
+            variant="toolbar"
+            size="sm"
             searchValue={searchTerm}
             onSearchChange={(value) => {
               setSearchTerm(value)
@@ -208,93 +208,75 @@ export const CollectionsCasesTable: React.FC<CollectionsCasesTableProps> = ({
             searchPlaceholder="Search by case ID, customer, or invoice…"
             showClear={hasActiveFilters}
             onClear={clearFilters}
-          />
-          <div
-            className={
-              filterMode === "full"
-                ? "grid grid-cols-2 gap-3 sm:grid-cols-2 lg:grid-cols-4"
-                : "grid grid-cols-1 gap-3 sm:grid-cols-2"
-            }
           >
-            <div className="space-y-1.5">
-              <Label htmlFor="filter-priority">Priority</Label>
-              <Select
-                id="filter-priority"
-                value={priorityFilter}
-                onChange={(e) => {
-                  setPriorityFilter(e.target.value)
-                  setCurrentPage(1)
-                }}
-              >
-                <option value="">All priorities</option>
-                <option value="LOW">Low</option>
-                <option value="MEDIUM">Medium</option>
-                <option value="HIGH">High</option>
-              </Select>
-            </div>
+            <FilterSelect
+              id="filter-priority"
+              aria-label="Priority"
+              value={priorityFilter}
+              onChange={(e) => {
+                setPriorityFilter(e.target.value)
+                setCurrentPage(1)
+              }}
+            >
+              <option value="">All priorities</option>
+              <option value="LOW">Low</option>
+              <option value="MEDIUM">Medium</option>
+              <option value="HIGH">High</option>
+            </FilterSelect>
             {filterMode === "full" && (
               <>
-                <div className="space-y-1.5">
-                  <Label htmlFor="filter-bucket">Aging bucket</Label>
-                  <Select
-                    id="filter-bucket"
-                    value={bucketFilter}
-                    onChange={(e) => {
-                      setBucketFilter(e.target.value)
-                      setCurrentPage(1)
-                    }}
-                  >
-                    <option value="">All buckets</option>
-                    <option value="CURRENT">Current</option>
-                    <option value="0-30">0–30 days</option>
-                    <option value="31-60">31–60 days</option>
-                    <option value="61-90">61–90 days</option>
-                    <option value="90_PLUS">90+ days</option>
-                  </Select>
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="filter-customer">Customer</Label>
-                  <Select
-                    id="filter-customer"
-                    value={customerFilter}
-                    onChange={(e) => {
-                      setCustomerFilter(e.target.value)
-                      setCurrentPage(1)
-                    }}
-                  >
-                    <option value="">All customers</option>
-                    {filterOptions.customers.map((cust) => (
-                      <option key={cust} value={cust}>
-                        {cust}
-                      </option>
-                    ))}
-                  </Select>
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="filter-associate">Assigned associate</Label>
-                  <Select
-                    id="filter-associate"
-                    value={associateFilter}
-                    onChange={(e) => {
-                      setAssociateFilter(e.target.value)
-                      setCurrentPage(1)
-                    }}
-                  >
-                    <option value="">All associates</option>
-                    {filterOptions.associates.map((assoc) => (
-                      <option key={assoc} value={assoc}>
-                        {assoc}
-                      </option>
-                    ))}
-                  </Select>
-                </div>
+                <FilterSelect
+                  id="filter-bucket"
+                  aria-label="Aging bucket"
+                  value={bucketFilter}
+                  onChange={(e) => {
+                    setBucketFilter(e.target.value)
+                    setCurrentPage(1)
+                  }}
+                >
+                  <option value="">All buckets</option>
+                  <option value="CURRENT">Current</option>
+                  <option value="0-30">0–30 days</option>
+                  <option value="31-60">31–60 days</option>
+                  <option value="61-90">61–90 days</option>
+                  <option value="90_PLUS">90+ days</option>
+                </FilterSelect>
+                <FilterSelect
+                  id="filter-customer"
+                  aria-label="Customer"
+                  value={customerFilter}
+                  onChange={(e) => {
+                    setCustomerFilter(e.target.value)
+                    setCurrentPage(1)
+                  }}
+                >
+                  <option value="">All customers</option>
+                  {filterOptions.customers.map((cust) => (
+                    <option key={cust} value={cust}>
+                      {cust}
+                    </option>
+                  ))}
+                </FilterSelect>
+                <FilterSelect
+                  id="filter-associate"
+                  aria-label="Assigned associate"
+                  value={associateFilter}
+                  onChange={(e) => {
+                    setAssociateFilter(e.target.value)
+                    setCurrentPage(1)
+                  }}
+                >
+                  <option value="">All associates</option>
+                  {filterOptions.associates.map((assoc) => (
+                    <option key={assoc} value={assoc}>
+                      {assoc}
+                    </option>
+                  ))}
+                </FilterSelect>
               </>
             )}
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
+          </FilterBar>
+        </div>
         <CardContent className="p-0">
           {isLoading ? (
             <TableSkeleton rows={8} columns={showAssignedColumn ? 7 : 6} />

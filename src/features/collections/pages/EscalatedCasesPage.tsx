@@ -245,9 +245,11 @@ export const EscalatedCasesPage: React.FC = () => {
         }
       />
 
-      <Card>
-        <CardContent className="p-4">
+      <Card className="border-t-2 border-t-destructive/40">
+        <div className="border-b border-border p-3">
           <FilterBar
+            variant="toolbar"
+            size="sm"
             searchValue={searchTerm}
             onSearchChange={(value) => {
               setSearchTerm(value)
@@ -260,10 +262,7 @@ export const EscalatedCasesPage: React.FC = () => {
               setCurrentPage(1)
             }}
           />
-        </CardContent>
-      </Card>
-
-      <Card className="border-t-2 border-t-destructive/40">
+        </div>
         <CardContent className="p-0">
           {isLoading ? (
             <TableSkeleton rows={8} columns={7} />
