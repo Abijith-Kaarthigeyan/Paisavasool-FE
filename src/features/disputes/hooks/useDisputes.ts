@@ -116,6 +116,15 @@ export const useDisputes = (params?: { customer_id?: string; status?: string }) 
   return useEnrichedDisputes(disputes, isLoading);
 };
 
+export const useMyAssignedDisputes = () => {
+  const { data: disputes, isLoading } = useQuery({
+    queryKey: ["myAssignedDisputes"],
+    queryFn: () => disputeService.getMyDisputes(),
+  });
+
+  return useEnrichedDisputes(disputes, isLoading);
+};
+
 export const useDispute = (id: string) => {
   const query = useQuery({
     queryKey: ["dispute", id],

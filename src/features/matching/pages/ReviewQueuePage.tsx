@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react"
+import React, { useState, useEffect, useMemo } from "react"
 import { usePaymentReviews, usePaymentDetails, useApproveReview, useRejectReview } from "../hooks/useReviews"
 import { useInvoices } from "@/features/invoices/hooks/useInvoices"
 import { useQuery } from "@tanstack/react-query"
@@ -9,13 +9,16 @@ import { Badge } from "@/components/ui/badge"
 import { TableSkeleton } from "@/components/ui/skeleton"
 import { PageHeader } from "@/components/ui/page-header"
 import { PageBreadcrumb } from "@/components/ui/page-breadcrumb"
+import { FilterBar } from "@/components/ui/filter-bar"
+import { Pagination } from "@/components/ui/pagination"
 import { getDashboardPath } from "@/lib/navigation"
 import { EmptyState } from "@/components/ui/empty-state"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
+import { Select } from "@/components/ui/select"
 import { Input } from "@/components/ui/input"
 import { ConfidenceMeter } from "@/components/ui/confidence-meter"
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetFooter } from "@/components/ui/sheet"
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter } from "@/components/ui/sheet"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
 import {
   Table,
@@ -35,6 +38,8 @@ import { cn } from "@/lib/utils"
 import { formatCurrency } from "@/lib/formatCurrency"
 import { AlertTriangle, Check, CheckCircle, HelpCircle, X } from "lucide-react"
 
+import type { PaymentReviewResponse } from "../types"
+
 const hoverScrollBase = "overflow-x-hidden hover-scroll-y"
 const hoverScrollList = cn(hoverScrollBase, "max-h-[280px] space-y-2.5")
 const sectionCard = "rounded-lg border border-border bg-card shadow-card"
@@ -42,8 +47,15 @@ const sectionLabel = "text-xs font-semibold uppercase tracking-wide text-muted-f
 
 export const ReviewQueuePage: React.FC = () => {
   const { toast } = useToast()
-  const [selectedReview, setSelectedReview] = useState<any | null>(null)
+  const [selectedReview, setSelectedReview] = useState<PaymentReviewResponse | null>(null)
   const [isDrawerOpen, setIsDrawerOpen] = useState(false)
+
+  const [searchTerm, setSearchTerm] = useState("")
+  const [statusFilter, setStatusFilter] = useState("")
+  const [reasonFilter, setReasonFilter] = useState("")
+  const [confidenceFilter, setConfidenceFilter] = useState("")
+  const [currentPage, setCurrentPage] = useState(1)
+  const itemsPerPage = 10
 
   const [confirmAction, setConfirmAction] = useState<"approve" | "reject" | null>(null)
   const [isConfirmOpen, setIsConfirmOpen] = useState(false)
@@ -53,9 +65,54 @@ export const ReviewQueuePage: React.FC = () => {
   const approveMutation = useApproveReview()
   const rejectMutation = useRejectReview()
 
-  const handleRowClick = (reviewItem: any) => {
+  const handleRowClick = (reviewItem: PaymentReviewResponse) => {
     setSelectedReview(reviewItem)
     setIsDrawerOpen(true)
+  }
+
+  const filterOptions = useMemo(() => {
+    const reasons = new Set<string>()
+    reviews.forEach((rev) => {
+      if (rev.review_reason) reasons.add(rev.review_reason)
+    })
+    return { reasons: Array.from(reasons).sort() }
+  }, [reviews])
+
+  const filteredReviews = useMemo(() => {
+    return reviews.filter((rev) => {
+      const term = searchTerm.toLowerCase()
+      const matchesSearch =
+        rev.review_reason.toLowerCase().includes(term) ||
+        (rev.suggested_customer_name || "").toLowerCase().includes(term) ||
+        (rev.suggested_customer_code || "").toLowerCase().includes(term)
+
+      const matchesStatus = !statusFilter || rev.status === statusFilter
+      const matchesReason = !reasonFilter || rev.review_reason === reasonFilter
+
+      let matchesConfidence = true
+      if (confidenceFilter === "high") matchesConfidence = rev.confidence >= 80
+      else if (confidenceFilter === "medium")
+        matchesConfidence = rev.confidence >= 50 && rev.confidence < 80
+      else if (confidenceFilter === "low") matchesConfidence = rev.confidence < 50
+
+      return matchesSearch && matchesStatus && matchesReason && matchesConfidence
+    })
+  }, [reviews, searchTerm, statusFilter, reasonFilter, confidenceFilter])
+
+  const totalItems = filteredReviews.length
+  const totalPages = Math.max(1, Math.ceil(totalItems / itemsPerPage))
+  const startIndex = (currentPage - 1) * itemsPerPage
+  const paginatedReviews = filteredReviews.slice(startIndex, startIndex + itemsPerPage)
+
+  const hasActiveFilters =
+    !!searchTerm || !!statusFilter || !!reasonFilter || !!confidenceFilter
+
+  const clearFilters = () => {
+    setSearchTerm("")
+    setStatusFilter("")
+    setReasonFilter("")
+    setConfidenceFilter("")
+    setCurrentPage(1)
   }
 
   const handleActionConfirm = () => {
@@ -252,6 +309,77 @@ export const ReviewQueuePage: React.FC = () => {
         title="Payment matching reviews"
       />
 
+      {!isLoading && !isError && reviews.length > 0 && (
+        <Card>
+          <CardContent className="p-4">
+            <FilterBar
+              className="sm:items-end lg:flex-nowrap"
+              searchValue={searchTerm}
+              onSearchChange={(value) => {
+                setSearchTerm(value)
+                setCurrentPage(1)
+              }}
+              searchPlaceholder="Search by reason or suggested customer…"
+              showClear={hasActiveFilters}
+              onClear={clearFilters}
+            >
+              <div className="flex min-w-0 flex-1 flex-wrap items-end gap-3 lg:flex-nowrap">
+                <div className="min-w-[8rem] flex-1 space-y-1.5">
+                  <Label htmlFor="filter-status">Status</Label>
+                  <Select
+                    id="filter-status"
+                    value={statusFilter}
+                    onChange={(e) => {
+                      setStatusFilter(e.target.value)
+                      setCurrentPage(1)
+                    }}
+                  >
+                    <option value="">All statuses</option>
+                    <option value="PENDING">Pending</option>
+                    <option value="APPROVED">Approved</option>
+                    <option value="REJECTED">Rejected</option>
+                  </Select>
+                </div>
+                <div className="min-w-[8rem] flex-1 space-y-1.5">
+                  <Label htmlFor="filter-reason">Review reason</Label>
+                  <Select
+                    id="filter-reason"
+                    value={reasonFilter}
+                    onChange={(e) => {
+                      setReasonFilter(e.target.value)
+                      setCurrentPage(1)
+                    }}
+                  >
+                    <option value="">All reasons</option>
+                    {filterOptions.reasons.map((reason) => (
+                      <option key={reason} value={reason}>
+                        {reason.replace(/_/g, " ")}
+                      </option>
+                    ))}
+                  </Select>
+                </div>
+                <div className="min-w-[8rem] flex-1 space-y-1.5">
+                  <Label htmlFor="filter-confidence">Confidence</Label>
+                  <Select
+                    id="filter-confidence"
+                    value={confidenceFilter}
+                    onChange={(e) => {
+                      setConfidenceFilter(e.target.value)
+                      setCurrentPage(1)
+                    }}
+                  >
+                    <option value="">All confidence levels</option>
+                    <option value="high">High (80%+)</option>
+                    <option value="medium">Medium (50–79%)</option>
+                    <option value="low">Low (&lt;50%)</option>
+                  </Select>
+                </div>
+              </div>
+            </FilterBar>
+          </CardContent>
+        </Card>
+      )}
+
       <Card>
         <CardContent className="p-0">
           {isLoading ? (
@@ -270,6 +398,11 @@ export const ReviewQueuePage: React.FC = () => {
               title="Review queue is empty"
               description="All payment matches have been resolved automatically."
             />
+          ) : filteredReviews.length === 0 ? (
+            <EmptyState
+              title="No reviews found"
+              description="No payment matches match the current filters."
+            />
           ) : (
             <Table>
               <TableHeader>
@@ -282,7 +415,7 @@ export const ReviewQueuePage: React.FC = () => {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {reviews.map((rev) => (
+                {paginatedReviews.map((rev) => (
                   <TableRow
                     key={rev.id}
                     className={cn(
@@ -327,11 +460,20 @@ export const ReviewQueuePage: React.FC = () => {
         </CardContent>
       </Card>
 
+      {!isLoading && !isError && totalPages > 1 && (
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onPageChange={setCurrentPage}
+          totalItems={totalItems}
+          pageSize={itemsPerPage}
+        />
+      )}
+
       <Sheet open={isDrawerOpen} onOpenChange={setIsDrawerOpen}>
         <SheetContent className="flex h-full flex-col overflow-hidden pb-0">
           <SheetHeader className="shrink-0">
             <SheetTitle>Payment match resolution</SheetTitle>
-            <SheetDescription>Verify bank wire metadata and allocate cash amounts.</SheetDescription>
           </SheetHeader>
 
           {isPaymentLoading ? (
@@ -367,6 +509,14 @@ export const ReviewQueuePage: React.FC = () => {
                     {new Date(paymentDetails.payment_date).toLocaleDateString()}
                   </span>
                 </div>
+                {paymentDetails.payment_reference && (
+                  <div className="flex flex-col">
+                    <span className={sectionLabel}>UTR number</span>
+                    <span className="mt-1 text-sm font-medium tracking-wide text-foreground uppercase">
+                      {paymentDetails.payment_reference}
+                    </span>
+                  </div>
+                )}
               </div>
 
               {selectedReview?.suggested_candidates &&
@@ -466,8 +616,8 @@ export const ReviewQueuePage: React.FC = () => {
                           size="sm"
                           className="h-8 shrink-0 text-xs font-medium"
                           onClick={() => {
-                            setSelectedCustomerId(selectedReview.suggested_customer_id)
-                            setCustomerCodeInput(selectedReview.suggested_customer_code)
+                            setSelectedCustomerId(selectedReview.suggested_customer_id ?? "")
+                            setCustomerCodeInput(selectedReview.suggested_customer_code ?? "")
                           }}
                         >
                           Use suggestion

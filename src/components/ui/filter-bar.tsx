@@ -46,7 +46,7 @@ export function FilterBar({
       </div>
 
       {children && (
-        <div className="flex flex-wrap items-center gap-2">{children}</div>
+        <div className="flex min-w-0 flex-1 flex-wrap items-end gap-2">{children}</div>
       )}
 
       {showClear && onClear && (

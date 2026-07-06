@@ -77,10 +77,6 @@ export const InvoiceDetailPage: React.FC = () => {
     ? String(displaySnapshot?.invoice_number ?? invoice?.invoice_number)
     : invoice?.invoice_number
 
-  const headerStatus = viewingHistorical
-    ? String(displaySnapshot?.status ?? "HISTORICAL")
-    : invoice?.status
-
   const subtotal = viewingHistorical
     ? Number(displaySnapshot?.subtotal_amount ?? 0)
     : invoice?.subtotal_amount ?? 0
@@ -194,10 +190,10 @@ export const InvoiceDetailPage: React.FC = () => {
               </div>
             )}
             <Badge
-              variant={getStatusVariant(INVOICE_STATUS_VARIANT, headerStatus)}
+              variant={getStatusVariant(INVOICE_STATUS_VARIANT, invoice.status)}
               shape="pill"
             >
-              {headerStatus?.replace(/_/g, " ")}
+              {invoice.status.replace(/_/g, " ")}
             </Badge>
           </div>
         }

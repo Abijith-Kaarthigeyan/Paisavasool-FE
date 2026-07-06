@@ -11,6 +11,7 @@ export const useEmailPoll = () => {
       queryClient.invalidateQueries({ queryKey: ["disputes"] })
       queryClient.invalidateQueries({ queryKey: ["disputeReviewQueue"] })
       queryClient.invalidateQueries({ queryKey: ["invoices"] })
+      queryClient.invalidateQueries({ queryKey: ["emailManualReview"] })
     },
   })
 }

@@ -6,14 +6,16 @@ import { RootState } from "@/app/store"
 import { invoiceService } from "@/features/invoices/services/invoiceService"
 import { useAgingAnalytics } from "@/features/collections/hooks/useCollections"
 import { useDisputes } from "@/features/disputes/hooks/useDisputes"
+import { needsAssociateInput } from "@/features/disputes/utils/disputeFormatters"
 import { useCustomers } from "@/features/customers/hooks/useCustomers"
 import { usePaymentReviews } from "@/features/matching/hooks/useReviews"
 import { Skeleton } from "@/components/ui/skeleton"
 import { ClickableWidget } from "../components/ClickableWidget"
 import { DashboardGreeting, getGreetingName } from "../components/DashboardGreeting"
+import { AssociateHeaderActions } from "../components/AssociateHeaderActions"
 import { DisputeCategoryChart } from "../components/DisputeCategoryChart"
 import { AgingBucketChart } from "../components/AgingBucketChart"
-import { ArrowRight, Users, HelpCircle, DollarSign } from "lucide-react"
+import { ArrowRight, Users, HelpCircle, DollarSign, AlertTriangle } from "lucide-react"
 import { WidgetNavLink } from "../components/WidgetNavLink"
 
 export const AssociateDashboard: React.FC = () => {
@@ -39,6 +41,11 @@ export const AssociateDashboard: React.FC = () => {
     [reviews]
   )
 
+  const pendingDisputeReviews = useMemo(
+    () => disputes.filter(needsAssociateInput),
+    [disputes]
+  )
+
   const topCustomers = useMemo(() => {
     const outstandingByCustomer = new Map<string, number>()
     invoices.forEach((inv) => {
@@ -62,7 +69,10 @@ export const AssociateDashboard: React.FC = () => {
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-3">
-      <DashboardGreeting displayName={displayName} />
+      <DashboardGreeting
+        displayName={displayName}
+        action={<AssociateHeaderActions />}
+      />
 
       <div className="grid min-h-0 flex-1 grid-rows-2 gap-3">
         {/* Row 1: Outstanding | Disputes pie | Customers */}
@@ -144,7 +154,7 @@ export const AssociateDashboard: React.FC = () => {
           </ClickableWidget>
         </div>
 
-        {/* Row 2: Aging chart | Payment reviews */}
+        {/* Row 2: Aging chart | Payment reviews | Dispute reviews */}
         <div className="grid min-h-0 grid-cols-2 gap-3">
           <AgingBucketChart
             aging={aging}
@@ -155,38 +165,66 @@ export const AssociateDashboard: React.FC = () => {
             showFooter
           />
 
-          <ClickableWidget
-            to="/payment-reviews"
-            title="View payment matching reviews"
-            compact
-            className="flex h-full min-h-0 flex-col justify-between"
-          >
-            <div className="flex min-h-0 flex-1 flex-col">
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Payment matching reviews</p>
-                  {isReviewsLoading ? (
-                    <Skeleton className="mt-2 h-10 w-14" />
-                  ) : (
-                    <p className="mt-2 text-4xl font-bold tracking-tight text-foreground tabular-nums">
-                      {pendingReviews.length}
-                    </p>
-                  )}
+          <div className="grid min-h-0 grid-cols-2 gap-3">
+            <ClickableWidget
+              to="/payment-reviews"
+              title="View payment matching reviews"
+              compact
+              className="flex h-full min-h-0 flex-col justify-between"
+            >
+              <div className="flex min-h-0 flex-1 flex-col">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">Payment matching reviews</p>
+                    {isReviewsLoading ? (
+                      <Skeleton className="mt-2 h-10 w-14" />
+                    ) : (
+                      <p className="mt-2 text-4xl font-bold tracking-tight text-foreground tabular-nums">
+                        {pendingReviews.length}
+                      </p>
+                    )}
+                  </div>
+                  <HelpCircle className="h-5 w-5 text-[#16A34A]" aria-hidden />
                 </div>
-                <HelpCircle className="h-5 w-5 text-[#16A34A]" aria-hidden />
               </div>
-            </div>
-            <div className="shrink-0 space-y-2 px-1 pb-1 pt-2">
-              <WidgetNavLink to="/payment-reviews">View all payment reviews</WidgetNavLink>
-              <Link
-                to="/payment-upload-history"
-                className="group inline-flex items-center text-xs font-medium text-muted-foreground transition-colors hover:text-primary/75"
-              >
-                Payment history
-                <ArrowRight className="ml-1 h-3 w-3 transition-transform duration-150 group-hover:translate-x-0.5" aria-hidden />
-              </Link>
-            </div>
-          </ClickableWidget>
+              <div className="shrink-0 space-y-2 px-1 pb-1 pt-2">
+                <WidgetNavLink to="/payment-reviews">View all payment reviews</WidgetNavLink>
+                <Link
+                  to="/payment-upload-history"
+                  className="group inline-flex items-center text-xs font-medium text-muted-foreground transition-colors hover:text-primary/75"
+                >
+                  Payment history
+                  <ArrowRight className="ml-1 h-3 w-3 transition-transform duration-150 group-hover:translate-x-0.5" aria-hidden />
+                </Link>
+              </div>
+            </ClickableWidget>
+
+            <ClickableWidget
+              to="/disputes/review-queue"
+              title="View dispute review queue"
+              compact
+              className="flex h-full min-h-0 flex-col justify-between"
+            >
+              <div className="flex min-h-0 flex-1 flex-col">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">Dispute reviews</p>
+                    {isDisputesLoading ? (
+                      <Skeleton className="mt-2 h-10 w-14" />
+                    ) : (
+                      <p className="mt-2 text-4xl font-bold tracking-tight text-foreground tabular-nums">
+                        {pendingDisputeReviews.length}
+                      </p>
+                    )}
+                  </div>
+                  <AlertTriangle className="h-5 w-5 text-[#F59E0B]" aria-hidden />
+                </div>
+              </div>
+              <div className="shrink-0 px-1 pb-1 pt-2">
+                <WidgetNavLink to="/disputes/review-queue">View dispute review queue</WidgetNavLink>
+              </div>
+            </ClickableWidget>
+          </div>
         </div>
       </div>
     </div>

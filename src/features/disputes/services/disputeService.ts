@@ -23,6 +23,11 @@ export const disputeService = {
     return response.data;
   },
 
+  getMyDisputes: async (): Promise<Dispute[]> => {
+    const response = await disputeApi.get<Dispute[]>("/disputes/assigned/me");
+    return response.data;
+  },
+
   getDispute: async (id: string): Promise<Dispute> => {
     const response = await disputeApi.get<Dispute>(`/disputes/${id}`);
     return response.data;

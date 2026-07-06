@@ -1,14 +1,18 @@
-import React from "react"
+import React, { useMemo, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { usePaymentUploads } from "../hooks/usePayments"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { TableSkeleton } from "@/components/ui/skeleton"
+import { Pagination } from "@/components/ui/pagination"
 import { PageHeader } from "@/components/ui/page-header"
 import { PageBreadcrumb } from "@/components/ui/page-breadcrumb"
+import { FilterBar } from "@/components/ui/filter-bar"
 import { getDashboardPath } from "@/lib/navigation"
 import { EmptyState } from "@/components/ui/empty-state"
 import { Button } from "@/components/ui/button"
+import { Label } from "@/components/ui/label"
+import { Select } from "@/components/ui/select"
 import {
   Table,
   TableBody,
@@ -24,6 +28,12 @@ import { PaymentUploadResponse } from "../types"
 export const PaymentUploadHistoryPage: React.FC = () => {
   const navigate = useNavigate()
 
+  const [searchTerm, setSearchTerm] = useState("")
+  const [statusFilter, setStatusFilter] = useState("")
+  const [uploaderFilter, setUploaderFilter] = useState("")
+  const [currentPage, setCurrentPage] = useState(1)
+  const itemsPerPage = 10
+
   const {
     data: uploadsData,
     isLoading,
@@ -37,6 +47,42 @@ export const PaymentUploadHistoryPage: React.FC = () => {
 
   const handleRowClick = (uploadId: string) => {
     navigate(`/payment-upload/${uploadId}`)
+  }
+
+  const filterOptions = useMemo(() => {
+    const uploaders = new Set<string>()
+    uploads.forEach((pay) => {
+      if (pay.uploaded_by) uploaders.add(pay.uploaded_by)
+    })
+    return { uploaders: Array.from(uploaders).sort() }
+  }, [uploads])
+
+  const filteredUploads = useMemo(() => {
+    return uploads.filter((pay) => {
+      const term = searchTerm.toLowerCase()
+      const matchesSearch =
+        pay.file_name.toLowerCase().includes(term) ||
+        pay.uploaded_by.toLowerCase().includes(term)
+
+      const matchesStatus = !statusFilter || pay.status === statusFilter
+      const matchesUploader = !uploaderFilter || pay.uploaded_by === uploaderFilter
+
+      return matchesSearch && matchesStatus && matchesUploader
+    })
+  }, [uploads, searchTerm, statusFilter, uploaderFilter])
+
+  const totalItems = filteredUploads.length
+  const totalPages = Math.max(1, Math.ceil(totalItems / itemsPerPage))
+  const startIndex = (currentPage - 1) * itemsPerPage
+  const paginatedUploads = filteredUploads.slice(startIndex, startIndex + itemsPerPage)
+
+  const hasActiveFilters = !!searchTerm || !!statusFilter || !!uploaderFilter
+
+  const clearFilters = () => {
+    setSearchTerm("")
+    setStatusFilter("")
+    setUploaderFilter("")
+    setCurrentPage(1)
   }
 
   return (
@@ -58,6 +104,63 @@ export const PaymentUploadHistoryPage: React.FC = () => {
           </Button>
         }
       />
+
+      {!isLoading && !isError && uploads.length > 0 && (
+        <Card>
+          <CardContent className="p-4">
+            <FilterBar
+              className="sm:items-end lg:flex-nowrap"
+              searchValue={searchTerm}
+              onSearchChange={(value) => {
+                setSearchTerm(value)
+                setCurrentPage(1)
+              }}
+              searchPlaceholder="Search by file name or uploader…"
+              showClear={hasActiveFilters}
+              onClear={clearFilters}
+            >
+              <div className="flex min-w-0 flex-1 flex-wrap items-end gap-3 lg:flex-nowrap">
+                <div className="min-w-[9rem] flex-1 space-y-1.5">
+                  <Label htmlFor="filter-status">Ingestion status</Label>
+                  <Select
+                    id="filter-status"
+                    value={statusFilter}
+                    onChange={(e) => {
+                      setStatusFilter(e.target.value)
+                      setCurrentPage(1)
+                    }}
+                  >
+                    <option value="">All statuses</option>
+                    <option value="UPLOADED">Uploaded</option>
+                    <option value="PROCESSING">Processing</option>
+                    <option value="MATCHED">Matched</option>
+                    <option value="REVIEW_REQUIRED">Review required</option>
+                    <option value="FAILED">Failed</option>
+                  </Select>
+                </div>
+                <div className="min-w-[9rem] flex-1 space-y-1.5">
+                  <Label htmlFor="filter-uploader">Uploaded by</Label>
+                  <Select
+                    id="filter-uploader"
+                    value={uploaderFilter}
+                    onChange={(e) => {
+                      setUploaderFilter(e.target.value)
+                      setCurrentPage(1)
+                    }}
+                  >
+                    <option value="">All uploaders</option>
+                    {filterOptions.uploaders.map((uploader) => (
+                      <option key={uploader} value={uploader}>
+                        {uploader}
+                      </option>
+                    ))}
+                  </Select>
+                </div>
+              </div>
+            </FilterBar>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardContent className="p-0">
@@ -83,6 +186,11 @@ export const PaymentUploadHistoryPage: React.FC = () => {
               title="No payment uploads yet"
               description="No payment documents have been uploaded yet."
             />
+          ) : filteredUploads.length === 0 ? (
+            <EmptyState
+              title="No uploads found"
+              description="No payment uploads match the current filters."
+            />
           ) : (
             <Table>
               <TableHeader>
@@ -94,7 +202,7 @@ export const PaymentUploadHistoryPage: React.FC = () => {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {uploads.map((pay) => (
+                {paginatedUploads.map((pay) => (
                   <TableRow
                     key={pay.id}
                     className="cursor-pointer"
@@ -109,7 +217,7 @@ export const PaymentUploadHistoryPage: React.FC = () => {
                     <TableCell className="text-muted-foreground">
                       {new Date(pay.uploaded_at).toLocaleString()}
                     </TableCell>
-                    <TableCell className="text-muted-foreground">Finance Associate</TableCell>
+                    <TableCell className="text-muted-foreground">{pay.uploaded_by}</TableCell>
                     <TableCell className="text-right">
                       <Badge
                         variant={getStatusVariant(PAYMENT_STATUS_VARIANT, pay.status)}
@@ -125,6 +233,16 @@ export const PaymentUploadHistoryPage: React.FC = () => {
           )}
         </CardContent>
       </Card>
+
+      {!isLoading && !isError && totalPages > 1 && (
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onPageChange={setCurrentPage}
+          totalItems={totalItems}
+          pageSize={itemsPerPage}
+        />
+      )}
     </div>
   )
 }

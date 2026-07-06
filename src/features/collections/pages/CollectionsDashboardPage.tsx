@@ -17,8 +17,6 @@ import { KpiWidgetWithLink } from "@/features/dashboard/components/KpiWidgetWith
 import { CommunicationsFeed } from "@/features/dashboard/components/CommunicationsFeed"
 import { AgingBucketChart } from "@/features/dashboard/components/AgingBucketChart"
 
-const CHART_HEIGHT = "h-[300px]"
-
 export const CollectionsDashboardPage: React.FC = () => {
   const {
     data: metrics,
@@ -133,22 +131,23 @@ export const CollectionsDashboardPage: React.FC = () => {
             />
           </KpiGrid>
 
-          <div className="grid shrink-0 grid-cols-1 gap-3 lg:grid-cols-3">
+          <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 lg:grid-cols-3">
             <div className="min-h-0 lg:col-span-2">
               <AgingBucketChart
                 aging={aging}
                 loading={isLoading}
-                className="h-full shadow-card"
-                height={CHART_HEIGHT}
+                className="h-full min-h-0 shadow-card"
+                height="h-full"
+                compact
                 title="Aging bucket distribution"
-              description="Outstanding balance grouped by aging bucket across open collection cases."
+                description="Outstanding balance grouped by aging bucket across open collection cases."
               />
             </div>
 
-            <CommunicationsFeed height={CHART_HEIGHT} maxItems={50} className="min-h-0" />
+            <CommunicationsFeed height="h-full" maxItems={50} className="min-h-0 h-full" />
           </div>
 
-          <KpiGrid columns={5} className="mt-auto shrink-0">
+          <KpiGrid columns={5} className="shrink-0">
             {[
               { label: "Current", amount: aging?.CURRENT ?? 0, iconTone: "success" as const },
               { label: "0-30 days", amount: aging?.["0-30"] ?? 0, iconTone: "info" as const },

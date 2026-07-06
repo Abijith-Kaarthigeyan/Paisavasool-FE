@@ -134,13 +134,21 @@ export function messageHasComposeAttachmentList(body: string): boolean {
   return extractComposeAttachmentFilenamesFromBody(body).length > 0
 }
 
+/** Pulls the EMAIL BODY section out of normalized intake content (SUBJECT / EMAIL BODY / ATTACHMENT). */
+export function extractEmailBodySection(body: string): string {
+  const match = body.match(/\bEMAIL BODY:\s*\n([\s\S]*?)(?:\n\nATTACHMENT CONTENT:|\n*ATTACHMENT CONTENT:|\s*$)/i)
+  return match ? match[1].trim() : body
+}
+
 /** Removes extracted attachment text from normalized email bodies for UI display only. */
 export function formatCommunicationBodyForDisplay(body: string): string {
   if (!body.trim()) return body
-  return body
+  const withoutAttachments = body
     .replace(/\n*\s*ATTACHMENT\s+CONTENT:\s*[\s\S]*$/i, "")
     .replace(/\n*\s*Attachments:\s*\n[\s\S]*$/i, "")
     .trimEnd()
+  const emailBody = extractEmailBodySection(withoutAttachments)
+  return stripQuotedReplyContent(emailBody)
 }
 
 export function messageHasAttachmentContent(body: string): boolean {
@@ -203,23 +211,29 @@ export function resolveMessageAttachments(
   }))
 }
 
-/** Strips quoted prior messages so reply-chain text does not affect direction heuristics. */
+/** Strips quoted prior messages so only the newly written reply text remains. */
 export function stripQuotedReplyContent(body: string): string {
   if (!body.trim()) return body
 
-  const onWroteIndex = body.search(/\nOn .+ wrote:\s*(\n|$)/i)
-  if (onWroteIndex >= 0) {
-    return body.slice(0, onWroteIndex).trim()
+  // Gmail / Apple Mail: "On Thu, 2 Jul 2026 at 19:41, <email> wrote:" (optional leading _)
+  const onWroteMatch = body.match(/(^|\n)\s*_?On .+? wrote:_?\s*/i)
+  if (onWroteMatch?.index !== undefined) {
+    return body.slice(0, onWroteMatch.index).trim()
   }
 
-  const originalMessageIndex = body.search(/\n-{2,}\s*Original Message\s*-{2,}/i)
+  const originalMessageIndex = body.search(/(^|\n)-{2,}\s*Original Message\s*-{2,}/i)
   if (originalMessageIndex >= 0) {
     return body.slice(0, originalMessageIndex).trim()
   }
 
-  const outlookReplyIndex = body.search(/\nFrom:\s*.+\nSent:\s*.+\nTo:\s*/i)
+  const outlookReplyIndex = body.search(/(^|\n)From:\s*.+\nSent:\s*.+\nTo:\s*/i)
   if (outlookReplyIndex >= 0) {
     return body.slice(0, outlookReplyIndex).trim()
+  }
+
+  const forwardedIndex = body.search(/(^|\n)-{5,}\s*Forwarded message\s*-{5,}/i)
+  if (forwardedIndex >= 0) {
+    return body.slice(0, forwardedIndex).trim()
   }
 
   const lines = body.split("\n")

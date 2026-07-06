@@ -180,9 +180,9 @@ export const CustomerDetailPage: React.FC = () => {
                       <TableHead>Invoice number</TableHead>
                       <TableHead>Invoice date</TableHead>
                       <TableHead>Due date</TableHead>
-                      <TableHead className="text-right">Total amount</TableHead>
-                      <TableHead className="text-right">Outstanding</TableHead>
-                      <TableHead className="text-right">Status</TableHead>
+                      <TableHead className="text-center">Total amount</TableHead>
+                      <TableHead className="text-center">Outstanding</TableHead>
+                      <TableHead className="text-center">Status</TableHead>
                       <TableHead className="text-center">Action</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -198,13 +198,13 @@ export const CustomerDetailPage: React.FC = () => {
                         <TableCell className="text-muted-foreground">
                           {new Date(inv.due_date).toLocaleDateString()}
                         </TableCell>
-                        <TableCell className="text-right font-medium tabular-nums text-foreground">
+                        <TableCell className="text-center font-medium tabular-nums text-foreground">
                           {formatCurrency(inv.total_amount)}
                         </TableCell>
-                        <TableCell className="text-right tabular-nums text-muted-foreground">
+                        <TableCell className="text-center tabular-nums text-muted-foreground">
                           {formatCurrency(inv.outstanding_amount)}
                         </TableCell>
-                        <TableCell className="text-right">
+                        <TableCell className="text-center">
                           <Badge
                             variant={getStatusVariant(INVOICE_STATUS_VARIANT, inv.status)}
                             shape="pill"

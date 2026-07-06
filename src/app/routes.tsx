@@ -41,6 +41,7 @@ const DisputeReviewQueuePage = React.lazy(() => import("@/features/disputes/page
 const WaitingCustomerPage = React.lazy(() => import("@/features/disputes/pages/WaitingCustomerPage"));
 const WaitingInternalTeamPage = React.lazy(() => import("@/features/disputes/pages/WaitingInternalTeamPage"));
 const DisputeDetailPage = React.lazy(() => import("@/features/disputes/pages/DisputeDetailPage"));
+const EmailReviewPage = React.lazy(() => import("@/features/email-intake/pages/EmailReviewPage"));
 
 export const AppRoutes = () => {
   return (
@@ -141,6 +142,14 @@ export const AppRoutes = () => {
             element={
               <ProtectedRoute allowedRoles={["FINANCE_ASSOCIATE"]}>
                 <ReviewQueuePage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/email-review"
+            element={
+              <ProtectedRoute allowedRoles={["FINANCE_ASSOCIATE"]}>
+                <EmailReviewPage />
               </ProtectedRoute>
             }
           />
