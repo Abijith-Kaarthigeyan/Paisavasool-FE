@@ -5,9 +5,6 @@ import { AdminDashboard } from "./AdminDashboard"
 import { ManagerDashboard } from "./ManagerDashboard"
 import { AssociateDashboard } from "./AssociateDashboard"
 import { Navigate } from "react-router-dom"
-import { EmailPollFab } from "@/features/email-intake/components/EmailPollFab"
-
-const POLL_ALLOWED_ROLES = ["ADMIN", "FINANCE_MANAGER", "FINANCE_ASSOCIATE"]
 
 export const DashboardPage: React.FC = () => {
   const { user } = useSelector((state: RootState) => state.auth);
@@ -15,8 +12,6 @@ export const DashboardPage: React.FC = () => {
   if (!user) {
     return <Navigate to="/login" replace />;
   }
-
-  const canPollEmails = POLL_ALLOWED_ROLES.includes(user.role)
 
   const dashboard = (() => {
     switch (user.role) {
@@ -39,12 +34,7 @@ export const DashboardPage: React.FC = () => {
     }
   })();
 
-  return (
-    <>
-      {dashboard}
-      {canPollEmails && <EmailPollFab />}
-    </>
-  );
+  return dashboard;
 };
 
 export default DashboardPage;

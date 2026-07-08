@@ -1,17 +1,7 @@
 import { arApi } from "@/lib/axios"
 import type { EmailIntakeItem, EmailManualActionRequest } from "../types"
 
-export interface EmailPollResponse {
-  status: string
-  message: string
-}
-
 export const emailIntakeService = {
-  triggerPoll: async (): Promise<EmailPollResponse> => {
-    const response = await arApi.post<EmailPollResponse>("/emails/poll")
-    return response.data
-  },
-
   listManualReview: async (params?: {
     limit?: number
     offset?: number

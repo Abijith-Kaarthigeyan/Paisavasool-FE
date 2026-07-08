@@ -8,6 +8,7 @@ export const useEmailManualReview = (params?: { limit?: number; offset?: number 
   return useQuery({
     queryKey: [...EMAIL_MANUAL_REVIEW_QUERY_KEY, params],
     queryFn: () => emailIntakeService.listManualReview(params),
+    refetchInterval: 30_000,
   })
 }
 
