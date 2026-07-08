@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { QuickUploadMenu } from "./QuickUploadMenu"
+import { EmailPollButton } from "./EmailPollButton"
 import { useEmailManualReview } from "@/features/email-intake/hooks/useEmailReviews"
 
 export const AssociateHeaderActions: React.FC = () => {
@@ -13,6 +14,7 @@ export const AssociateHeaderActions: React.FC = () => {
 
   return (
     <div className="flex items-center gap-2">
+      <EmailPollButton />
       <Button
         type="button"
         variant="secondary"

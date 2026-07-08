@@ -137,7 +137,13 @@ const setupResponseInterceptor = (instance: typeof authApi) => {
           }
 
           if (typeof window !== "undefined") {
-            window.location.href = "/login?session_expired=true";
+            const loc = window.location;
+            const isAlreadyExpiredLogin =
+              loc.pathname === "/login" &&
+              loc.search.includes("session_expired=true");
+            if (!isAlreadyExpiredLogin) {
+              window.location.href = "/login?session_expired=true";
+            }
           }
           return Promise.reject(refreshError);
         }

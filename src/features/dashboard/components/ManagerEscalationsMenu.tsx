@@ -6,6 +6,7 @@ import { useEscalatedCases } from "@/features/collections/hooks/useCollections"
 import { useDisputes } from "@/features/disputes/hooks/useDisputes"
 import { isEscalatedDispute } from "@/features/disputes/utils/disputeFormatters"
 import { cn } from "@/lib/utils"
+import { EmailPollButton } from "./EmailPollButton"
 
 const ESCALATION_ROUTES = {
   collection: "/collections/escalated",
@@ -55,7 +56,9 @@ export const ManagerEscalationsMenu: React.FC = () => {
   }
 
   return (
-    <div ref={menuRef} className="relative shrink-0">
+    <div className="flex items-center gap-2">
+      <EmailPollButton />
+      <div ref={menuRef} className="relative shrink-0">
       <Button
         type="button"
         size="md"
@@ -139,6 +142,7 @@ export const ManagerEscalationsMenu: React.FC = () => {
           </ul>
         </div>
       )}
+      </div>
     </div>
   )
 }

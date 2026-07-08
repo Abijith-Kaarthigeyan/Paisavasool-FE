@@ -24,3 +24,10 @@ export interface EmailManualActionRequest {
   action: EmailManualAction
   reason?: string | null
 }
+
+export interface EmailPollResponse {
+  unread_found: number
+  processed: number
+  skipped: number
+  failed: number
+}

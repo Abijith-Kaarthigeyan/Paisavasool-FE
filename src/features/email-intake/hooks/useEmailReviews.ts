@@ -23,3 +23,14 @@ export const useConfirmEmailAction = () => {
     },
   })
 }
+
+export const usePollInbox = () => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: () => emailIntakeService.pollInbox(),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: EMAIL_MANUAL_REVIEW_QUERY_KEY })
+    },
+  })
+}

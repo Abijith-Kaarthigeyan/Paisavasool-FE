@@ -56,15 +56,16 @@ export const AppRoutes = () => {
           {/* Universal Dashboard */}
           <Route path="/dashboard" element={<DashboardPage />} />
 
-          {/* Admin Specific Routes */}
+          {/* Admin Specific Routes — keep off /users so nginx can proxy API /users */}
           <Route
-            path="/users"
+            path="/admin/users"
             element={
               <ProtectedRoute allowedRoles={["ADMIN"]}>
                 <AdminDashboard />
               </ProtectedRoute>
             }
           />
+          <Route path="/users" element={<Navigate to="/admin/users" replace />} />
 
           {/* Unified Document Upload */}
           <Route

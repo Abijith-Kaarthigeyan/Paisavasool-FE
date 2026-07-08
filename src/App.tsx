@@ -26,6 +26,19 @@ function AppContent() {
     const restoreSession = async () => {
       dispatch(setAuthStatus("loading"));
       try {
+        // If the user is already on the "session expired" login page,
+        // don't keep calling /auth/me (it can trigger refresh + redirect loops).
+        const isSessionExpiredPage =
+          typeof window !== "undefined" &&
+          window.location.pathname === "/login" &&
+          new URLSearchParams(window.location.search).get("session_expired") ===
+            "true";
+        if (isSessionExpiredPage) {
+          dispatch(clearCredentials());
+          dispatch(setAuthStatus("idle"));
+          return;
+        }
+
         const profile = await authService.getMe();
         // Since getMe succeeds, cookies are valid. Retrieve actual JWT exp from cookie
         const expiresAtStr = getCookie("access_token_expires_at");
