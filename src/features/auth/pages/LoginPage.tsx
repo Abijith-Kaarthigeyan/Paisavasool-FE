@@ -9,23 +9,12 @@ import { setCredentials, clearCredentials } from "@/features/auth/slices/authSli
 import { getCookie } from "@/lib/cookies"
 import { RootState } from "@/app/store"
 import { getPostLoginPath } from "@/lib/navigation"
-import { LoginDebitCard } from "@/features/auth/components/LoginDebitCard"
+import { AntigravityParticles } from "@/features/auth/components/AntigravityParticles"
+import { PaisaVasoolBrand } from "@/features/auth/components/PaisaVasoolBrand"
+import { LoginTypewriterHeadline } from "@/features/auth/components/LoginTypewriterHeadline"
 import { LoginTestAccounts } from "@/features/auth/components/LoginTestAccounts"
-import {
-  Mail,
-  Lock,
-  Eye,
-  EyeOff,
-  AlertCircle,
-  Info,
-  ArrowRight,
-} from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
+import { Mail, Lock, Eye, EyeOff, AlertCircle, Info, Loader2 } from "lucide-react"
 import { cn } from "@/lib/utils"
-
-type FocusedField = "email" | "password" | null
 
 export const LoginPage: React.FC = () => {
   const dispatch = useDispatch()
@@ -37,7 +26,6 @@ export const LoginPage: React.FC = () => {
   const [apiError, setApiError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
-  const [focusedField, setFocusedField] = useState<FocusedField>(null)
 
   const isSessionExpired = searchParams.get("session_expired") === "true"
 
@@ -115,170 +103,120 @@ export const LoginPage: React.FC = () => {
   const emailField = register("email")
   const passwordField = register("password")
 
-  const staggerClass =
-    "motion-reduce:animate-none animate-in fade-in slide-in-from-bottom-1 duration-500 fill-mode-both"
-
   return (
-    <div className="login-gradient-mesh login-dot-grid login-spotlight login-blob-layer login-rupee-watermark relative flex min-h-screen items-center justify-center px-4 py-10 sm:px-6">
-      <div className="relative z-10 w-full max-w-[38rem] space-y-4">
-        <LoginDebitCard
-          shake={!!apiError}
-          footer={
-            <Button
-              type="submit"
-              form="login-form"
-              variant="primary"
-              size="lg"
-              loading={isLoading}
-              className={cn("group w-full active:scale-[0.98]", staggerClass, "delay-300")}
-            >
-              {isLoading ? "Signing in…" : "Sign in"}
-              {!isLoading && (
-                <ArrowRight
-                  className="h-4 w-4 transition-transform group-hover:translate-x-0.5"
-                  aria-hidden
-                />
-              )}
-            </Button>
-          }
+    <div className="ag-login relative min-h-screen overflow-hidden bg-white text-[#1f1f1f]">
+      <AntigravityParticles />
+
+      <div className="relative z-10 flex min-h-screen flex-col items-center justify-center px-4 py-12 sm:px-6">
+        <div
+          className={cn(
+            "flex w-full max-w-4xl flex-col items-center text-center",
+            apiError && "ag-login-shake"
+          )}
         >
-          <div className="space-y-5">
+          <PaisaVasoolBrand />
+
+          <LoginTypewriterHeadline />
+
+          <div className="mt-10 w-full max-w-3xl space-y-4 sm:mt-12">
             {isSessionExpired && (
-              <div
-                className={cn(
-                  "flex items-start gap-3 rounded-md border border-warning/20 bg-warning-muted p-3 text-sm text-warning-foreground",
-                  staggerClass
-                )}
-              >
-                <Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+              <div className="ag-alert flex items-start justify-center gap-2 text-sm text-[#111111]">
+                <Info className="mt-0.5 h-4 w-4 shrink-0 text-[#111111]" aria-hidden />
                 <span>Your session has expired. Please log in again to continue.</span>
               </div>
             )}
 
             {apiError && (
-              <div
-                className={cn(
-                  "flex items-start gap-3 rounded-md border border-destructive/20 bg-destructive/10 p-3 text-sm text-destructive",
-                  staggerClass
-                )}
-              >
-                <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+              <div className="ag-alert flex items-start justify-center gap-2 text-sm text-[#111111]">
+                <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-[#111111]" aria-hidden />
                 <span>{apiError}</span>
               </div>
             )}
 
-            <form id="login-form" className="space-y-4" onSubmit={handleSubmit(onSubmit)}>
-              <div className={cn("space-y-2", staggerClass, "delay-100")}>
-                <Label
-                  htmlFor="email"
-                  className={cn(
-                    "transition-colors",
-                    focusedField === "email" && "text-primary"
-                  )}
-                >
-                  Email address
-                </Label>
-                <div
-                  className={cn(
-                    "relative rounded-md border border-transparent transition-colors",
-                    "focus-within:border-primary/40 focus-within:ring-2 focus-within:ring-primary/20"
-                  )}
-                >
-                  <Mail
-                    className={cn(
-                      "pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 transition-colors",
-                      focusedField === "email" ? "text-primary" : "text-muted-foreground"
-                    )}
-                    aria-hidden
-                  />
-                  <Input
+            <form
+              id="login-form"
+              className="flex w-full flex-col items-center gap-5"
+              onSubmit={handleSubmit(onSubmit)}
+            >
+              <div className="flex w-full flex-col items-center justify-center gap-4 sm:flex-row sm:items-center">
+                <div className="ag-pill ag-pill-light w-full sm:w-[min(100%,15rem)]">
+                  <Mail className="h-4 w-4 shrink-0 text-[#111111]" aria-hidden />
+                  <input
                     id="email"
                     type="email"
+                    autoComplete="email"
                     disabled={isLoading}
-                    placeholder="name@paisavasool.com"
-                    className="border-border/80 bg-background/50 pl-9"
+                    placeholder="Email"
+                    className="ag-pill-input ag-pill-input-light"
                     {...emailField}
-                    onFocus={() => setFocusedField("email")}
-                    onBlur={(e) => {
-                      setFocusedField((f) => (f === "email" ? null : f))
-                      emailField.onBlur(e)
-                    }}
                   />
                 </div>
-                {errors.email && (
-                  <p className="flex items-center gap-1 text-xs text-destructive">
-                    <AlertCircle className="h-3 w-3" aria-hidden />
-                    {errors.email.message}
-                  </p>
-                )}
-              </div>
 
-              <div className={cn("space-y-2", staggerClass, "delay-200")}>
-                <Label
-                  htmlFor="password"
-                  className={cn(
-                    "transition-colors",
-                    focusedField === "password" && "text-primary"
-                  )}
-                >
-                  Password
-                </Label>
-                <div
-                  className={cn(
-                    "relative rounded-md border border-transparent transition-colors",
-                    "focus-within:border-primary/40 focus-within:ring-2 focus-within:ring-primary/20"
-                  )}
-                >
-                  <Lock
-                    className={cn(
-                      "pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 transition-colors",
-                      focusedField === "password" ? "text-primary" : "text-muted-foreground"
-                    )}
-                    aria-hidden
-                  />
-                  <Input
+                <div className="ag-pill ag-pill-light w-full sm:w-[min(100%,15rem)]">
+                  <Lock className="h-4 w-4 shrink-0 text-[#111111]" aria-hidden />
+                  <input
                     id="password"
                     type={showPassword ? "text" : "password"}
+                    autoComplete="current-password"
                     disabled={isLoading}
-                    placeholder="••••••••"
-                    className="border-border/80 bg-background/50 pl-9 pr-10"
+                    placeholder="Password"
+                    className="ag-pill-input ag-pill-input-light"
                     {...passwordField}
-                    onFocus={() => setFocusedField("password")}
-                    onBlur={(e) => {
-                      setFocusedField((f) => (f === "password" ? null : f))
-                      passwordField.onBlur(e)
-                    }}
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
                     disabled={isLoading}
                     aria-label={showPassword ? "Hide password" : "Show password"}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 rounded-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring/30"
+                    className="ag-pill-toggle"
                   >
                     {showPassword ? (
-                      <EyeOff className="h-4 w-4 transition-opacity" aria-hidden />
+                      <EyeOff className="h-4 w-4" aria-hidden />
                     ) : (
-                      <Eye className="h-4 w-4 transition-opacity" aria-hidden />
+                      <Eye className="h-4 w-4" aria-hidden />
                     )}
                   </button>
                 </div>
-                {errors.password && (
-                  <p className="flex items-center gap-1 text-xs text-destructive">
-                    <AlertCircle className="h-3 w-3" aria-hidden />
-                    {errors.password.message}
-                  </p>
-                )}
               </div>
+
+              {(errors.email || errors.password) && (
+                <div className="flex flex-col items-center gap-1 text-sm text-[#111111]">
+                  {errors.email && (
+                    <p className="flex items-center gap-1">
+                      <AlertCircle className="h-3.5 w-3.5 text-[#111111]" aria-hidden />
+                      {errors.email.message}
+                    </p>
+                  )}
+                  {errors.password && (
+                    <p className="flex items-center gap-1">
+                      <AlertCircle className="h-3.5 w-3.5 text-[#111111]" aria-hidden />
+                      {errors.password.message}
+                    </p>
+                  )}
+                </div>
+              )}
+
+              <button type="submit" disabled={isLoading} className="ag-login-btn">
+                {isLoading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                    Signing in…
+                  </>
+                ) : (
+                  "Login"
+                )}
+              </button>
             </form>
           </div>
-        </LoginDebitCard>
+        </div>
 
-        <LoginTestAccounts
-          onAutoFill={handleAutoFill}
-          onQuickSignIn={handleQuickSignIn}
-          disabled={isLoading}
-        />
+        <div className="relative z-10 mt-8 w-full max-w-2xl">
+          <LoginTestAccounts
+            onAutoFill={handleAutoFill}
+            onQuickSignIn={handleQuickSignIn}
+            disabled={isLoading}
+          />
+        </div>
       </div>
     </div>
   )
