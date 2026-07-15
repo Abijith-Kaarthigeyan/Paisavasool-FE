@@ -137,6 +137,15 @@ const setupResponseInterceptor = (instance: typeof authApi) => {
           }
 
           if (typeof window !== "undefined") {
+            const { store } = await import("@/app/store");
+            const { isAuthenticated } = store.getState().auth;
+
+            // Only show "session expired" when the user was actively logged in.
+            // Fresh visits and initial session checks should not trigger this banner.
+            if (!isAuthenticated) {
+              return Promise.reject(refreshError);
+            }
+
             const loc = window.location;
             const isAlreadyExpiredLogin =
               loc.pathname === "/login" &&

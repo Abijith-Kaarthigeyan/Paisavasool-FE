@@ -8,7 +8,7 @@ import { authService } from "@/features/auth/services/authService"
 import { setCredentials, clearCredentials } from "@/features/auth/slices/authSlice"
 import { getCookie } from "@/lib/cookies"
 import { RootState } from "@/app/store"
-import { getPostLoginPath } from "@/lib/navigation"
+import { getDashboardPath, getPostLoginPath } from "@/lib/navigation"
 import { AntigravityParticles } from "@/features/auth/components/AntigravityParticles"
 import { PaisaVasoolBrand } from "@/features/auth/components/PaisaVasoolBrand"
 import { LoginTypewriterHeadline } from "@/features/auth/components/LoginTypewriterHeadline"
@@ -21,7 +21,12 @@ export const LoginPage: React.FC = () => {
   const navigate = useNavigate()
   const location = useLocation()
   const [searchParams] = useSearchParams()
-  const { isAuthenticated, user } = useSelector((state: RootState) => state.auth)
+  const { isAuthenticated, user, voluntaryLogout } = useSelector(
+    (state: RootState) => state.auth
+  )
+
+  const resolvePostLoginPath = () =>
+    voluntaryLogout ? getDashboardPath() : getPostLoginPath(location.state?.from)
 
   const [apiError, setApiError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
@@ -43,7 +48,7 @@ export const LoginPage: React.FC = () => {
   })
 
   if (isAuthenticated && user) {
-    return <Navigate to={getPostLoginPath(location.state?.from)} replace />
+    return <Navigate to={resolvePostLoginPath()} replace />
   }
 
   const performLogin = async (data: LoginRequest) => {
@@ -67,8 +72,9 @@ export const LoginPage: React.FC = () => {
         exp,
       }
 
+      const redirectPath = resolvePostLoginPath()
       dispatch(setCredentials(tokenPayload))
-      navigate(getPostLoginPath(location.state?.from))
+      navigate(redirectPath)
     } catch (err: unknown) {
       console.error(err)
       dispatch(clearCredentials())

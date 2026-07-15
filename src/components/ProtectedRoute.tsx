@@ -13,7 +13,7 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   children,
   allowedRoles,
 }) => {
-  const { isAuthenticated, user, status } = useSelector(
+  const { isAuthenticated, user, status, voluntaryLogout } = useSelector(
     (state: RootState) => state.auth
   );
   const location = useLocation();
@@ -34,7 +34,13 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
 
   // Redirect to login if not authenticated
   if (!isAuthenticated || !user) {
-    return <Navigate to="/login" state={{ from: location }} replace />;
+    return (
+      <Navigate
+        to="/login"
+        state={voluntaryLogout ? undefined : { from: location }}
+        replace
+      />
+    );
   }
 
   // Redirect to 403 Forbidden if user does not possess required role

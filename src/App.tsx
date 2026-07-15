@@ -26,14 +26,18 @@ function AppContent() {
     const restoreSession = async () => {
       dispatch(setAuthStatus("loading"));
       try {
-        // If the user is already on the "session expired" login page,
-        // don't keep calling /auth/me (it can trigger refresh + redirect loops).
-        const isSessionExpiredPage =
+        // On the login page, skip session restore unless auth cookies suggest
+        // an existing session (avoids false "session expired" on fresh visits).
+        const isLoginPage =
           typeof window !== "undefined" &&
-          window.location.pathname === "/login" &&
+          window.location.pathname === "/login";
+        const hasSessionCookie = Boolean(getCookie("access_token_expires_at"));
+        const isSessionExpiredPage =
+          isLoginPage &&
           new URLSearchParams(window.location.search).get("session_expired") ===
             "true";
-        if (isSessionExpiredPage) {
+
+        if (isSessionExpiredPage || (isLoginPage && !hasSessionCookie)) {
           dispatch(clearCredentials());
           dispatch(setAuthStatus("idle"));
           return;

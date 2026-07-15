@@ -65,6 +65,7 @@ export const invoiceService = {
   getInvoices: async (params?: {
     customer_id?: string;
     status?: string;
+    search?: string;
     limit?: number;
     offset?: number;
   }): Promise<Invoice[]> => {

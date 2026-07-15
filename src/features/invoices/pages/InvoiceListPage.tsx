@@ -1,6 +1,7 @@
-import React, { useMemo, useState } from "react"
+import React, { useEffect, useMemo, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { useInvoices } from "../hooks/useInvoices"
+import { useCustomers } from "@/features/customers/hooks/useCustomers"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { TableSkeleton } from "@/components/ui/skeleton"
@@ -21,6 +22,7 @@ import {
 } from "@/components/ui/table"
 import { INVOICE_STATUS_VARIANT, getStatusVariant } from "@/lib/design-tokens"
 import { formatCurrency } from "@/lib/formatCurrency"
+import { useDebouncedValue } from "@/lib/useDebouncedValue"
 import { RefreshCw, HelpCircle, Inbox } from "lucide-react"
 import type { Invoice } from "../types"
 
@@ -33,11 +35,6 @@ const getDisplayStatus = (invoice: Invoice): string => {
     : "PARTIALLY_PAID"
 }
 
-const matchesStatusFilter = (invoice: Invoice, statusFilter: string): boolean => {
-  if (statusFilter === "") return true
-  return getDisplayStatus(invoice) === statusFilter
-}
-
 export const InvoiceListPage: React.FC = () => {
   const navigate = useNavigate()
   const [searchTerm, setSearchTerm] = useState("")
@@ -45,47 +42,42 @@ export const InvoiceListPage: React.FC = () => {
   const [customerFilter, setCustomerFilter] = useState("")
   const [currentPage, setCurrentPage] = useState(1)
   const itemsPerPage = 10
+  const debouncedSearch = useDebouncedValue(searchTerm)
+
+  const listParams = useMemo(
+    () => ({
+      limit: 500,
+      offset: 0,
+      ...(debouncedSearch.trim() ? { search: debouncedSearch.trim() } : {}),
+      ...(statusFilter ? { status: statusFilter } : {}),
+      ...(customerFilter ? { customer_id: customerFilter } : {}),
+    }),
+    [debouncedSearch, statusFilter, customerFilter]
+  )
 
   const {
     data: invoices = [],
     isLoading,
     isError,
     refetch,
-  } = useInvoices()
+  } = useInvoices(listParams)
+
+  const { data: customers = [] } = useCustomers({ limit: 500 })
 
   const handleRowClick = (invoiceId: string) => {
     navigate(`/invoices/${invoiceId}`)
   }
 
-  const filterOptions = useMemo(() => {
-    const customers = new Set<string>()
-    invoices.forEach((inv) => {
-      if (inv.customer?.customer_name) customers.add(inv.customer.customer_name)
-    })
-    return { customers: Array.from(customers).sort() }
-  }, [invoices])
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [debouncedSearch, statusFilter, customerFilter])
 
-  const filteredInvoices = useMemo(() => {
-    return invoices.filter((inv) => {
-      const term = searchTerm.toLowerCase()
-      const matchesSearch =
-        inv.invoice_number.toLowerCase().includes(term) ||
-        (inv.customer?.customer_name || "").toLowerCase().includes(term)
-
-      const matchesStatus = matchesStatusFilter(inv, statusFilter)
-      const matchesCustomer =
-        !customerFilter || inv.customer?.customer_name === customerFilter
-
-      return matchesSearch && matchesStatus && matchesCustomer
-    })
-  }, [invoices, searchTerm, statusFilter, customerFilter])
-
-  const totalItems = filteredInvoices.length
+  const totalItems = invoices.length
   const totalPages = Math.max(1, Math.ceil(totalItems / itemsPerPage))
   const startIndex = (currentPage - 1) * itemsPerPage
-  const paginatedInvoices = filteredInvoices.slice(startIndex, startIndex + itemsPerPage)
+  const paginatedInvoices = invoices.slice(startIndex, startIndex + itemsPerPage)
 
-  const totalOpenBalance = filteredInvoices.reduce((sum, i) => sum + i.outstanding_amount, 0)
+  const totalOpenBalance = invoices.reduce((sum, i) => sum + i.outstanding_amount, 0)
 
   const hasActiveFilters = !!searchTerm || !!statusFilter || !!customerFilter
 
@@ -121,10 +113,7 @@ export const InvoiceListPage: React.FC = () => {
             variant="toolbar"
             size="sm"
             searchValue={searchTerm}
-            onSearchChange={(value) => {
-              setSearchTerm(value)
-              setCurrentPage(1)
-            }}
+            onSearchChange={setSearchTerm}
             searchPlaceholder="Search by invoice number or customer…"
             showClear={hasActiveFilters}
             onClear={clearFilters}
@@ -141,10 +130,7 @@ export const InvoiceListPage: React.FC = () => {
               id="status-filter"
               aria-label="Status"
               value={statusFilter}
-              onChange={(e) => {
-                setStatusFilter(e.target.value)
-                setCurrentPage(1)
-              }}
+              onChange={(e) => setStatusFilter(e.target.value)}
             >
               <option value="">All statuses</option>
               <option value="PENDING">Pending</option>
@@ -156,15 +142,12 @@ export const InvoiceListPage: React.FC = () => {
               id="customer-filter"
               aria-label="Customer"
               value={customerFilter}
-              onChange={(e) => {
-                setCustomerFilter(e.target.value)
-                setCurrentPage(1)
-              }}
+              onChange={(e) => setCustomerFilter(e.target.value)}
             >
               <option value="">All customers</option>
-              {filterOptions.customers.map((cust) => (
-                <option key={cust} value={cust}>
-                  {cust}
+              {customers.map((cust) => (
+                <option key={cust.id} value={cust.id}>
+                  {cust.customer_name}
                 </option>
               ))}
             </FilterSelect>
@@ -187,7 +170,7 @@ export const InvoiceListPage: React.FC = () => {
                 </Button>
               }
             />
-          ) : filteredInvoices.length === 0 ? (
+          ) : invoices.length === 0 ? (
             <EmptyState
               icon={<Inbox className="h-6 w-6" />}
               title="No invoices found"
@@ -211,41 +194,41 @@ export const InvoiceListPage: React.FC = () => {
                 {paginatedInvoices.map((inv) => {
                   const displayStatus = getDisplayStatus(inv)
                   return (
-                  <TableRow
-                    key={inv.id}
-                    className="cursor-pointer"
-                    onClick={() => handleRowClick(inv.id)}
-                  >
-                    <TableCell className="font-medium text-foreground">
-                      {inv.invoice_number}
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {inv.customer?.customer_name || "Active account"}
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {new Date(inv.invoice_date).toLocaleDateString()}
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {new Date(inv.due_date).toLocaleDateString()}
-                    </TableCell>
-                    <TableCell className="text-center font-medium tabular-nums text-foreground">
-                      {formatCurrency(inv.total_amount)}
-                    </TableCell>
-                    <TableCell className="text-center tabular-nums text-muted-foreground">
-                      {formatCurrency(inv.outstanding_amount)}
-                    </TableCell>
-                    <TableCell className="text-center">
-                      <Badge
-                        variant={getStatusVariant(INVOICE_STATUS_VARIANT, displayStatus)}
-                        shape="pill"
-                      >
-                        {displayStatus.replace(/_/g, " ")}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-center tabular-nums text-muted-foreground">
-                      {inv.current_version ?? 1}
-                    </TableCell>
-                  </TableRow>
+                    <TableRow
+                      key={inv.id}
+                      className="cursor-pointer"
+                      onClick={() => handleRowClick(inv.id)}
+                    >
+                      <TableCell className="font-medium text-foreground">
+                        {inv.invoice_number}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {inv.customer?.customer_name || "Active account"}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {new Date(inv.invoice_date).toLocaleDateString()}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {new Date(inv.due_date).toLocaleDateString()}
+                      </TableCell>
+                      <TableCell className="text-center font-medium tabular-nums text-foreground">
+                        {formatCurrency(inv.total_amount)}
+                      </TableCell>
+                      <TableCell className="text-center tabular-nums text-muted-foreground">
+                        {formatCurrency(inv.outstanding_amount)}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <Badge
+                          variant={getStatusVariant(INVOICE_STATUS_VARIANT, displayStatus)}
+                          shape="pill"
+                        >
+                          {displayStatus.replace(/_/g, " ")}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-center tabular-nums text-muted-foreground">
+                        {inv.current_version ?? 1}
+                      </TableCell>
+                    </TableRow>
                   )
                 })}
               </TableBody>

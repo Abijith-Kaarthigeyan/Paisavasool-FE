@@ -2,7 +2,7 @@ import React, { Suspense, useState } from "react"
 import { useNavigate, Outlet } from "react-router-dom"
 import { useSelector, useDispatch } from "react-redux"
 import { RootState } from "@/app/store"
-import { clearCredentials } from "@/features/auth/slices/authSlice"
+import { logout } from "@/features/auth/slices/authSlice"
 import { authService } from "@/features/auth/services/authService"
 import { useToast } from "@/components/ui/toast"
 import { Sidebar, MobileSidebar } from "./Sidebar"
@@ -23,7 +23,7 @@ export const AppLayout: React.FC = () => {
     } catch (err) {
       console.error("Logout failed", err)
     } finally {
-      dispatch(clearCredentials())
+      dispatch(logout())
       toast({
         title: "Session ended",
         description: "You have been logged out successfully.",

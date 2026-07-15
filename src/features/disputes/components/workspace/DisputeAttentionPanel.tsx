@@ -16,6 +16,7 @@ import { DisputeDecisionDialog, type DisputeDecisionKind } from "./DisputeDecisi
 import {
   normalizeConfidence,
   parseRecommendationAction,
+  canMutateEscalatedDispute,
 } from "../../utils/disputeFormatters"
 import { extractPaymentReference } from "../../utils/disputeWorkspaceUtils"
 import type { Dispute, DisputeCase, DisputeEvidenceSnapshot, DisputeResolutionRecommendation } from "../../types"
@@ -138,9 +139,8 @@ export function DisputeAttentionPanel({
   onEscalate,
 }: DisputeAttentionPanelProps) {
   const { user } = useSelector((state: RootState) => state.auth)
-  const isManager = user?.role === "FINANCE_MANAGER" || user?.role === "ADMIN"
   const isEscalated = dispute.status === "ESCALATED"
-  const canAssociateAction = !isEscalated || isManager
+  const canAssociateAction = canMutateEscalatedDispute(user?.role, dispute.status)
 
   const [decisionNotes, setDecisionNotes] = useState("")
   const [showEditApply, setShowEditApply] = useState(false)

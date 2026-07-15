@@ -1,6 +1,6 @@
-import React, { useMemo, useState } from "react"
+import React, { useEffect, useMemo, useState } from "react"
 import { useNavigate } from "react-router-dom"
-import { usePaymentUploads } from "../hooks/usePayments"
+import { usePaymentUploads, usePaymentUploadFilterOptions } from "../hooks/usePayments"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { TableSkeleton } from "@/components/ui/skeleton"
@@ -20,6 +20,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { PAYMENT_STATUS_VARIANT, getStatusVariant } from "@/lib/design-tokens"
+import { useDebouncedValue } from "@/lib/useDebouncedValue"
 import { RefreshCw, HelpCircle, Inbox } from "lucide-react"
 import { PaymentUploadResponse } from "../types"
 
@@ -31,48 +32,44 @@ export const PaymentUploadHistoryPage: React.FC = () => {
   const [uploaderFilter, setUploaderFilter] = useState("")
   const [currentPage, setCurrentPage] = useState(1)
   const itemsPerPage = 10
+  const debouncedSearch = useDebouncedValue(searchTerm)
+
+  const listParams = useMemo(
+    () => ({
+      limit: 500,
+      offset: 0,
+      ...(debouncedSearch.trim() ? { search: debouncedSearch.trim() } : {}),
+      ...(statusFilter ? { status: statusFilter } : {}),
+      ...(uploaderFilter ? { uploaded_by: uploaderFilter } : {}),
+    }),
+    [debouncedSearch, statusFilter, uploaderFilter]
+  )
 
   const {
     data: uploadsData,
     isLoading,
     isError,
     refetch,
-  } = usePaymentUploads(undefined, {
+  } = usePaymentUploads(listParams, {
     refetchInterval: 10000,
   })
+  const { data: filterOptions } = usePaymentUploadFilterOptions()
 
   const uploads = (uploadsData || []) as PaymentUploadResponse[]
+  const uploaders = filterOptions?.uploaders ?? []
 
   const handleRowClick = (uploadId: string) => {
     navigate(`/payment-upload/${uploadId}`)
   }
 
-  const filterOptions = useMemo(() => {
-    const uploaders = new Set<string>()
-    uploads.forEach((pay) => {
-      if (pay.uploaded_by) uploaders.add(pay.uploaded_by)
-    })
-    return { uploaders: Array.from(uploaders).sort() }
-  }, [uploads])
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [debouncedSearch, statusFilter, uploaderFilter])
 
-  const filteredUploads = useMemo(() => {
-    return uploads.filter((pay) => {
-      const term = searchTerm.toLowerCase()
-      const matchesSearch =
-        pay.file_name.toLowerCase().includes(term) ||
-        pay.uploaded_by.toLowerCase().includes(term)
-
-      const matchesStatus = !statusFilter || pay.status === statusFilter
-      const matchesUploader = !uploaderFilter || pay.uploaded_by === uploaderFilter
-
-      return matchesSearch && matchesStatus && matchesUploader
-    })
-  }, [uploads, searchTerm, statusFilter, uploaderFilter])
-
-  const totalItems = filteredUploads.length
+  const totalItems = uploads.length
   const totalPages = Math.max(1, Math.ceil(totalItems / itemsPerPage))
   const startIndex = (currentPage - 1) * itemsPerPage
-  const paginatedUploads = filteredUploads.slice(startIndex, startIndex + itemsPerPage)
+  const paginatedUploads = uploads.slice(startIndex, startIndex + itemsPerPage)
 
   const hasActiveFilters = !!searchTerm || !!statusFilter || !!uploaderFilter
 
@@ -104,55 +101,44 @@ export const PaymentUploadHistoryPage: React.FC = () => {
       />
 
       <Card>
-        {!isLoading && !isError && uploads.length > 0 && (
-          <div className="border-b border-border p-3">
-            <FilterBar
-              variant="toolbar"
-              size="sm"
-              searchValue={searchTerm}
-              onSearchChange={(value) => {
-                setSearchTerm(value)
-                setCurrentPage(1)
-              }}
-              searchPlaceholder="Search by file name or uploader…"
-              showClear={hasActiveFilters}
-              onClear={clearFilters}
+        <div className="border-b border-border p-3">
+          <FilterBar
+            variant="toolbar"
+            size="sm"
+            searchValue={searchTerm}
+            onSearchChange={setSearchTerm}
+            searchPlaceholder="Search by file name or uploader…"
+            showClear={hasActiveFilters}
+            onClear={clearFilters}
+          >
+            <FilterSelect
+              id="filter-status"
+              aria-label="Ingestion status"
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
             >
-              <FilterSelect
-                id="filter-status"
-                aria-label="Ingestion status"
-                value={statusFilter}
-                onChange={(e) => {
-                  setStatusFilter(e.target.value)
-                  setCurrentPage(1)
-                }}
-              >
-                <option value="">All statuses</option>
-                <option value="UPLOADED">Uploaded</option>
-                <option value="PROCESSING">Processing</option>
-                <option value="MATCHED">Matched</option>
-                <option value="REVIEW_REQUIRED">Review required</option>
-                <option value="FAILED">Failed</option>
-              </FilterSelect>
-              <FilterSelect
-                id="filter-uploader"
-                aria-label="Uploaded by"
-                value={uploaderFilter}
-                onChange={(e) => {
-                  setUploaderFilter(e.target.value)
-                  setCurrentPage(1)
-                }}
-              >
-                <option value="">All uploaders</option>
-                {filterOptions.uploaders.map((uploader) => (
-                  <option key={uploader} value={uploader}>
-                    {uploader}
-                  </option>
-                ))}
-              </FilterSelect>
-            </FilterBar>
-          </div>
-        )}
+              <option value="">All statuses</option>
+              <option value="UPLOADED">Uploaded</option>
+              <option value="PROCESSING">Processing</option>
+              <option value="MATCHED">Matched</option>
+              <option value="REVIEW_REQUIRED">Review required</option>
+              <option value="FAILED">Failed</option>
+            </FilterSelect>
+            <FilterSelect
+              id="filter-uploader"
+              aria-label="Uploaded by"
+              value={uploaderFilter}
+              onChange={(e) => setUploaderFilter(e.target.value)}
+            >
+              <option value="">All uploaders</option>
+              {uploaders.map((uploader) => (
+                <option key={uploader} value={uploader}>
+                  {uploader}
+                </option>
+              ))}
+            </FilterSelect>
+          </FilterBar>
+        </div>
         <CardContent className="p-0">
           {isLoading ? (
             <div className="p-4">
@@ -170,13 +156,13 @@ export const PaymentUploadHistoryPage: React.FC = () => {
                 </Button>
               }
             />
-          ) : uploads.length === 0 ? (
+          ) : !hasActiveFilters && uploads.length === 0 ? (
             <EmptyState
               icon={<Inbox className="h-6 w-6" />}
               title="No payment uploads yet"
               description="No payment documents have been uploaded yet."
             />
-          ) : filteredUploads.length === 0 ? (
+          ) : uploads.length === 0 ? (
             <EmptyState
               title="No uploads found"
               description="No payment uploads match the current filters."

@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react"
 import { useDispatch } from "react-redux"
 import { useNavigate } from "react-router-dom"
 import { authService } from "@/features/auth/services/authService"
-import { clearCredentials } from "@/features/auth/slices/authSlice"
+import { logout } from "@/features/auth/slices/authSlice"
 import { UserResponse } from "@/types"
 
 export const ManagerPage: React.FC = () => {
@@ -31,7 +31,7 @@ export const ManagerPage: React.FC = () => {
     } catch (err) {
       console.error("Logout failed", err);
     } finally {
-      dispatch(clearCredentials());
+      dispatch(logout());
       navigate("/login");
     }
   };

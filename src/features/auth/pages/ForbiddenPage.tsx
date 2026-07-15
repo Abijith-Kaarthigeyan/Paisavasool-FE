@@ -2,7 +2,7 @@ import React from "react"
 import { useNavigate } from "react-router-dom"
 import { useDispatch } from "react-redux"
 import { ShieldAlert } from "lucide-react"
-import { clearCredentials } from "@/features/auth/slices/authSlice"
+import { logout } from "@/features/auth/slices/authSlice"
 import { authService } from "@/features/auth/services/authService"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -21,7 +21,7 @@ export const ForbiddenPage: React.FC = () => {
     } catch (err) {
       console.error("Logout failed", err)
     } finally {
-      dispatch(clearCredentials())
+      dispatch(logout())
       navigate("/login")
     }
   }

@@ -7,7 +7,7 @@ import { useDispatch } from "react-redux"
 import { useNavigate } from "react-router-dom"
 import { userService } from "@/features/users/services/userService"
 import { authService } from "@/features/auth/services/authService"
-import { clearCredentials } from "@/features/auth/slices/authSlice"
+import { logout } from "@/features/auth/slices/authSlice"
 import { UserResponse } from "@/types"
 
 // Zod schemas for validation
@@ -123,7 +123,7 @@ export const AdminPage: React.FC = () => {
     } catch (err) {
       console.error("Logout failed", err);
     } finally {
-      dispatch(clearCredentials());
+      dispatch(logout());
       navigate("/login");
     }
   };

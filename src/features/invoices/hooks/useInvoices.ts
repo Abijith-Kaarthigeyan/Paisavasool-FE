@@ -4,6 +4,7 @@ import { invoiceService } from "../services/invoiceService"
 export const useInvoices = (params?: {
   customer_id?: string;
   status?: string;
+  search?: string;
   limit?: number;
   offset?: number;
 }) => {

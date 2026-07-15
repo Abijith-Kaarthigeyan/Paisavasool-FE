@@ -1,5 +1,5 @@
-import React from "react"
-import { useParams, useNavigate, useSearchParams } from "react-router-dom"
+import React, { useEffect, useRef } from "react"
+import { Link, useParams, useNavigate, useSearchParams } from "react-router-dom"
 import { usePaymentUpload, usePaymentUploadStatus } from "../hooks/usePayments"
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -9,8 +9,17 @@ import { PageBreadcrumb } from "@/components/ui/page-breadcrumb"
 import { EmptyState } from "@/components/ui/empty-state"
 import { Button } from "@/components/ui/button"
 import { AiAgentCard } from "@/components/ui/ai-agent-card"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
 import { PAYMENT_STATUS_VARIANT, getStatusVariant } from "@/lib/design-tokens"
 import { cn } from "@/lib/utils"
+import { formatCurrency } from "@/lib/formatCurrency"
 import {
   FileText,
   Calendar,
@@ -20,6 +29,7 @@ import {
   Upload,
   ScanSearch,
   GitMerge,
+  ExternalLink,
 } from "lucide-react"
 
 const PIPELINE_STEPS = [
@@ -27,6 +37,16 @@ const PIPELINE_STEPS = [
   { key: "extract", label: "Extract & validate", icon: ScanSearch },
   { key: "match", label: "Match", icon: GitMerge },
 ] as const
+
+const TERMINAL_STATUSES = new Set(["MATCHED", "FAILED", "REVIEW_REQUIRED"])
+
+/** Hide payment UUIDs from duplicate-UTR and similar workflow errors shown to associates. */
+function formatPaymentUploadError(message: string): string {
+  return message.replace(
+    /already exists on payment [0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi,
+    "already exists on previous payment"
+  )
+}
 
 function getStepState(
   stepKey: (typeof PIPELINE_STEPS)[number]["key"],
@@ -85,10 +105,30 @@ export const PaymentUploadDetailPage: React.FC = () => {
 
   const { data: upload, isLoading: isUploadLoading, error: uploadError, refetch } = usePaymentUpload(id)
   const { data: statusData } = usePaymentUploadStatus(id)
+  const previousStatusRef = useRef<string | undefined>(undefined)
+  const refetchedForTerminalRef = useRef(false)
 
   const activeStatus = statusData?.status || upload?.status || "UPLOADED"
-  const errorMessage = statusData?.error_message || upload?.error_message || null
+  const rawErrorMessage = statusData?.error_message || upload?.error_message || null
+  const errorMessage = rawErrorMessage ? formatPaymentUploadError(rawErrorMessage) : null
   const agentInfo = getAgentStage(activeStatus)
+  const matchResult = upload?.match_result ?? null
+
+  useEffect(() => {
+    const previous = previousStatusRef.current
+    previousStatusRef.current = activeStatus
+
+    if (!TERMINAL_STATUSES.has(activeStatus)) {
+      refetchedForTerminalRef.current = false
+      return
+    }
+
+    const becameTerminal = Boolean(previous && previous !== activeStatus)
+    if ((becameTerminal || !matchResult) && !refetchedForTerminalRef.current) {
+      refetchedForTerminalRef.current = true
+      void refetch()
+    }
+  }, [activeStatus, matchResult, refetch])
 
   if (isUploadLoading) {
     return (
@@ -222,6 +262,125 @@ export const PaymentUploadDetailPage: React.FC = () => {
           )}
         </CardContent>
       </Card>
+
+      {activeStatus === "MATCHED" && matchResult && (
+        <Card>
+          <CardHeader className="border-b border-border pb-4">
+            <CardTitle className="text-base font-semibold">Match result</CardTitle>
+            <CardDescription>
+              Invoices allocated when this payment was auto-approved.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-5 pt-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 text-sm">
+              <div className="flex flex-col">
+                <span className="text-xs text-muted-foreground">Customer</span>
+                <span className="mt-0.5 font-medium text-foreground">
+                  {matchResult.customer_name}
+                </span>
+              </div>
+              <div className="flex flex-col">
+                <span className="text-xs text-muted-foreground">UTR / reference</span>
+                <span className="mt-0.5 font-medium text-foreground">
+                  {matchResult.payment_reference || "—"}
+                </span>
+              </div>
+              <div className="flex flex-col">
+                <span className="text-xs text-muted-foreground">Payment amount</span>
+                <span className="mt-0.5 font-medium text-foreground">
+                  {formatCurrency(matchResult.payment_amount)}
+                </span>
+              </div>
+              <div className="flex flex-col">
+                <span className="text-xs text-muted-foreground">Payment date</span>
+                <span className="mt-0.5 font-medium text-foreground">
+                  {new Date(matchResult.payment_date).toLocaleDateString()}
+                </span>
+              </div>
+            </div>
+
+            {matchResult.allocations.length > 0 ? (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Invoice</TableHead>
+                    <TableHead>Match type</TableHead>
+                    <TableHead className="text-right">Allocated</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {matchResult.allocations.map((allocation) => (
+                    <TableRow key={allocation.invoice_id}>
+                      <TableCell>
+                        <Link
+                          to={`/invoices/${allocation.invoice_id}`}
+                          className="inline-flex items-center gap-1 font-medium text-primary hover:underline"
+                        >
+                          {allocation.invoice_number}
+                          <ExternalLink className="h-3 w-3" aria-hidden />
+                        </Link>
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {allocation.match_type}
+                      </TableCell>
+                      <TableCell className="text-right font-medium">
+                        {formatCurrency(allocation.allocated_amount)}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            ) : (
+              <EmptyState
+                title="No invoice allocations"
+                description="This payment settled without allocating to open invoices."
+                className="py-6"
+              />
+            )}
+
+            <div className="flex flex-wrap gap-4 border-t border-border pt-3 text-sm">
+              <div>
+                <span className="text-muted-foreground">Total allocated: </span>
+                <span className="font-medium text-foreground">
+                  {formatCurrency(matchResult.allocated_amount)}
+                </span>
+              </div>
+              {matchResult.credit_amount != null && matchResult.credit_amount > 0 && (
+                <div>
+                  <span className="text-muted-foreground">Customer credit: </span>
+                  <span className="font-medium text-foreground">
+                    {formatCurrency(matchResult.credit_amount)}
+                  </span>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {activeStatus === "REVIEW_REQUIRED" && (
+        <Card className="border-warning/20 bg-warning-muted/30">
+          <CardContent className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="space-y-1">
+              <h5 className="text-sm font-semibold text-foreground">
+                Human review required
+              </h5>
+              <p className="text-sm text-muted-foreground">
+                {matchResult
+                  ? `Extracted payment for ${matchResult.customer_name} (${formatCurrency(matchResult.payment_amount)}). Assign invoices in Matching Reviews.`
+                  : "Match confidence was below the auto-approval threshold. Continue in Matching Reviews to allocate this payment."}
+              </p>
+            </div>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={() => navigate("/payment-reviews")}
+            >
+              Open Matching Reviews
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
       {errorMessage && (
         <Card className="border-destructive/20 bg-destructive/5">

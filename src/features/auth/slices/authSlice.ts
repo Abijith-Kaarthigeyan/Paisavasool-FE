@@ -14,6 +14,8 @@ interface AuthState {
   user: TokenPayload | null;
   status: "idle" | "loading" | "succeeded" | "failed";
   error: string | null;
+  /** Set when the user explicitly logs out; post-login should go to dashboard. */
+  voluntaryLogout: boolean;
 }
 
 const initialState: AuthState = {
@@ -21,6 +23,7 @@ const initialState: AuthState = {
   user: null,
   status: "loading",
   error: null,
+  voluntaryLogout: false,
 }
 
 const authSlice = createSlice({
@@ -32,12 +35,20 @@ const authSlice = createSlice({
       state.isAuthenticated = true;
       state.status = "succeeded";
       state.error = null;
+      state.voluntaryLogout = false;
     },
     clearCredentials(state) {
       state.user = null;
       state.isAuthenticated = false;
       state.status = "idle";
       state.error = null;
+    },
+    logout(state) {
+      state.user = null;
+      state.isAuthenticated = false;
+      state.status = "idle";
+      state.error = null;
+      state.voluntaryLogout = true;
     },
     setAuthStatus(state, action: PayloadAction<AuthState["status"]>) {
       state.status = action.payload;
@@ -48,6 +59,6 @@ const authSlice = createSlice({
   },
 })
 
-export const { setCredentials, clearCredentials, setAuthStatus, setAuthError } = authSlice.actions;
+export const { setCredentials, clearCredentials, logout, setAuthStatus, setAuthError } = authSlice.actions;
 
 export default authSlice.reducer;

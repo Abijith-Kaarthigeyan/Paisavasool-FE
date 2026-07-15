@@ -1,7 +1,11 @@
-import React, { useState, useMemo } from "react"
+import React, { useEffect, useMemo, useState } from "react"
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom"
 import { buildDisputeDetailPath } from "../utils/disputeBreadcrumbs"
 import { Dispute } from "../types"
+import { useDisputes } from "../hooks/useDisputes"
+import { useCustomers } from "@/features/customers/hooks/useCustomers"
+import { useQuery } from "@tanstack/react-query"
+import { userService } from "@/features/users/services/userService"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { TableSkeleton } from "@/components/ui/skeleton"
@@ -26,15 +30,33 @@ import {
   PRIORITY_VARIANT,
   getStatusVariant,
 } from "@/lib/design-tokens"
+import { useDebouncedValue } from "@/lib/useDebouncedValue"
 import { FolderOpen, ArrowUpDown, RefreshCw } from "lucide-react"
 
+const DISPUTE_CATEGORIES = [
+  "AMENDMENT",
+  "PAYMENT_ALREADY_DONE",
+  "PAYMENT_NOT_REFLECTED",
+  "DUPLICATE_INVOICE",
+  "QUALITY",
+  "LATE_DELIVERY",
+  "OTHER",
+]
+
 interface DisputesTableProps {
-  disputes: Dispute[]
-  isLoading: boolean
-  isError: boolean
-  refetch: () => void
   title: string
   breadcrumbItems?: BreadcrumbItem[]
+  /** Extra server-side params always applied (e.g. exclude_statuses for Open). */
+  baseParams?: {
+    status?: string
+    exclude_statuses?: string
+    has_assignee?: boolean
+  }
+  /** When provided, use client-side filtering on this data (e.g. My Assigned). */
+  disputes?: Dispute[]
+  isLoading?: boolean
+  isError?: boolean
+  refetch?: () => void
 }
 
 function getPriorityKey(dispute: Dispute): string {
@@ -53,16 +75,18 @@ function getPriorityLabel(key: string): string {
 }
 
 export const DisputesTable: React.FC<DisputesTableProps> = ({
-  disputes,
-  isLoading,
-  isError,
-  refetch,
   title,
   breadcrumbItems,
+  baseParams,
+  disputes: externalDisputes,
+  isLoading: externalLoading,
+  isError: externalError,
+  refetch: externalRefetch,
 }) => {
   const navigate = useNavigate()
   const location = useLocation()
   const [searchParams] = useSearchParams()
+  const serverMode = externalDisputes === undefined
 
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState(searchParams.get("status") || "")
@@ -70,6 +94,7 @@ export const DisputesTable: React.FC<DisputesTableProps> = ({
   const [invoiceFilter, setInvoiceFilter] = useState("")
   const [customerFilter, setCustomerFilter] = useState("")
   const [assigneeFilter, setAssigneeFilter] = useState("")
+  const debouncedSearch = useDebouncedValue(searchTerm)
 
   React.useEffect(() => {
     const slaParam = searchParams.get("sla")
@@ -82,6 +107,51 @@ export const DisputesTable: React.FC<DisputesTableProps> = ({
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc")
   const [currentPage, setCurrentPage] = useState(1)
   const itemsPerPage = 10
+
+  const slaParam = searchParams.get("sla")
+  const teamParam = searchParams.get("team")
+
+  const serverParams = useMemo(() => {
+    if (!serverMode) return undefined
+    return {
+      limit: 500,
+      offset: 0,
+      ...baseParams,
+      ...(debouncedSearch.trim() ? { search: debouncedSearch.trim() } : {}),
+      ...(statusFilter ? { status: statusFilter } : {}),
+      ...(categoryFilter ? { category: categoryFilter } : {}),
+      ...(invoiceFilter ? { invoice_number: invoiceFilter } : {}),
+      ...(customerFilter ? { customer_id: customerFilter } : {}),
+      ...(assigneeFilter ? { assigned_to: assigneeFilter } : {}),
+      ...(slaParam === "breached" ? { sla_status: "BREACHED" } : {}),
+      ...(teamParam === "true" ? { has_assignee: true } : {}),
+    }
+  }, [
+    serverMode,
+    baseParams,
+    debouncedSearch,
+    statusFilter,
+    categoryFilter,
+    invoiceFilter,
+    customerFilter,
+    assigneeFilter,
+    slaParam,
+    teamParam,
+  ])
+
+  const serverQuery = useDisputes(serverParams, { enabled: serverMode })
+  const { data: customers = [] } = useCustomers({ limit: 500 })
+  const { data: users = [] } = useQuery({
+    queryKey: ["users"],
+    queryFn: userService.listUsers,
+    staleTime: 5 * 60 * 1000,
+    enabled: serverMode,
+  })
+
+  const disputes = serverMode ? serverQuery.data : (externalDisputes ?? [])
+  const isLoading = serverMode ? serverQuery.isLoading : !!externalLoading
+  const isError = serverMode ? serverQuery.isError : !!externalError
+  const refetch = serverMode ? serverQuery.refetch : externalRefetch ?? (() => {})
 
   const handleSort = (field: string) => {
     if (sortField === field) {
@@ -99,89 +169,131 @@ export const DisputesTable: React.FC<DisputesTableProps> = ({
   }
 
   const filterOptions = useMemo(() => {
+    if (serverMode) {
+      const invoices = new Set<string>()
+      disputes.forEach((d) => {
+        if (d.invoice_number) invoices.add(d.invoice_number)
+      })
+      return {
+        categories: DISPUTE_CATEGORIES,
+        invoices: Array.from(invoices).sort(),
+        customers: customers
+          .map((c) => ({ id: c.id, name: c.customer_name }))
+          .sort((a, b) => a.name.localeCompare(b.name)),
+        assignees: users
+          .filter((u) => u.role.role_name === "FINANCE_ASSOCIATE" && u.is_active)
+          .map((u) => ({
+            id: u.id,
+            name: `${u.first_name} ${u.last_name}`.trim(),
+          }))
+          .sort((a, b) => a.name.localeCompare(b.name)),
+      }
+    }
+
     const categories = new Set<string>()
     const invoices = new Set<string>()
-    const customers = new Set<string>()
+    const customerNames = new Set<string>()
     const assignees = new Set<string>()
 
     disputes.forEach((d) => {
       if (d.dispute_category) categories.add(d.dispute_category)
       if (d.invoice_number) invoices.add(d.invoice_number)
-      if (d.customer?.customer_name) customers.add(d.customer.customer_name)
+      if (d.customer?.customer_name) customerNames.add(d.customer.customer_name)
       if (d.assigned_user_name) assignees.add(d.assigned_user_name)
     })
 
     return {
       categories: Array.from(categories).sort(),
       invoices: Array.from(invoices).sort(),
-      customers: Array.from(customers).sort(),
-      assignees: Array.from(assignees).sort(),
+      customers: Array.from(customerNames)
+        .sort()
+        .map((name) => ({ id: name, name })),
+      assignees: Array.from(assignees)
+        .sort()
+        .map((name) => ({ id: name, name })),
     }
-  }, [disputes])
+  }, [disputes, serverMode, customers, users])
 
   const filteredDisputes = useMemo(() => {
-    const slaParam = searchParams.get("sla")
-    const teamParam = searchParams.get("team")
+    const rows = serverMode
+      ? [...disputes]
+      : disputes.filter((d) => {
+          const term = searchTerm.toLowerCase()
+          const matchesSearch =
+            d.dispute_number.toLowerCase().includes(term) ||
+            d.invoice_number.toLowerCase().includes(term) ||
+            (d.customer?.customer_name || "").toLowerCase().includes(term)
 
-    return disputes
-      .filter((d) => {
-        const term = searchTerm.toLowerCase()
-        const matchesSearch =
-          d.dispute_number.toLowerCase().includes(term) ||
-          d.invoice_number.toLowerCase().includes(term) ||
-          (d.customer?.customer_name || "").toLowerCase().includes(term)
+          const matchesStatus = !statusFilter || d.status === statusFilter
+          const matchesCategory = !categoryFilter || d.dispute_category === categoryFilter
+          const matchesInvoice = !invoiceFilter || d.invoice_number === invoiceFilter
+          const matchesCustomer =
+            !customerFilter || d.customer?.customer_name === customerFilter
+          const matchesAssignee =
+            !assigneeFilter || d.assigned_user_name === assigneeFilter
+          const matchesSlaParam =
+            slaParam !== "breached" || d.sla?.status === "BREACHED"
+          const matchesTeamParam = teamParam !== "true" || !!d.assigned_to
 
-        const matchesStatus = !statusFilter || d.status === statusFilter
-        const matchesCategory = !categoryFilter || d.dispute_category === categoryFilter
-        const matchesInvoice = !invoiceFilter || d.invoice_number === invoiceFilter
-        const matchesCustomer = !customerFilter || d.customer?.customer_name === customerFilter
-        const matchesAssignee = !assigneeFilter || d.assigned_user_name === assigneeFilter
-        const matchesSlaParam = slaParam !== "breached" || d.sla?.status === "BREACHED"
-        const matchesTeamParam = teamParam !== "true" || !!d.assigned_to
+          return (
+            matchesSearch &&
+            matchesStatus &&
+            matchesCategory &&
+            matchesInvoice &&
+            matchesCustomer &&
+            matchesAssignee &&
+            matchesSlaParam &&
+            matchesTeamParam
+          )
+        })
 
-        return (
-          matchesSearch &&
-          matchesStatus &&
-          matchesCategory &&
-          matchesInvoice &&
-          matchesCustomer &&
-          matchesAssignee &&
-          matchesSlaParam &&
-          matchesTeamParam
-        )
-      })
-      .sort((a, b) => {
-        let aVal: unknown = a[sortField as keyof typeof a]
-        let bVal: unknown = b[sortField as keyof typeof b]
+    return rows.sort((a, b) => {
+      let aVal: unknown = a[sortField as keyof typeof a]
+      let bVal: unknown = b[sortField as keyof typeof b]
 
-        if (sortField === "sla_percentage") {
-          aVal = a.sla?.current_percentage ?? 0
-          bVal = b.sla?.current_percentage ?? 0
-        }
+      if (sortField === "sla_percentage") {
+        aVal = a.sla?.current_percentage ?? 0
+        bVal = b.sla?.current_percentage ?? 0
+      }
 
-        if (aVal === undefined || aVal === null) return 1
-        if (bVal === undefined || bVal === null) return -1
+      if (aVal === undefined || aVal === null) return 1
+      if (bVal === undefined || bVal === null) return -1
 
-        if (typeof aVal === "string") {
-          return sortDirection === "asc"
-            ? aVal.localeCompare(String(bVal))
-            : String(bVal).localeCompare(aVal)
-        }
+      if (typeof aVal === "string") {
         return sortDirection === "asc"
-          ? Number(aVal) - Number(bVal)
-          : Number(bVal) - Number(aVal)
-      })
+          ? aVal.localeCompare(String(bVal))
+          : String(bVal).localeCompare(aVal)
+      }
+      return sortDirection === "asc"
+        ? Number(aVal) - Number(bVal)
+        : Number(bVal) - Number(aVal)
+    })
   }, [
     disputes,
+    serverMode,
     searchTerm,
     statusFilter,
     categoryFilter,
     invoiceFilter,
     customerFilter,
     assigneeFilter,
-    searchParams,
+    slaParam,
+    teamParam,
     sortField,
     sortDirection,
+  ])
+
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [
+    debouncedSearch,
+    statusFilter,
+    categoryFilter,
+    invoiceFilter,
+    customerFilter,
+    assigneeFilter,
+    slaParam,
+    teamParam,
   ])
 
   const totalItems = filteredDisputes.length
@@ -232,11 +344,8 @@ export const DisputesTable: React.FC<DisputesTableProps> = ({
             variant="toolbar"
             size="sm"
             searchValue={searchTerm}
-            onSearchChange={(value) => {
-              setSearchTerm(value)
-              setCurrentPage(1)
-            }}
-            searchPlaceholder="Search by dispute ID, invoice, or customer…"
+            onSearchChange={setSearchTerm}
+            searchPlaceholder="Search by dispute ID or invoice…"
             showClear={hasActiveFilters}
             onClear={clearFilters}
           >
@@ -244,15 +353,12 @@ export const DisputesTable: React.FC<DisputesTableProps> = ({
               id="filter-category"
               aria-label="Category"
               value={categoryFilter}
-              onChange={(e) => {
-                setCategoryFilter(e.target.value)
-                setCurrentPage(1)
-              }}
+              onChange={(e) => setCategoryFilter(e.target.value)}
             >
               <option value="">All categories</option>
               {filterOptions.categories.map((cat) => (
                 <option key={cat} value={cat}>
-                  {cat}
+                  {cat.replace(/_/g, " ")}
                 </option>
               ))}
             </FilterSelect>
@@ -260,10 +366,7 @@ export const DisputesTable: React.FC<DisputesTableProps> = ({
               id="filter-status"
               aria-label="Status"
               value={statusFilter}
-              onChange={(e) => {
-                setStatusFilter(e.target.value)
-                setCurrentPage(1)
-              }}
+              onChange={(e) => setStatusFilter(e.target.value)}
             >
               <option value="">All statuses</option>
               <option value="OPEN">Open</option>
@@ -277,10 +380,7 @@ export const DisputesTable: React.FC<DisputesTableProps> = ({
               id="filter-invoice"
               aria-label="Invoice"
               value={invoiceFilter}
-              onChange={(e) => {
-                setInvoiceFilter(e.target.value)
-                setCurrentPage(1)
-              }}
+              onChange={(e) => setInvoiceFilter(e.target.value)}
             >
               <option value="">All invoices</option>
               {filterOptions.invoices.map((inv) => (
@@ -293,15 +393,12 @@ export const DisputesTable: React.FC<DisputesTableProps> = ({
               id="filter-customer"
               aria-label="Customer"
               value={customerFilter}
-              onChange={(e) => {
-                setCustomerFilter(e.target.value)
-                setCurrentPage(1)
-              }}
+              onChange={(e) => setCustomerFilter(e.target.value)}
             >
               <option value="">All customers</option>
               {filterOptions.customers.map((cust) => (
-                <option key={cust} value={cust}>
-                  {cust}
+                <option key={cust.id} value={cust.id}>
+                  {cust.name}
                 </option>
               ))}
             </FilterSelect>
@@ -309,15 +406,12 @@ export const DisputesTable: React.FC<DisputesTableProps> = ({
               id="filter-assignee"
               aria-label="Assignee"
               value={assigneeFilter}
-              onChange={(e) => {
-                setAssigneeFilter(e.target.value)
-                setCurrentPage(1)
-              }}
+              onChange={(e) => setAssigneeFilter(e.target.value)}
             >
               <option value="">All assignees</option>
               {filterOptions.assignees.map((a) => (
-                <option key={a} value={a}>
-                  {a}
+                <option key={a.id} value={a.id}>
+                  {a.name}
                 </option>
               ))}
             </FilterSelect>

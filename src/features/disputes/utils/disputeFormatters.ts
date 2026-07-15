@@ -48,6 +48,17 @@ export function isEscalatedDispute(dispute: {
   )
 }
 
+/**
+ * Associates cannot change status once escalated; managers/admins can still act.
+ */
+export function canMutateEscalatedDispute(
+  role: string | null | undefined,
+  status: string | null | undefined
+): boolean {
+  if (status !== "ESCALATED") return true
+  return role === "FINANCE_MANAGER" || role === "ADMIN"
+}
+
 export function normalizeConfidence(confidence: number): number {
   let pct = confidence
   if (pct <= 1) {

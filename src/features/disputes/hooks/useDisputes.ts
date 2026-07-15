@@ -107,13 +107,37 @@ const useEnrichedDisputes = (
   };
 };
 
-export const useDisputes = (params?: { customer_id?: string; status?: string }) => {
-  const { data: disputes, isLoading } = useQuery({
+export const useDisputes = (
+  params?: {
+    customer_id?: string
+    status?: string
+    category?: string
+    invoice_number?: string
+    assigned_to?: string
+    search?: string
+    sla_status?: string
+    has_assignee?: boolean
+    exclude_statuses?: string
+    limit?: number
+    offset?: number
+  },
+  options?: { enabled?: boolean }
+) => {
+  const { data: disputes, isLoading, isError, refetch } = useQuery({
     queryKey: ["disputes", params],
     queryFn: () => disputeService.getDisputes(params),
+    enabled: options?.enabled !== false,
   });
 
-  return useEnrichedDisputes(disputes, isLoading);
+  const enriched = useEnrichedDisputes(disputes, isLoading);
+  return {
+    ...enriched,
+    isError: enriched.isError || isError,
+    refetch: async () => {
+      await refetch()
+      await enriched.refetch()
+    },
+  };
 };
 
 export const useMyAssignedDisputes = () => {

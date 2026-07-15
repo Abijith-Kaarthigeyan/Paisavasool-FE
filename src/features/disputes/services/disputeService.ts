@@ -17,8 +17,22 @@ import {
   DisputeClosePayload,
 } from "../types"
 
+export type DisputeListParams = {
+  customer_id?: string
+  status?: string
+  category?: string
+  invoice_number?: string
+  assigned_to?: string
+  search?: string
+  sla_status?: string
+  has_assignee?: boolean
+  exclude_statuses?: string
+  limit?: number
+  offset?: number
+}
+
 export const disputeService = {
-  getDisputes: async (params?: { customer_id?: string; status?: string }): Promise<Dispute[]> => {
+  getDisputes: async (params?: DisputeListParams): Promise<Dispute[]> => {
     const response = await disputeApi.get<Dispute[]>("/disputes", { params });
     return response.data;
   },

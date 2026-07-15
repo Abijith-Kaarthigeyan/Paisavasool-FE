@@ -1,5 +1,11 @@
 import React, { useState, useEffect, useMemo } from "react"
-import { usePaymentReviews, usePaymentDetails, useApproveReview, useRejectReview } from "../hooks/useReviews"
+import {
+  usePaymentReviews,
+  usePaymentReviewFilterOptions,
+  usePaymentDetails,
+  useApproveReview,
+  useRejectReview,
+} from "../hooks/useReviews"
 import { useInvoices } from "@/features/invoices/hooks/useInvoices"
 import { useQuery } from "@tanstack/react-query"
 import { customerService } from "@/features/customers/services/customerService"
@@ -35,6 +41,7 @@ import {
 } from "@/lib/design-tokens"
 import { cn } from "@/lib/utils"
 import { formatCurrency } from "@/lib/formatCurrency"
+import { useDebouncedValue } from "@/lib/useDebouncedValue"
 import { AlertTriangle, Check, CheckCircle, HelpCircle, X } from "lucide-react"
 
 import type { PaymentReviewResponse } from "../types"
@@ -55,11 +62,26 @@ export const ReviewQueuePage: React.FC = () => {
   const [confidenceFilter, setConfidenceFilter] = useState("")
   const [currentPage, setCurrentPage] = useState(1)
   const itemsPerPage = 10
+  const debouncedSearch = useDebouncedValue(searchTerm)
 
   const [confirmAction, setConfirmAction] = useState<"approve" | "reject" | null>(null)
   const [isConfirmOpen, setIsConfirmOpen] = useState(false)
 
-  const { data: reviews = [], isLoading, isError } = usePaymentReviews()
+  const listParams = useMemo(
+    () => ({
+      limit: 500,
+      offset: 0,
+      ...(debouncedSearch.trim() ? { search: debouncedSearch.trim() } : {}),
+      ...(statusFilter ? { status: statusFilter } : {}),
+      ...(reasonFilter ? { reason: reasonFilter } : {}),
+      ...(confidenceFilter ? { confidence: confidenceFilter } : {}),
+    }),
+    [debouncedSearch, statusFilter, reasonFilter, confidenceFilter]
+  )
+
+  const { data: reviews = [], isLoading, isError } = usePaymentReviews(listParams)
+  const { data: filterOptions } = usePaymentReviewFilterOptions()
+  const reasons = filterOptions?.reasons ?? []
 
   const approveMutation = useApproveReview()
   const rejectMutation = useRejectReview()
@@ -69,39 +91,14 @@ export const ReviewQueuePage: React.FC = () => {
     setIsDrawerOpen(true)
   }
 
-  const filterOptions = useMemo(() => {
-    const reasons = new Set<string>()
-    reviews.forEach((rev) => {
-      if (rev.review_reason) reasons.add(rev.review_reason)
-    })
-    return { reasons: Array.from(reasons).sort() }
-  }, [reviews])
-
-  const filteredReviews = useMemo(() => {
-    return reviews.filter((rev) => {
-      const term = searchTerm.toLowerCase()
-      const matchesSearch =
-        rev.review_reason.toLowerCase().includes(term) ||
-        (rev.suggested_customer_name || "").toLowerCase().includes(term) ||
-        (rev.suggested_customer_code || "").toLowerCase().includes(term)
-
-      const matchesStatus = !statusFilter || rev.status === statusFilter
-      const matchesReason = !reasonFilter || rev.review_reason === reasonFilter
-
-      let matchesConfidence = true
-      if (confidenceFilter === "high") matchesConfidence = rev.confidence >= 80
-      else if (confidenceFilter === "medium")
-        matchesConfidence = rev.confidence >= 50 && rev.confidence < 80
-      else if (confidenceFilter === "low") matchesConfidence = rev.confidence < 50
-
-      return matchesSearch && matchesStatus && matchesReason && matchesConfidence
-    })
-  }, [reviews, searchTerm, statusFilter, reasonFilter, confidenceFilter])
-
-  const totalItems = filteredReviews.length
+  const totalItems = reviews.length
   const totalPages = Math.max(1, Math.ceil(totalItems / itemsPerPage))
   const startIndex = (currentPage - 1) * itemsPerPage
-  const paginatedReviews = filteredReviews.slice(startIndex, startIndex + itemsPerPage)
+  const paginatedReviews = reviews.slice(startIndex, startIndex + itemsPerPage)
+
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [debouncedSearch, statusFilter, reasonFilter, confidenceFilter])
 
   const hasActiveFilters =
     !!searchTerm || !!statusFilter || !!reasonFilter || !!confidenceFilter
@@ -309,15 +306,13 @@ export const ReviewQueuePage: React.FC = () => {
       />
 
       <Card>
-        {!isLoading && !isError && reviews.length > 0 && (
-          <div className="border-b border-border p-3">
+        <div className="border-b border-border p-3">
             <FilterBar
               variant="toolbar"
               size="sm"
               searchValue={searchTerm}
               onSearchChange={(value) => {
                 setSearchTerm(value)
-                setCurrentPage(1)
               }}
               searchPlaceholder="Search by reason or suggested customer…"
               showClear={hasActiveFilters}
@@ -329,7 +324,6 @@ export const ReviewQueuePage: React.FC = () => {
                 value={statusFilter}
                 onChange={(e) => {
                   setStatusFilter(e.target.value)
-                  setCurrentPage(1)
                 }}
               >
                 <option value="">All statuses</option>
@@ -343,11 +337,10 @@ export const ReviewQueuePage: React.FC = () => {
                 value={reasonFilter}
                 onChange={(e) => {
                   setReasonFilter(e.target.value)
-                  setCurrentPage(1)
                 }}
               >
                 <option value="">All reasons</option>
-                {filterOptions.reasons.map((reason) => (
+                {reasons.map((reason) => (
                   <option key={reason} value={reason}>
                     {reason.replace(/_/g, " ")}
                   </option>
@@ -359,7 +352,6 @@ export const ReviewQueuePage: React.FC = () => {
                 value={confidenceFilter}
                 onChange={(e) => {
                   setConfidenceFilter(e.target.value)
-                  setCurrentPage(1)
                 }}
               >
                 <option value="">All confidence levels</option>
@@ -369,7 +361,6 @@ export const ReviewQueuePage: React.FC = () => {
               </FilterSelect>
             </FilterBar>
           </div>
-        )}
         <CardContent className="p-0">
           {isLoading ? (
             <div className="p-4">
@@ -381,13 +372,13 @@ export const ReviewQueuePage: React.FC = () => {
               title="Failed to load review queue"
               description="Verify the AR service microservice is active and responsive."
             />
-          ) : reviews.length === 0 ? (
+          ) : !hasActiveFilters && reviews.length === 0 ? (
             <EmptyState
               icon={<CheckCircle className="h-6 w-6 text-success" />}
               title="Review queue is empty"
               description="All payment matches have been resolved automatically."
             />
-          ) : filteredReviews.length === 0 ? (
+          ) : reviews.length === 0 ? (
             <EmptyState
               title="No reviews found"
               description="No payment matches match the current filters."

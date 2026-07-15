@@ -36,11 +36,14 @@ import { cn } from "@/lib/utils"
 import { Badge } from "@/components/ui/badge"
 
 import { getDisputeActionState, getCommunicationsAttentionState } from "../utils/disputeWorkspaceUtils"
-import { isNonClosedDispute } from "../utils/disputeFormatters"
+import { canMutateEscalatedDispute, isNonClosedDispute } from "../utils/disputeFormatters"
+import { useSelector } from "react-redux"
+import type { RootState } from "@/app/store"
 
 export const DisputeDetailPage: React.FC = () => {
   const { disputeId } = useParams<{ disputeId: string }>()
   const { toast } = useToast()
+  const { user } = useSelector((state: RootState) => state.auth)
   const [activeTab, setActiveTab] = useState("overview")
   const [isCommsPanelOpen, setIsCommsPanelOpen] = useState(false)
   const [isComposePaneOpen, setIsComposePaneOpen] = useState(false)
@@ -408,7 +411,8 @@ export const DisputeDetailPage: React.FC = () => {
                 </Badge>
               )}
             </Button>
-            {isNonClosedDispute(dispute) ? (
+            {isNonClosedDispute(dispute) &&
+            canMutateEscalatedDispute(user?.role, dispute.status) ? (
               <Button
                 variant="secondary"
                 size="sm"

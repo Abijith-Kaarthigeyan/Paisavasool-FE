@@ -5,6 +5,27 @@ export type PaymentUploadStatus =
   | "REVIEW_REQUIRED" 
   | "FAILED";
 
+export interface MatchAllocation {
+  invoice_id: string;
+  invoice_number: string;
+  allocated_amount: number;
+  match_type: string;
+  confidence_score: number;
+}
+
+export interface PaymentMatchResult {
+  payment_id: string;
+  customer_name: string;
+  payment_reference: string | null;
+  payment_amount: number;
+  payment_date: string;
+  currency: string;
+  payment_status: string;
+  allocated_amount: number;
+  credit_amount: number | null;
+  allocations: MatchAllocation[];
+}
+
 export interface PaymentUploadResponse {
   id: string;
   file_name: string;
@@ -17,6 +38,7 @@ export interface PaymentUploadResponse {
   raw_text?: string | null;
   created_at: string;
   updated_at: string;
+  match_result?: PaymentMatchResult | null;
 }
 
 export interface PaymentUploadCreateResponse {
