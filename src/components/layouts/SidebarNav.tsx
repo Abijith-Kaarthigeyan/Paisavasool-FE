@@ -20,6 +20,12 @@ function resolveItemPath(item: NavItem): string {
 function isItemActive(item: NavItem, pathname: string, search: string): boolean {
   const target = resolveItemPath(item)
 
+  if (item.activePrefixes && item.activePrefixes.length > 0) {
+    return item.activePrefixes.some(
+      (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`)
+    )
+  }
+
   if (item.children && item.children.length > 0) {
     return item.children.some((child) => {
       const [childPath, childSearch] = child.path.split("?")
@@ -136,7 +142,11 @@ export const SidebarNav: React.FC<SidebarNavProps> = ({
             key={item.name}
             to={item.path!}
             onClick={onNavigate}
-            className={topLinkClass}
+            className={() =>
+              topLinkClass({
+                isActive: isItemActive(item, location.pathname, location.search),
+              })
+            }
           >
             <item.icon className="h-4 w-4 shrink-0" style={{ color: colors.icon }} aria-hidden />
             {item.name}

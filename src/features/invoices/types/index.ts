@@ -26,6 +26,10 @@ export interface InvoiceUploadFile {
   created_at: string;
 }
 
+import type { PurchaseOrderSummary } from "@/features/purchase-orders/types"
+
+export type { PurchaseOrderSummary }
+
 export interface Customer {
   customer_code: string;
   customer_name: string;
@@ -50,6 +54,9 @@ export interface Invoice {
   outstanding_amount: number;
   status: InvoiceStatus;
   batch_id: string;
+  po_number?: string | null;
+  po_id?: string | null;
+  purchase_order?: PurchaseOrderSummary | null;
   current_version?: number;
   created_at: string;
   updated_at: string;

@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/table"
 import { INVOICE_STATUS_VARIANT, getStatusVariant } from "@/lib/design-tokens"
 import { formatCurrency } from "@/lib/formatCurrency"
+import { getDashboardPath } from "@/lib/navigation"
 import {
   ChevronDown,
   ChevronUp,
@@ -33,7 +34,9 @@ import {
   HelpCircle,
   FileSpreadsheet,
   History,
+  ClipboardList,
 } from "lucide-react"
+import { PurchaseOrderSummaryCard } from "@/features/purchase-orders/components/PurchaseOrderSummaryCard"
 
 export const InvoiceDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>()
@@ -123,7 +126,7 @@ export const InvoiceDetailPage: React.FC = () => {
           description="The requested invoice details could not be loaded."
           action={
             <Button variant="ghost" size="sm" onClick={() => navigate("/invoices")}>
-              Back to invoices
+              Back to billings
             </Button>
           }
         />
@@ -142,7 +145,8 @@ export const InvoiceDetailPage: React.FC = () => {
     <div className="mx-auto max-w-4xl space-y-8">
       <PageBreadcrumb
         items={[
-          { label: "Invoices", to: "/invoices" },
+          { label: "Dashboard", to: getDashboardPath() },
+          { label: "Billings", to: "/invoices" },
           { label: `Invoice #${headerInvoiceNumber}` },
         ]}
       />
@@ -414,6 +418,32 @@ export const InvoiceDetailPage: React.FC = () => {
               </div>
             </div>
           </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="border-b border-border pb-4">
+          <CardTitle className="flex items-center gap-2 text-base font-semibold">
+            <ClipboardList className="h-4 w-4 text-primary" aria-hidden />
+            Purchase order
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="pt-4">
+          {invoice.purchase_order ? (
+            <PurchaseOrderSummaryCard
+              purchaseOrder={invoice.purchase_order}
+              layout="wide"
+            />
+          ) : invoice.po_number ? (
+            <div className="rounded-lg border border-warning/50 bg-warning-muted/10 p-3.5 text-sm leading-relaxed text-warning-foreground">
+              PO #{invoice.po_number} referenced on invoice — not yet matched in system.
+              Upload the PO or link manually once available.
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              No purchase order reference on this invoice
+            </p>
+          )}
         </CardContent>
       </Card>
     </div>

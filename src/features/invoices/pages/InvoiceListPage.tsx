@@ -24,7 +24,14 @@ import { INVOICE_STATUS_VARIANT, getStatusVariant } from "@/lib/design-tokens"
 import { formatCurrency } from "@/lib/formatCurrency"
 import { useDebouncedValue } from "@/lib/useDebouncedValue"
 import { RefreshCw, HelpCircle, Inbox } from "lucide-react"
+import {
+  InvoicePoLinkBadge,
+  getPoLinkState,
+} from "@/features/purchase-orders/components/InvoicePoLinkBadge"
+import { BillingsListToggle } from "../components/BillingsListToggle"
 import type { Invoice } from "../types"
+
+type PoLinkFilter = "" | "linked" | "awaiting_match" | "none"
 
 const getDisplayStatus = (invoice: Invoice): string => {
   if (invoice.status !== "OVERDUE") {
@@ -40,6 +47,7 @@ export const InvoiceListPage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState("")
   const [customerFilter, setCustomerFilter] = useState("")
+  const [poLinkFilter, setPoLinkFilter] = useState<PoLinkFilter>("")
   const [currentPage, setCurrentPage] = useState(1)
   const itemsPerPage = 10
   const debouncedSearch = useDebouncedValue(searchTerm)
@@ -68,23 +76,30 @@ export const InvoiceListPage: React.FC = () => {
     navigate(`/invoices/${invoiceId}`)
   }
 
+  const filteredInvoices = useMemo(() => {
+    if (!poLinkFilter) return invoices
+    return invoices.filter((inv) => getPoLinkState(inv) === poLinkFilter)
+  }, [invoices, poLinkFilter])
+
   useEffect(() => {
     setCurrentPage(1)
-  }, [debouncedSearch, statusFilter, customerFilter])
+  }, [debouncedSearch, statusFilter, customerFilter, poLinkFilter])
 
-  const totalItems = invoices.length
+  const totalItems = filteredInvoices.length
   const totalPages = Math.max(1, Math.ceil(totalItems / itemsPerPage))
   const startIndex = (currentPage - 1) * itemsPerPage
-  const paginatedInvoices = invoices.slice(startIndex, startIndex + itemsPerPage)
+  const paginatedInvoices = filteredInvoices.slice(startIndex, startIndex + itemsPerPage)
 
-  const totalOpenBalance = invoices.reduce((sum, i) => sum + i.outstanding_amount, 0)
+  const totalOpenBalance = filteredInvoices.reduce((sum, i) => sum + i.outstanding_amount, 0)
 
-  const hasActiveFilters = !!searchTerm || !!statusFilter || !!customerFilter
+  const hasActiveFilters =
+    !!searchTerm || !!statusFilter || !!customerFilter || !!poLinkFilter
 
   const clearFilters = () => {
     setSearchTerm("")
     setStatusFilter("")
     setCustomerFilter("")
+    setPoLinkFilter("")
     setCurrentPage(1)
   }
 
@@ -93,19 +108,23 @@ export const InvoiceListPage: React.FC = () => {
       <PageBreadcrumb
         items={[
           { label: "Dashboard", to: getDashboardPath() },
-          { label: "Billing register" },
+          { label: "Billings" },
         ]}
       />
 
-      <PageHeader
-        title="Billing Register"
-        actions={
-          <Button variant="secondary" size="sm" onClick={() => refetch()}>
-            <RefreshCw className="h-3.5 w-3.5" aria-hidden />
-            Refresh list
-          </Button>
-        }
-      />
+      <div className="space-y-3">
+        <PageHeader
+          title="Billings"
+          actions={
+            <Button variant="secondary" size="sm" onClick={() => refetch()}>
+              <RefreshCw className="h-3.5 w-3.5" aria-hidden />
+              Refresh list
+            </Button>
+          }
+        />
+
+        <BillingsListToggle active="invoices" />
+      </div>
 
       <Card>
         <div className="border-b border-border p-3">
@@ -151,12 +170,23 @@ export const InvoiceListPage: React.FC = () => {
                 </option>
               ))}
             </FilterSelect>
+            <FilterSelect
+              id="po-link-filter"
+              aria-label="PO link status"
+              value={poLinkFilter}
+              onChange={(e) => setPoLinkFilter(e.target.value as PoLinkFilter)}
+            >
+              <option value="">All PO link statuses</option>
+              <option value="linked">Linked</option>
+              <option value="awaiting_match">Unlinked with PO #</option>
+              <option value="none">No PO #</option>
+            </FilterSelect>
           </FilterBar>
         </div>
         <CardContent className="p-0">
           {isLoading ? (
             <div className="p-4">
-              <TableSkeleton rows={8} columns={8} />
+              <TableSkeleton rows={8} columns={9} />
             </div>
           ) : isError ? (
             <EmptyState
@@ -170,7 +200,7 @@ export const InvoiceListPage: React.FC = () => {
                 </Button>
               }
             />
-          ) : invoices.length === 0 ? (
+          ) : filteredInvoices.length === 0 ? (
             <EmptyState
               icon={<Inbox className="h-6 w-6" />}
               title="No invoices found"
@@ -188,6 +218,7 @@ export const InvoiceListPage: React.FC = () => {
                   <TableHead className="text-center">Outstanding</TableHead>
                   <TableHead className="text-center">Status</TableHead>
                   <TableHead className="text-center">Version</TableHead>
+                  <TableHead className="text-center">Purchase order</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -227,6 +258,18 @@ export const InvoiceListPage: React.FC = () => {
                       </TableCell>
                       <TableCell className="text-center tabular-nums text-muted-foreground">
                         {inv.current_version ?? 1}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <span className="inline-flex justify-center">
+                          <InvoicePoLinkBadge
+                            poId={inv.po_id}
+                            poNumber={inv.po_number}
+                            compact
+                          />
+                          {!inv.po_id && !inv.po_number && (
+                            <span className="text-muted-foreground">—</span>
+                          )}
+                        </span>
                       </TableCell>
                     </TableRow>
                   )

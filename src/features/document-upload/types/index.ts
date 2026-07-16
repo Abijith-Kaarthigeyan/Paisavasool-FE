@@ -1,4 +1,6 @@
-export type DocumentType = "INVOICE" | "PAYMENT" | "UNKNOWN"
+export type DocumentType = "INVOICE" | "PAYMENT" | "PURCHASE_ORDER" | "UNKNOWN"
+
+export type ConfirmableType = "INVOICE" | "PAYMENT" | "PURCHASE_ORDER"
 
 export type DocumentFileStatus =
   | "PENDING_CONFIRMATION"
@@ -13,7 +15,7 @@ export type DocumentSessionStatus =
   | "COMPLETED"
   | "FAILED"
 
-export type DocumentTargetType = "INVOICE_BATCH" | "PAYMENT_UPLOAD"
+export type DocumentTargetType = "INVOICE_BATCH" | "PO_BATCH" | "PAYMENT_UPLOAD"
 
 export interface DocumentUploadFile {
   id: string
@@ -49,7 +51,15 @@ export interface DocumentUploadIngestResponse {
 
 export interface DocumentUploadFileConfirmation {
   file_id: string
-  document_type: "INVOICE" | "PAYMENT"
+  document_type: ConfirmableType
+}
+
+export function formatDocumentType(type: string | null | undefined): string {
+  if (!type || type === "UNKNOWN") return "Unknown"
+  return type
+    .split("_")
+    .map((word) => word.charAt(0) + word.slice(1).toLowerCase())
+    .join(" ")
 }
 
 export interface DocumentUploadConfirmRequest {

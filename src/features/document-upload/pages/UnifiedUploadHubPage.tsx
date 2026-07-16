@@ -26,20 +26,28 @@ import {
   getStatusVariant,
 } from "@/lib/design-tokens"
 import { useToast } from "@/components/ui/toast"
-import { ExternalLink, RefreshCw, FileText, CreditCard } from "lucide-react"
-import type { DocumentUploadFile } from "../types"
+import { ExternalLink, RefreshCw, FileText, CreditCard, ClipboardList } from "lucide-react"
+import type { ConfirmableType, DocumentUploadFile } from "../types"
+import { formatDocumentType } from "../types"
 import { SessionInvoiceBatchReview } from "../components/SessionInvoiceDuplicateReview"
 
-type ConfirmableType = "INVOICE" | "PAYMENT"
+function isConfirmableType(type: string | null | undefined): type is ConfirmableType {
+  return type === "INVOICE" || type === "PAYMENT" || type === "PURCHASE_ORDER"
+}
+
+function getTypeIcon(type: string | null | undefined) {
+  if (type === "PAYMENT") {
+    return <CreditCard className="h-4 w-4 shrink-0 text-muted-foreground" />
+  }
+  if (type === "PURCHASE_ORDER") {
+    return <ClipboardList className="h-4 w-4 shrink-0 text-muted-foreground" />
+  }
+  return <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
+}
 
 function formatLabel(value: string | null | undefined): string {
   if (!value) return "—"
   return value.replace(/_/g, " ")
-}
-
-function formatType(type: string | null | undefined): string {
-  if (!type || type === "UNKNOWN") return "Unknown"
-  return type.charAt(0) + type.slice(1).toLowerCase()
 }
 
 function getDestinationLink(
@@ -60,6 +68,12 @@ function getDestinationLink(
       to: `/payment-upload/${file.target_id}${returnQuery}`,
     }
   }
+  if (file.target_type === "PO_BATCH") {
+    return {
+      label: "View PO batch",
+      to: `/po-upload/batches/${file.target_id}${returnQuery}`,
+    }
+  }
   return null
 }
 
@@ -67,8 +81,9 @@ function buildInitialSelections(files: DocumentUploadFile[]): Record<string, Con
   const selections: Record<string, ConfirmableType> = {}
   for (const file of files) {
     if (file.status === "PENDING_CONFIRMATION") {
-      selections[file.id] =
-        file.predicted_type === "PAYMENT" ? "PAYMENT" : "INVOICE"
+      selections[file.id] = isConfirmableType(file.predicted_type)
+        ? file.predicted_type
+        : "INVOICE"
     }
   }
   return selections
@@ -213,7 +228,8 @@ export const UnifiedUploadHubPage: React.FC = () => {
           <CardHeader className="border-b border-border pb-4">
             <CardTitle className="text-base font-semibold">Documents in this session</CardTitle>
             <CardDescription>
-              Each file was classified and routed to the invoice or payment pipeline.
+              Each file was classified and routed to the invoice, purchase order, or payment
+              pipeline.
             </CardDescription>
           </CardHeader>
           <CardContent className="pt-4">
@@ -235,11 +251,7 @@ export const UnifiedUploadHubPage: React.FC = () => {
                     <TableRow key={file.id}>
                       <TableCell>
                         <div className="flex items-center gap-2">
-                          {detectedType === "PAYMENT" ? (
-                            <CreditCard className="h-4 w-4 shrink-0 text-muted-foreground" />
-                          ) : (
-                            <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
-                          )}
+                          {getTypeIcon(detectedType)}
                           <span className="truncate font-medium">{file.file_name}</span>
                         </div>
                         {file.error_message && (
@@ -248,7 +260,7 @@ export const UnifiedUploadHubPage: React.FC = () => {
                       </TableCell>
                       <TableCell>
                         <span className="text-sm text-foreground">
-                          {formatType(detectedType)}
+                          {formatDocumentType(detectedType)}
                           {file.confidence != null ? ` (${Math.round(file.confidence)}%)` : ""}
                         </span>
                       </TableCell>

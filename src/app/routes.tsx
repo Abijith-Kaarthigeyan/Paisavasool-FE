@@ -11,6 +11,9 @@ import { AdminDashboard } from "@/features/dashboard/pages/AdminDashboard"
 import { BatchDetailsPage } from "@/features/invoices/pages/BatchDetailsPage"
 import { InvoiceListPage } from "@/features/invoices/pages/InvoiceListPage"
 import { InvoiceDetailPage } from "@/features/invoices/pages/InvoiceDetailPage"
+import { PurchaseOrderListPage } from "@/features/purchase-orders/pages/PurchaseOrderListPage"
+import { PurchaseOrderDetailPage } from "@/features/purchase-orders/pages/PurchaseOrderDetailPage"
+import { PurchaseOrderBatchDetailsPage } from "@/features/purchase-orders/pages/PurchaseOrderBatchDetailsPage"
 import { UnifiedUploadPage } from "@/features/document-upload/pages/UnifiedUploadPage"
 import { UnifiedUploadHubPage } from "@/features/document-upload/pages/UnifiedUploadHubPage"
 import { PaymentUploadHistoryPage } from "@/features/payments/pages/PaymentUploadHistoryPage"
@@ -111,6 +114,34 @@ export const AppRoutes = () => {
             element={
               <ProtectedRoute allowedRoles={["FINANCE_ASSOCIATE"]}>
                 <InvoiceDetailPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/purchase-orders"
+            element={
+              <ProtectedRoute allowedRoles={["FINANCE_ASSOCIATE"]}>
+                <PurchaseOrderListPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/purchase-orders/:id"
+            element={
+              <ProtectedRoute allowedRoles={["FINANCE_ASSOCIATE"]}>
+                <PurchaseOrderDetailPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/po-upload"
+            element={<Navigate to="/upload" replace />}
+          />
+          <Route
+            path="/po-upload/batches/:id"
+            element={
+              <ProtectedRoute allowedRoles={["FINANCE_ASSOCIATE"]}>
+                <PurchaseOrderBatchDetailsPage />
               </ProtectedRoute>
             }
           />

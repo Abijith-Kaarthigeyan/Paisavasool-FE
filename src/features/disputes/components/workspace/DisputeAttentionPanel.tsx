@@ -19,6 +19,7 @@ import {
   canMutateEscalatedDispute,
 } from "../../utils/disputeFormatters"
 import { extractPaymentReference } from "../../utils/disputeWorkspaceUtils"
+import { getInvoicePoContext } from "@/features/purchase-orders/utils/poInvoiceContext"
 import type { Dispute, DisputeCase, DisputeEvidenceSnapshot, DisputeResolutionRecommendation } from "../../types"
 import type { InvoiceItem } from "@/features/invoices/types"
 import type { CustomerDetail } from "@/features/customers/types"
@@ -209,6 +210,9 @@ export function DisputeAttentionPanel({
   const attentionCopy = getAttentionCopy(actionState)
   const recForDisplay = latestRecommendation ?? latestAmendmentRecommendation
   const amendmentRec = latestAmendmentRecommendation
+  const poContext = getInvoicePoContext(dispute.invoice)
+  const linkedPoNumber =
+    dispute.invoice?.purchase_order?.po_number ?? dispute.invoice?.po_number ?? null
   const parsed = recForDisplay
     ? parseRecommendationAction(recForDisplay.recommended_action)
     : null
@@ -322,6 +326,11 @@ export function DisputeAttentionPanel({
             >
               {parsed.reasoning && (
                 <p className="text-sm leading-relaxed text-muted-foreground">{parsed.reasoning}</p>
+              )}
+              {isAmendmentDispute && poContext.hasLinkedPo && linkedPoNumber && (
+                <p className="text-sm text-muted-foreground">
+                  Resolution uses linked purchase order PO-{linkedPoNumber} as primary evidence.
+                </p>
               )}
               {amendmentRec?.recommended_invoice_json && (
                 <InvoiceAmendmentDiff

@@ -118,7 +118,7 @@ export const UnifiedUploadDropzone: React.FC<UnifiedUploadDropzoneProps> = ({
           <>
             <UploadCloud className="h-8 w-8 text-muted-foreground" aria-hidden />
             <p className="mt-3 text-sm font-medium text-foreground">
-              Drop invoice or payment document here
+              Drop invoices, purchase orders, and payment proofs here
             </p>
             <p className="mt-1 text-xs text-muted-foreground">PDF or ZIP, up to 50MB</p>
             <Button

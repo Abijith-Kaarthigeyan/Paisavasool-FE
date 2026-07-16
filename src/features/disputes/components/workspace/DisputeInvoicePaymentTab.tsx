@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom"
+import { ClipboardList } from "lucide-react"
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -12,6 +13,13 @@ import {
 } from "@/components/ui/table"
 import type { CustomerDetail } from "@/features/customers/types"
 import type { InvoiceItem } from "@/features/invoices/types"
+import { PurchaseOrderSummaryCard } from "@/features/purchase-orders/components/PurchaseOrderSummaryCard"
+import { PoInvoiceCompareTable } from "@/features/purchase-orders/components/PoInvoiceCompareTable"
+import {
+  usePurchaseOrderDetails,
+  usePurchaseOrderItems,
+} from "@/features/purchase-orders/hooks/usePurchaseOrders"
+import { getInvoicePoContext } from "@/features/purchase-orders/utils/poInvoiceContext"
 import type { Dispute, DisputeCase, DisputeEvidenceSnapshot } from "../../types"
 import {
   extractPaymentReference,
@@ -237,6 +245,118 @@ function PaymentCard({
   )
 }
 
+function SystemPurchaseOrderCard({
+  poId,
+  invoice,
+  invoiceItemCount,
+}: {
+  poId: string
+  invoice: Dispute["invoice"]
+  invoiceItemCount: number
+}) {
+  const { data: purchaseOrder, isLoading: isLoadingPo } = usePurchaseOrderDetails(poId)
+  const { data: poItems = [], isLoading: isLoadingItems } = usePurchaseOrderItems(poId)
+  const isLoading = isLoadingPo || isLoadingItems
+
+  const summary =
+    purchaseOrder ??
+    (invoice?.purchase_order
+      ? {
+          id: invoice.purchase_order.id,
+          po_number: invoice.purchase_order.po_number,
+          po_date: invoice.purchase_order.po_date,
+          currency: invoice.purchase_order.currency,
+          total_amount: invoice.purchase_order.total_amount,
+          status: invoice.purchase_order.status,
+        }
+      : null)
+
+  return (
+    <Card>
+      <CardHeader className="border-b border-border pb-3">
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <div>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <ClipboardList className="h-4 w-4 text-primary" aria-hidden />
+              System purchase order
+            </CardTitle>
+            <CardDescription>Linked PO from the AR system used as primary evidence.</CardDescription>
+          </div>
+          <Badge variant="info" shape="pill" className="shrink-0">
+            Primary evidence — from AR system
+          </Badge>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-3 pt-4 text-sm">
+        {isLoading ? (
+          <div className="space-y-2">
+            <Skeleton className="h-4 w-full" />
+            <Skeleton className="h-24 w-full" />
+          </div>
+        ) : summary ? (
+          <>
+            <PurchaseOrderSummaryCard purchaseOrder={summary} />
+
+            {poItems.length > 0 && (
+              <div className="border-t border-border pt-3">
+                <p className="mb-2 text-xs font-medium text-muted-foreground">Line items</p>
+                <div className="max-h-72 overflow-y-auto rounded-md border border-border">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="text-xs">Description</TableHead>
+                        <TableHead className="text-right text-xs">Qty</TableHead>
+                        <TableHead className="text-right text-xs">Amount</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {poItems.map((item) => (
+                        <TableRow key={item.id}>
+                          <TableCell className="max-w-[200px] truncate text-xs">
+                            {item.description}
+                          </TableCell>
+                          <TableCell className="text-right text-xs tabular-nums">
+                            {item.quantity}
+                          </TableCell>
+                          <TableCell className="text-right text-xs tabular-nums">
+                            ₹{item.amount.toLocaleString()}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </div>
+            )}
+
+            {purchaseOrder && (
+              <PoInvoiceCompareTable
+                purchaseOrder={purchaseOrder}
+                poItems={poItems}
+                invoice={invoice ?? {}}
+                invoiceItemCount={invoiceItemCount}
+              />
+            )}
+          </>
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            Linked purchase order could not be loaded.
+          </p>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
+function AwaitingMatchPoBanner({ poNumber }: { poNumber: string }) {
+  return (
+    <div className="rounded-lg border border-warning/50 bg-warning-muted/10 p-3.5 text-sm leading-relaxed text-warning-foreground">
+      Customer referenced PO #{poNumber} but no system PO is linked. Agent may request PO from
+      customer.
+    </div>
+  )
+}
+
 export function DisputeInvoicePaymentTab({
   dispute,
   disputeCase,
@@ -247,6 +367,8 @@ export function DisputeInvoicePaymentTab({
   isLoadingCustomer,
 }: DisputeInvoicePaymentTabProps) {
   const showPaymentCard = isPaymentDisputeCategory(dispute.dispute_category)
+  const isAmendmentDispute = dispute.dispute_category === "AMENDMENT"
+  const poContext = getInvoicePoContext(dispute.invoice)
 
   return (
     <div className="space-y-6">
@@ -255,6 +377,16 @@ export function DisputeInvoicePaymentTab({
         invoiceItems={invoiceItems}
         isLoading={isLoadingInvoiceItems}
       />
+      {isAmendmentDispute && poContext.hasLinkedPo && poContext.poId && (
+        <SystemPurchaseOrderCard
+          poId={poContext.poId}
+          invoice={dispute.invoice}
+          invoiceItemCount={invoiceItems.length}
+        />
+      )}
+      {isAmendmentDispute && poContext.hasAwaitingMatch && poContext.poNumber && (
+        <AwaitingMatchPoBanner poNumber={poContext.poNumber} />
+      )}
       {showPaymentCard && (
         <PaymentCard
           dispute={dispute}

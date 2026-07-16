@@ -10,16 +10,19 @@ import { PageHeader } from "@/components/ui/page-header"
 import { PageBreadcrumb } from "@/components/ui/page-breadcrumb"
 import { getDashboardPath } from "@/lib/navigation"
 import { useToast } from "@/components/ui/toast"
-import type { DocumentUploadFile, DocumentUploadSession } from "../types"
+import type { ConfirmableType, DocumentUploadFile, DocumentUploadSession } from "../types"
 
-type ConfirmableType = "INVOICE" | "PAYMENT"
+function isConfirmableType(type: string | null | undefined): type is ConfirmableType {
+  return type === "INVOICE" || type === "PAYMENT" || type === "PURCHASE_ORDER"
+}
 
 function buildInitialSelections(files: DocumentUploadFile[]): Record<string, ConfirmableType> {
   const selections: Record<string, ConfirmableType> = {}
   for (const file of files) {
     if (file.status === "PENDING_CONFIRMATION") {
-      selections[file.id] =
-        file.predicted_type === "PAYMENT" ? "PAYMENT" : "INVOICE"
+      selections[file.id] = isConfirmableType(file.predicted_type)
+        ? file.predicted_type
+        : "INVOICE"
     }
   }
   return selections
@@ -39,6 +42,10 @@ function tryShortcutNavigate(
   }
   if (file.target_type === "PAYMENT_UPLOAD") {
     navigate(`/payment-upload/${file.target_id}`)
+    return true
+  }
+  if (file.target_type === "PO_BATCH") {
+    navigate(`/po-upload/batches/${file.target_id}`)
     return true
   }
   return false
@@ -130,7 +137,7 @@ export const UnifiedUploadPage: React.FC = () => {
       await routeSession(sessionId, pendingSelections)
       toast({
         title: "Documents routed",
-        description: "Processing has started in the invoice and payment pipelines.",
+        description: "Processing has started in the invoice, purchase order, and payment pipelines.",
         type: "success",
       })
     } catch (err: unknown) {
@@ -156,7 +163,7 @@ export const UnifiedUploadPage: React.FC = () => {
 
       <PageHeader
         title="Upload documents"
-        description="Upload invoices or payment proofs — the agent will classify each document automatically."
+        description="Upload invoices, purchase orders, or payment proofs — the agent will classify each document automatically."
       />
 
       {!showReview ? (

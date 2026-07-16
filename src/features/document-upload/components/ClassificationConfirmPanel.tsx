@@ -1,12 +1,11 @@
 import React from "react"
-import { FileText, CreditCard, AlertCircle } from "lucide-react"
+import { FileText, CreditCard, ClipboardList, AlertCircle } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
-import type { DocumentUploadFile } from "../types"
-
-type ConfirmableType = "INVOICE" | "PAYMENT"
+import type { ConfirmableType, DocumentUploadFile } from "../types"
+import { formatDocumentType } from "../types"
 
 interface ClassificationConfirmPanelProps {
   files: DocumentUploadFile[]
@@ -16,9 +15,27 @@ interface ClassificationConfirmPanelProps {
   isConfirming: boolean
 }
 
-function formatType(type: string | null | undefined): string {
-  if (!type || type === "UNKNOWN") return "Unknown"
-  return type.charAt(0) + type.slice(1).toLowerCase()
+const CONFIRMABLE_TYPES: ConfirmableType[] = ["INVOICE", "PAYMENT", "PURCHASE_ORDER"]
+
+function isConfirmableType(type: string | null | undefined): type is ConfirmableType {
+  return type === "INVOICE" || type === "PAYMENT" || type === "PURCHASE_ORDER"
+}
+
+function getTypeIcon(type: string | null | undefined) {
+  if (type === "PAYMENT") {
+    return <CreditCard className="h-4 w-4 shrink-0 text-muted-foreground" />
+  }
+  if (type === "PURCHASE_ORDER") {
+    return <ClipboardList className="h-4 w-4 shrink-0 text-muted-foreground" />
+  }
+  return <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
+}
+
+function getDefaultSuggestion(file: DocumentUploadFile): ConfirmableType {
+  if (isConfirmableType(file.predicted_type)) {
+    return file.predicted_type
+  }
+  return "INVOICE"
 }
 
 export const ClassificationConfirmPanel: React.FC<ClassificationConfirmPanelProps> = ({
@@ -31,8 +48,8 @@ export const ClassificationConfirmPanel: React.FC<ClassificationConfirmPanelProp
   const pendingFiles = files.filter((f) => f.status === "PENDING_CONFIRMATION")
   const readyFiles = files.filter((f) => f.status === "READY")
 
-  const allPendingResolved = pendingFiles.every(
-    (f) => selections[f.id] === "INVOICE" || selections[f.id] === "PAYMENT"
+  const allPendingResolved = pendingFiles.every((f) =>
+    CONFIRMABLE_TYPES.includes(selections[f.id])
   )
 
   return (
@@ -56,11 +73,7 @@ export const ClassificationConfirmPanel: React.FC<ClassificationConfirmPanelProp
                   className="flex items-center justify-between rounded-md border border-border bg-muted/20 px-4 py-3"
                 >
                   <div className="flex min-w-0 items-center gap-3">
-                    {file.confirmed_type === "PAYMENT" ? (
-                      <CreditCard className="h-4 w-4 shrink-0 text-muted-foreground" />
-                    ) : (
-                      <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
-                    )}
+                    {getTypeIcon(file.confirmed_type)}
                     <div className="min-w-0">
                       <p className="truncate text-sm font-medium text-foreground">
                         {file.file_name}
@@ -73,7 +86,7 @@ export const ClassificationConfirmPanel: React.FC<ClassificationConfirmPanelProp
                     </div>
                   </div>
                   <Badge variant="success" shape="pill">
-                    {formatType(file.confirmed_type)}
+                    {formatDocumentType(file.confirmed_type)}
                     {file.confidence != null ? ` (${Math.round(file.confidence)}%)` : ""}
                   </Badge>
                 </div>
@@ -89,10 +102,7 @@ export const ClassificationConfirmPanel: React.FC<ClassificationConfirmPanelProp
               </p>
               {pendingFiles.map((file) => {
                 const selected = selections[file.id]
-                const suggested =
-                  file.predicted_type === "INVOICE" || file.predicted_type === "PAYMENT"
-                    ? file.predicted_type
-                    : "INVOICE"
+                const suggested = getDefaultSuggestion(file)
 
                 return (
                   <div
@@ -105,7 +115,7 @@ export const ClassificationConfirmPanel: React.FC<ClassificationConfirmPanelProp
                           {file.file_name}
                         </p>
                         <p className="mt-1 text-xs text-muted-foreground">
-                          Suggested: {formatType(file.predicted_type)}
+                          Suggested: {formatDocumentType(file.predicted_type)}
                           {file.confidence != null
                             ? ` (${Math.round(file.confidence)}% confidence)`
                             : ""}
@@ -118,7 +128,7 @@ export const ClassificationConfirmPanel: React.FC<ClassificationConfirmPanelProp
                           </ul>
                         )}
                       </div>
-                      <div className="flex shrink-0 gap-2">
+                      <div className="flex shrink-0 flex-wrap gap-2">
                         <Button
                           type="button"
                           size="sm"
@@ -131,6 +141,19 @@ export const ClassificationConfirmPanel: React.FC<ClassificationConfirmPanelProp
                         >
                           <FileText className="h-3.5 w-3.5" aria-hidden />
                           Invoice
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant={selected === "PURCHASE_ORDER" ? "primary" : "secondary"}
+                          onClick={() => onSelectionChange(file.id, "PURCHASE_ORDER")}
+                          className={cn(
+                            "gap-1.5",
+                            selected === "PURCHASE_ORDER" && "ring-2 ring-primary/30"
+                          )}
+                        >
+                          <ClipboardList className="h-3.5 w-3.5" aria-hidden />
+                          Purchase order
                         </Button>
                         <Button
                           type="button"
@@ -149,7 +172,8 @@ export const ClassificationConfirmPanel: React.FC<ClassificationConfirmPanelProp
                     </div>
                     {!selected && (
                       <p className="mt-2 text-xs text-muted-foreground">
-                        Default suggestion: {formatType(suggested)} — pick a type to continue.
+                        Default suggestion: {formatDocumentType(suggested)} — pick a type to
+                        continue.
                       </p>
                     )}
                   </div>

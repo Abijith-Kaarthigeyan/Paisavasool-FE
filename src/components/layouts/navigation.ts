@@ -18,6 +18,11 @@ export interface NavItem {
   path?: string
   /** Landing path when sidebar shows a single icon for grouped nav items */
   primaryPath?: string
+  /**
+   * Path prefixes that keep this item highlighted (e.g. Billings covers
+   * both /invoices and /purchase-orders).
+   */
+  activePrefixes?: string[]
   icon: LucideIcon
   roles: string[]
   children?: NavChildItem[]
@@ -49,13 +54,12 @@ export const navigationItems: NavItem[] = [
     ],
   },
   {
-    name: "Invoices",
+    name: "Billings",
+    path: "/invoices",
     primaryPath: "/invoices",
+    activePrefixes: ["/invoices", "/purchase-orders"],
     roles: ["FINANCE_ASSOCIATE"],
     icon: FileText,
-    children: [
-      { name: "Invoice List", path: "/invoices", roles: ["FINANCE_ASSOCIATE"] },
-    ],
   },
   {
     name: "Payments",
