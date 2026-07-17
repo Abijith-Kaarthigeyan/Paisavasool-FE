@@ -464,6 +464,14 @@ export const PurchaseOrderDetailPage: React.FC = () => {
                   </span>
                 </div>
                 <div className="flex justify-between gap-4">
+                  <span className="text-muted-foreground">Requested delivery</span>
+                  <span className="font-medium text-foreground">
+                    {po.requested_delivery_date
+                      ? new Date(po.requested_delivery_date).toLocaleDateString()
+                      : "—"}
+                  </span>
+                </div>
+                <div className="flex justify-between gap-4">
                   <span className="text-muted-foreground">Currency</span>
                   <span className="font-medium text-foreground">{po.currency}</span>
                 </div>

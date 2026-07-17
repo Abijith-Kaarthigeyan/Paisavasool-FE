@@ -78,6 +78,7 @@ function SystemPurchaseOrderCard({
           id: invoice.purchase_order.id,
           po_number: invoice.purchase_order.po_number,
           po_date: invoice.purchase_order.po_date,
+          requested_delivery_date: invoice.purchase_order.requested_delivery_date,
           currency: invoice.purchase_order.currency,
           total_amount: invoice.purchase_order.total_amount,
           status: invoice.purchase_order.status,

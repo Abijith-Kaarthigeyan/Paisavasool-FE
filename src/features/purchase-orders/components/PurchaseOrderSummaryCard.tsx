@@ -17,6 +17,10 @@ export function PurchaseOrderSummaryCard({
   showViewLink = true,
   layout = "default",
 }: PurchaseOrderSummaryCardProps) {
+  const requestedDeliveryLabel = purchaseOrder.requested_delivery_date
+    ? new Date(purchaseOrder.requested_delivery_date).toLocaleDateString()
+    : "—"
+
   if (layout === "wide") {
     return (
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -30,6 +34,13 @@ export function PurchaseOrderSummaryCard({
             <div className="flex items-center gap-1.5 font-medium text-foreground">
               <Calendar className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden />
               {new Date(purchaseOrder.po_date).toLocaleDateString()}
+            </div>
+          </div>
+          <div className="space-y-0.5">
+            <p className="text-xs text-muted-foreground">Requested delivery</p>
+            <div className="flex items-center gap-1.5 font-medium text-foreground">
+              <Calendar className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden />
+              {requestedDeliveryLabel}
             </div>
           </div>
           <div className="space-y-0.5">
@@ -67,6 +78,10 @@ export function PurchaseOrderSummaryCard({
           <div className="flex items-center gap-1.5 text-muted-foreground">
             <Calendar className="h-3.5 w-3.5 shrink-0" aria-hidden />
             {new Date(purchaseOrder.po_date).toLocaleDateString()}
+          </div>
+          <div className="flex items-center gap-1.5 text-muted-foreground">
+            <Calendar className="h-3.5 w-3.5 shrink-0" aria-hidden />
+            <span>Requested delivery: {requestedDeliveryLabel}</span>
           </div>
         </div>
         <PurchaseOrderStatusBadge status={purchaseOrder.status} />

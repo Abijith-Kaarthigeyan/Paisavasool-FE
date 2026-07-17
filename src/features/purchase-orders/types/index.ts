@@ -16,6 +16,7 @@ export interface PurchaseOrderSummary {
   id: string
   po_number: string
   po_date: string
+  requested_delivery_date: string | null
   currency: "INR" | "USD" | "EUR" | "GBP"
   total_amount: number
   status: PurchaseOrderStatus

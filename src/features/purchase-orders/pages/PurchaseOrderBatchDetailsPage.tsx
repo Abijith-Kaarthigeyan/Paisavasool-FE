@@ -295,6 +295,7 @@ export const PurchaseOrderBatchDetailsPage: React.FC = () => {
                     <TableHead>PO number</TableHead>
                     <TableHead>Customer</TableHead>
                     <TableHead>PO date</TableHead>
+                    <TableHead>Requested delivery</TableHead>
                     <TableHead>Total</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead className="text-right">Action</TableHead>
@@ -309,6 +310,14 @@ export const PurchaseOrderBatchDetailsPage: React.FC = () => {
                         {new Date(po.po_date).toLocaleDateString(undefined, {
                           dateStyle: "medium",
                         })}
+                      </TableCell>
+                      <TableCell>
+                        {po.requested_delivery_date
+                          ? new Date(po.requested_delivery_date).toLocaleDateString(
+                              undefined,
+                              { dateStyle: "medium" }
+                            )
+                          : "—"}
                       </TableCell>
                       <TableCell>{formatCurrency(po.total_amount)}</TableCell>
                       <TableCell>

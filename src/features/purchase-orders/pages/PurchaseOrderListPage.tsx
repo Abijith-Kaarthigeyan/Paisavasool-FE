@@ -174,6 +174,7 @@ export const PurchaseOrderListPage: React.FC = () => {
                   <TableHead>PO number</TableHead>
                   <TableHead>Customer</TableHead>
                   <TableHead>PO date</TableHead>
+                  <TableHead>Requested delivery</TableHead>
                   <TableHead className="text-center">Total amount</TableHead>
                   <TableHead className="text-center">Status</TableHead>
                   <TableHead className="text-center">Linked invoices</TableHead>
@@ -195,6 +196,11 @@ export const PurchaseOrderListPage: React.FC = () => {
                     </TableCell>
                     <TableCell className="text-muted-foreground">
                       {new Date(po.po_date).toLocaleDateString()}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {po.requested_delivery_date
+                        ? new Date(po.requested_delivery_date).toLocaleDateString()
+                        : "—"}
                     </TableCell>
                     <TableCell className="text-center font-medium tabular-nums text-foreground">
                       {formatCurrency(po.total_amount)}
