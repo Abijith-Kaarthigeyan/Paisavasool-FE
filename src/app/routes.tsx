@@ -15,6 +15,8 @@ import { PurchaseOrderListPage } from "@/features/purchase-orders/pages/Purchase
 import { PurchaseOrderDetailPage } from "@/features/purchase-orders/pages/PurchaseOrderDetailPage"
 import { PurchaseOrderBatchDetailsPage } from "@/features/purchase-orders/pages/PurchaseOrderBatchDetailsPage"
 import { GrnBatchDetailsPage } from "@/features/grn/pages/GrnBatchDetailsPage"
+import { GrnListPage } from "@/features/grn/pages/GrnListPage"
+import { GrnDetailPage } from "@/features/grn/pages/GrnDetailPage"
 import { UnifiedUploadPage } from "@/features/document-upload/pages/UnifiedUploadPage"
 import { UnifiedUploadHubPage } from "@/features/document-upload/pages/UnifiedUploadHubPage"
 import { PaymentUploadHistoryPage } from "@/features/payments/pages/PaymentUploadHistoryPage"
@@ -131,6 +133,22 @@ export const AppRoutes = () => {
             element={
               <ProtectedRoute allowedRoles={["FINANCE_ASSOCIATE"]}>
                 <PurchaseOrderDetailPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/grns"
+            element={
+              <ProtectedRoute allowedRoles={["FINANCE_ASSOCIATE"]}>
+                <GrnListPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/grns/:id"
+            element={
+              <ProtectedRoute allowedRoles={["FINANCE_ASSOCIATE"]}>
+                <GrnDetailPage />
               </ProtectedRoute>
             }
           />

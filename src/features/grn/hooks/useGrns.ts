@@ -1,5 +1,12 @@
-import { useQuery } from "@tanstack/react-query"
-import { grnService } from "../services/grnService"
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
+import { grnService, type ListGrnsParams } from "../services/grnService"
+
+export const useGrns = (params?: ListGrnsParams) => {
+  return useQuery({
+    queryKey: ["grns", params],
+    queryFn: () => grnService.listGrns(params),
+  })
+}
 
 export const useGrnBatchStatus = (batchId: string | undefined) => {
   return useQuery({
@@ -34,5 +41,24 @@ export const useGrnDetails = (grnId: string | undefined) => {
     queryKey: ["grn", grnId],
     queryFn: () => grnService.getGrn(grnId!),
     enabled: !!grnId,
+  })
+}
+
+export const useLinkGrnToPurchaseOrder = () => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ grnId, poId }: { grnId: string; poId: string }) =>
+      grnService.linkPo(grnId, poId),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["grn", variables.grnId] })
+      queryClient.invalidateQueries({ queryKey: ["grns"] })
+      queryClient.invalidateQueries({ queryKey: ["grnBatchGrns"] })
+      queryClient.invalidateQueries({ queryKey: ["purchase-orders"] })
+      queryClient.invalidateQueries({
+        queryKey: ["purchase-order", variables.poId, "grns"],
+      })
+      queryClient.invalidateQueries({ queryKey: ["purchase-order", variables.poId] })
+    },
   })
 }

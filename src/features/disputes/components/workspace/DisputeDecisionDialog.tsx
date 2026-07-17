@@ -24,6 +24,8 @@ interface DisputeDecisionDialogProps {
   decision: DisputeDecisionKind | null
   onConfirm: () => void
   isSubmitting?: boolean
+  /** When true, approve/reject copy uses Accept/Decline recommendation wording. */
+  isQualityRecommendation?: boolean
 }
 
 const decisionCopy: Record<
@@ -88,16 +90,37 @@ const decisionCopy: Record<
   },
 }
 
+const qualityDecisionCopy: Partial<
+  Record<DisputeDecisionKind, { title: string; description: string; confirmLabel: string }>
+> = {
+  approve: {
+    title: "Accept recommendation",
+    description: "Are you sure to accept the recommendation?",
+    confirmLabel: "Accept recommendation",
+  },
+  reject: {
+    title: "Decline recommendation",
+    description:
+      "You are declining the AI quality recommendation. The opposite outcome will be applied and the workflow will continue.",
+    confirmLabel: "Decline recommendation",
+  },
+}
+
 export function DisputeDecisionDialog({
   open,
   onOpenChange,
   decision,
   onConfirm,
   isSubmitting,
+  isQualityRecommendation = false,
 }: DisputeDecisionDialogProps) {
   if (!decision) return null
 
-  const copy = decisionCopy[decision]
+  const base = decisionCopy[decision]
+  const qualityOverride = isQualityRecommendation ? qualityDecisionCopy[decision] : undefined
+  const copy = qualityOverride
+    ? { ...base, ...qualityOverride }
+    : base
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

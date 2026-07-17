@@ -47,7 +47,10 @@ interface DisputeAttentionPanelProps {
   onEscalate?: (notes: string) => Promise<void>
 }
 
-function getAttentionCopy(actionState: DisputeActionState): { title: string; description: string } {
+function getAttentionCopy(
+  actionState: DisputeActionState,
+  isQualityDispute: boolean
+): { title: string; description: string } {
   if (actionState.isPaymentSettlementConfirmation || actionState.isWaitingPaymentReview) {
     return {
       title: "Needs your attention",
@@ -58,6 +61,12 @@ function getAttentionCopy(actionState: DisputeActionState): { title: string; des
     return {
       title: "Needs your attention",
       description: "Acknowledge the internal team request to resume workflow execution.",
+    }
+  }
+  if (isQualityDispute) {
+    return {
+      title: "Needs your attention",
+      description: "Review the AI recommendation and accept or decline it.",
     }
   }
   return {
@@ -207,7 +216,8 @@ export function DisputeAttentionPanel({
     isAmendmentDispute,
   } = actionState
 
-  const attentionCopy = getAttentionCopy(actionState)
+  const isQualityDispute = dispute.dispute_category === "QUALITY"
+  const attentionCopy = getAttentionCopy(actionState, isQualityDispute)
   const recForDisplay = latestRecommendation ?? latestAmendmentRecommendation
   const amendmentRec = latestAmendmentRecommendation
   const poContext = getInvoicePoContext(dispute.invoice)
@@ -218,6 +228,17 @@ export function DisputeAttentionPanel({
     : null
   const confidence = recForDisplay ? normalizeConfidence(recForDisplay.confidence) : undefined
 
+  const approveLabel = isPaymentSettlementConfirmation
+    ? "Confirm settlement"
+    : isQualityDispute
+      ? "Accept recommendation"
+      : "Approve"
+  const declineLabel = isPaymentSettlementConfirmation
+    ? "Settlement not confirmed"
+    : isQualityDispute
+      ? "Decline recommendation"
+      : "Decline"
+
   const actionButtons = (
     <div className="flex flex-wrap gap-2">
       {isWaitingAssociateApproval && (
@@ -225,7 +246,7 @@ export function DisputeAttentionPanel({
           {canAssociateAction && (
             <>
               <Button variant="success" size="sm" onClick={() => openConfirm("approve")}>
-                {isPaymentSettlementConfirmation ? "Confirm settlement" : "Approve"}
+                {approveLabel}
               </Button>
               {isAmendmentDispute && amendmentRec?.recommended_invoice_json && (
                 <Button variant="secondary" size="sm" onClick={() => setShowEditApply((v) => !v)}>
@@ -233,7 +254,7 @@ export function DisputeAttentionPanel({
                 </Button>
               )}
               <Button variant="danger" size="sm" onClick={() => openConfirm("reject")}>
-                {isPaymentSettlementConfirmation ? "Settlement not confirmed" : "Decline"}
+                {declineLabel}
               </Button>
             </>
           )}
@@ -409,6 +430,7 @@ export function DisputeAttentionPanel({
         decision={pendingDecision}
         onConfirm={handleConfirm}
         isSubmitting={isSubmitting}
+        isQualityRecommendation={isQualityDispute}
       />
     </>
   )

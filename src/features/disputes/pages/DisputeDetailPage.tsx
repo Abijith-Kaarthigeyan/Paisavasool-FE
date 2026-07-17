@@ -25,6 +25,8 @@ import { DisputeAttentionPanel } from "../components/workspace/DisputeAttentionP
 import { DisputeCustomerCard } from "../components/workspace/DisputeContextRail"
 import { DisputeOverviewTab } from "../components/workspace/DisputeOverviewTab"
 import { DisputeInvoicePaymentTab } from "../components/workspace/DisputeInvoicePaymentTab"
+import { DisputePurchaseOrderGrnsTab } from "../components/workspace/DisputePurchaseOrderGrnsTab"
+import { DisputeSourceDocumentsTab } from "../components/workspace/DisputeSourceDocumentsTab"
 import { DisputeCommunicationsSheet } from "../components/workspace/DisputeCommunicationsSheet"
 import { DisputeComposePane } from "../components/workspace/DisputeComposePane"
 import { DisputeCommentsTab } from "../components/workspace/DisputeCommentsTab"
@@ -461,6 +463,7 @@ export const DisputeDetailPage: React.FC = () => {
                 )}
               </TabsTrigger>
               <TabsTrigger value="invoice-payment">Invoice &amp; payment</TabsTrigger>
+              <TabsTrigger value="purchase-order-grns">Purchase order &amp; GRNs</TabsTrigger>
               <TabsTrigger
                 value="communications"
                 className={cn(
@@ -483,6 +486,7 @@ export const DisputeDetailPage: React.FC = () => {
               <TabsTrigger value="recommendations">Recommendations</TabsTrigger>
               <TabsTrigger value="customer">Customer</TabsTrigger>
               <TabsTrigger value="activities">Activity</TabsTrigger>
+              <TabsTrigger value="source-documents">Source documents</TabsTrigger>
             </TabsList>
 
             <TabsContent value="overview" className="mt-4 min-h-[300px]">
@@ -504,6 +508,13 @@ export const DisputeDetailPage: React.FC = () => {
                 evidence={evidence}
                 isLoadingInvoiceItems={loading.invoiceItems}
                 isLoadingCustomer={loading.customerDetail}
+              />
+            </TabsContent>
+
+            <TabsContent value="purchase-order-grns" className="mt-4 min-h-[300px]">
+              <DisputePurchaseOrderGrnsTab
+                dispute={dispute}
+                invoiceItems={invoiceItems}
               />
             </TabsContent>
 
@@ -535,6 +546,10 @@ export const DisputeDetailPage: React.FC = () => {
                 customerDetail={customerDetail}
                 isLoading={loading.customerDetail}
               />
+            </TabsContent>
+
+            <TabsContent value="source-documents" className="mt-4 min-h-[300px]">
+              <DisputeSourceDocumentsTab dispute={dispute} />
             </TabsContent>
           </Tabs>
       </div>

@@ -125,7 +125,7 @@ export const InvoiceDetailPage: React.FC = () => {
         <PageBreadcrumb
           items={[
             { label: "Dashboard", to: getDashboardPath() },
-            { label: "Billings", to: "/invoices" },
+            { label: "Receivables", to: "/invoices" },
             { label: "Invoice" },
           ]}
         />
@@ -135,7 +135,7 @@ export const InvoiceDetailPage: React.FC = () => {
           description="The requested invoice details could not be loaded."
           action={
             <Button variant="ghost" size="sm" onClick={() => navigate("/invoices")}>
-              Back to billings
+              Back to receivables
             </Button>
           }
         />
@@ -155,7 +155,7 @@ export const InvoiceDetailPage: React.FC = () => {
       <PageBreadcrumb
         items={[
           { label: "Dashboard", to: getDashboardPath() },
-          { label: "Billings", to: "/invoices" },
+          { label: "Receivables", to: "/invoices" },
           { label: `Invoice #${headerInvoiceNumber}` },
         ]}
       />

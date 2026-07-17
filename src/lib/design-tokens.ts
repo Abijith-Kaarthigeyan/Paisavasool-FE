@@ -26,7 +26,7 @@ export const AGING_BUCKET_CHART_COLORS = [
 /** Sidebar nav icon accent colors keyed by nav item label. */
 export const NAV_ICON_COLORS: Record<string, { icon: string; activeBg: string }> = {
   Dashboard: { icon: "#4F46E5", activeBg: "#EEF2FF" },
-  Billings: { icon: "#2563EB", activeBg: "#EFF6FF" },
+  Receivables: { icon: "#2563EB", activeBg: "#EFF6FF" },
   Payments: { icon: "#16A34A", activeBg: "#F0FDF4" },
   Collections: { icon: "#D97706", activeBg: "#FFFBEB" },
   Disputes: { icon: "#DC2626", activeBg: "#FEF2F2" },

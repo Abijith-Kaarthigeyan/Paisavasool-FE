@@ -1,7 +1,7 @@
 import { useNavigate } from "react-router-dom"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
-export type BillingsListTab = "invoices" | "purchase-orders"
+export type BillingsListTab = "invoices" | "purchase-orders" | "grns"
 
 interface BillingsListToggleProps {
   active: BillingsListTab
@@ -10,6 +10,7 @@ interface BillingsListToggleProps {
 const TAB_PATHS: Record<BillingsListTab, string> = {
   invoices: "/invoices",
   "purchase-orders": "/purchase-orders",
+  grns: "/grns",
 }
 
 export function BillingsListToggle({ active }: BillingsListToggleProps) {
@@ -27,6 +28,7 @@ export function BillingsListToggle({ active }: BillingsListToggleProps) {
       <TabsList className="w-auto">
         <TabsTrigger value="invoices">Invoices</TabsTrigger>
         <TabsTrigger value="purchase-orders">Purchase orders</TabsTrigger>
+        <TabsTrigger value="grns">GRNs</TabsTrigger>
       </TabsList>
     </Tabs>
   )

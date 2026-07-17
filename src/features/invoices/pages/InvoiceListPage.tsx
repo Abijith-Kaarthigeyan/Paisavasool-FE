@@ -108,13 +108,13 @@ export const InvoiceListPage: React.FC = () => {
       <PageBreadcrumb
         items={[
           { label: "Dashboard", to: getDashboardPath() },
-          { label: "Billings" },
+          { label: "Receivables" },
         ]}
       />
 
       <div className="space-y-3">
         <PageHeader
-          title="Billings"
+          title="Receivables"
           actions={
             <Button variant="secondary" size="sm" onClick={() => refetch()}>
               <RefreshCw className="h-3.5 w-3.5" aria-hidden />

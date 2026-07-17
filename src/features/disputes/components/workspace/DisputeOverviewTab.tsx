@@ -168,27 +168,30 @@ export function DisputeOverviewTab({
         </Card>
       )}
 
-      {dispute.dispute_category === "AMENDMENT" && parsedRec && latestRecommendation && (
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm">Latest AI recommendation</CardTitle>
-            <CardDescription>
-              Confidence {normalizeConfidence(latestRecommendation.confidence).toFixed(0)}%
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-2 text-sm">
-            <Badge variant="outline" shape="pill">
-              {parsedRec.outcome}
-            </Badge>
-            {parsedRec.reasoning && (
-              <p className="text-muted-foreground">{parsedRec.reasoning}</p>
-            )}
-            <p className="text-xs text-muted-foreground">
-              See Recommendations tab or the attention panel for full details and actions.
-            </p>
-          </CardContent>
-        </Card>
-      )}
+      {(dispute.dispute_category === "AMENDMENT" ||
+        dispute.dispute_category === "QUALITY") &&
+        parsedRec &&
+        latestRecommendation && (
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm">Latest AI recommendation</CardTitle>
+              <CardDescription>
+                Confidence {normalizeConfidence(latestRecommendation.confidence).toFixed(0)}%
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-2 text-sm">
+              <Badge variant="outline" shape="pill">
+                {parsedRec.outcome}
+              </Badge>
+              {parsedRec.reasoning && (
+                <p className="text-muted-foreground">{parsedRec.reasoning}</p>
+              )}
+              <p className="text-xs text-muted-foreground">
+                See Recommendations tab or the attention panel for full details and actions.
+              </p>
+            </CardContent>
+          </Card>
+        )}
 
       {isPaymentDisputeCategory(dispute.dispute_category) && (
         <ValidationSummary evidence={evidence} />

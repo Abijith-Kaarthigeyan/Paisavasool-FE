@@ -1,6 +1,7 @@
-import React from "react"
+import React, { useState } from "react"
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom"
 import { useBatchGrns, useGrnBatchStatus } from "../hooks/useGrns"
+import { LinkGrnToPoDialog } from "../components/LinkGrnToPoDialog"
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -31,8 +32,9 @@ import {
   Layers,
   ChevronLeft,
   ExternalLink,
+  Link2,
 } from "lucide-react"
-import type { GrnStatus, GrnUploadFile } from "../types"
+import type { GoodsReceiptNote, GrnStatus, GrnUploadFile } from "../types"
 
 type ParsedFileMeta = {
   reason: string
@@ -66,7 +68,7 @@ function formatStatus(status: string | undefined) {
 
 function formatFailureReason(reason: string) {
   if (reason === "DUPLICATE_GRN") {
-    return "Duplicate GRN — already exists"
+    return "Duplicate GRN"
   }
   return formatStatus(reason)
 }
@@ -83,6 +85,7 @@ export const GrnBatchDetailsPage: React.FC = () => {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const fromSessionId = searchParams.get("fromSession")
+  const [linkGrn, setLinkGrn] = useState<GoodsReceiptNote | null>(null)
 
   const { data: batch, isLoading: isBatchLoading, error: batchError } = useGrnBatchStatus(id)
 
@@ -237,27 +240,43 @@ export const GrnBatchDetailsPage: React.FC = () => {
                 <TableRow>
                   <TableHead>File name</TableHead>
                   <TableHead>Status</TableHead>
+                  <TableHead>Reason</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {batch.files.map((file: GrnUploadFile) => (
-                  <TableRow key={file.id}>
-                    <TableCell
-                      className="max-w-[280px] truncate font-medium"
-                      title={file.file_name}
-                    >
-                      {file.file_name}
-                    </TableCell>
-                    <TableCell>
-                      <Badge
-                        variant={getStatusVariant(INVOICE_FILE_STATUS_VARIANT, file.status)}
-                        shape="pill"
+                {batch.files.map((file: GrnUploadFile) => {
+                  const { reason } = parseErrorMessage(file.error_message)
+                  const showReason = file.status === "FAILED" && reason
+                  return (
+                    <TableRow key={file.id}>
+                      <TableCell
+                        className="max-w-[280px] truncate font-medium"
+                        title={file.file_name}
                       >
-                        {formatStatus(file.status)}
-                      </Badge>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                        {file.file_name}
+                      </TableCell>
+                      <TableCell>
+                        <Badge
+                          variant={getStatusVariant(INVOICE_FILE_STATUS_VARIANT, file.status)}
+                          shape="pill"
+                        >
+                          {formatStatus(file.status)}
+                        </Badge>
+                      </TableCell>
+                      <TableCell
+                        className={
+                          reason === "DUPLICATE_GRN"
+                            ? "text-warning"
+                            : showReason
+                              ? "text-destructive"
+                              : "text-muted-foreground"
+                        }
+                      >
+                        {showReason ? formatFailureReason(reason) : "—"}
+                      </TableCell>
+                    </TableRow>
+                  )
+                })}
               </TableBody>
             </Table>
           </CardContent>
@@ -291,7 +310,14 @@ export const GrnBatchDetailsPage: React.FC = () => {
                 <TableBody>
                   {grns.map((grn) => (
                     <TableRow key={grn.id}>
-                      <TableCell className="font-medium">{grn.grn_number}</TableCell>
+                      <TableCell className="font-medium">
+                        <Link
+                          to={`/grns/${grn.id}`}
+                          className="text-primary hover:underline"
+                        >
+                          {grn.grn_number}
+                        </Link>
+                      </TableCell>
                       <TableCell>{grn.po_number ?? "—"}</TableCell>
                       <TableCell>
                         {new Date(grn.grn_date).toLocaleDateString(undefined, {
@@ -313,7 +339,14 @@ export const GrnBatchDetailsPage: React.FC = () => {
                             <ExternalLink className="h-3.5 w-3.5" aria-hidden />
                           </Link>
                         ) : (
-                          <span className="text-xs text-muted-foreground">Unlinked</span>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setLinkGrn(grn)}
+                          >
+                            <Link2 className="mr-1.5 h-3.5 w-3.5" aria-hidden />
+                            Link to PO
+                          </Button>
                         )}
                       </TableCell>
                     </TableRow>
@@ -368,9 +401,13 @@ export const GrnBatchDetailsPage: React.FC = () => {
                       </TableCell>
                       <TableCell className="text-right">
                         {existingGrnId ? (
-                          <span className="text-xs text-muted-foreground">
-                            {existingGrnId}
-                          </span>
+                          <Link
+                            to={`/grns/${existingGrnId}`}
+                            className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline"
+                          >
+                            View existing GRN
+                            <ExternalLink className="h-3.5 w-3.5" aria-hidden />
+                          </Link>
                         ) : (
                           <span className="text-xs text-muted-foreground">—</span>
                         )}
@@ -405,7 +442,7 @@ export const GrnBatchDetailsPage: React.FC = () => {
               {failedFiles.some(
                 (f) => parseErrorMessage(f.error_message).reason === "DUPLICATE_GRN"
               )
-                ? "This upload was rejected because the goods receipt note already exists."
+                ? "This upload was rejected as a Duplicate GRN — the goods receipt note already exists."
                 : `All ${batch.total_files} file(s) failed to process.`}
             </p>
           </CardContent>
@@ -421,6 +458,16 @@ export const GrnBatchDetailsPage: React.FC = () => {
             </p>
           </CardContent>
         </Card>
+      )}
+
+      {linkGrn && (
+        <LinkGrnToPoDialog
+          open={!!linkGrn}
+          onOpenChange={(open) => {
+            if (!open) setLinkGrn(null)
+          }}
+          grn={linkGrn}
+        />
       )}
     </div>
   )

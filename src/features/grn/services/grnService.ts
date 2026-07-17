@@ -1,7 +1,26 @@
 import { arApi } from "@/lib/axios"
 import type { GoodsReceiptNote, GrnUploadBatch } from "../types"
 
+export interface ListGrnsParams {
+  status?: string
+  search?: string
+  limit?: number
+  offset?: number
+}
+
+export interface LinkGrnPoResponse {
+  grn_id: string
+  po_id: string
+  linked: boolean
+  status: "LINKED" | "UNLINKED" | "FAILED"
+}
+
 export const grnService = {
+  listGrns: async (params?: ListGrnsParams): Promise<GoodsReceiptNote[]> => {
+    const response = await arApi.get("/grns", { params })
+    return response.data.goods_receipt_notes
+  },
+
   getBatchStatus: async (id: string): Promise<GrnUploadBatch> => {
     const response = await arApi.get(`/grn-upload/batches/${id}/status`)
     return response.data
@@ -14,6 +33,11 @@ export const grnService = {
 
   getGrn: async (id: string): Promise<GoodsReceiptNote> => {
     const response = await arApi.get(`/grns/${id}`)
+    return response.data
+  },
+
+  linkPo: async (grnId: string, poId: string): Promise<LinkGrnPoResponse> => {
+    const response = await arApi.post(`/grns/${grnId}/link-po`, { po_id: poId })
     return response.data
   },
 

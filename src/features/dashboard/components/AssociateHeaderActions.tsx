@@ -22,7 +22,7 @@ export const AssociateHeaderActions: React.FC = () => {
         className="relative rounded-full px-4"
         onClick={() => navigate("/email-review")}
       >
-        Review
+        Mail Review
         {pendingCount > 0 && (
           <Badge
             variant="destructive"

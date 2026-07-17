@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react"
 import { useNavigate } from "react-router-dom"
-import { usePurchaseOrders } from "../hooks/usePurchaseOrders"
-import { useCustomers } from "@/features/customers/hooks/useCustomers"
+import { useGrns } from "../hooks/useGrns"
 import { Card, CardContent } from "@/components/ui/card"
 import { TableSkeleton } from "@/components/ui/skeleton"
 import { Pagination } from "@/components/ui/pagination"
@@ -11,6 +10,7 @@ import { FilterBar, FilterSelect } from "@/components/ui/filter-bar"
 import { getDashboardPath } from "@/lib/navigation"
 import { EmptyState } from "@/components/ui/empty-state"
 import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
 import {
   Table,
   TableBody,
@@ -19,18 +19,29 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { formatCurrency } from "@/lib/formatCurrency"
 import { useDebouncedValue } from "@/lib/useDebouncedValue"
-import { RefreshCw, HelpCircle, ClipboardList } from "lucide-react"
-import { PurchaseOrderStatusBadge } from "../components/PurchaseOrderStatusBadge"
-import { PoGrnLinkBadge } from "../components/PoGrnLinkBadge"
+import { RefreshCw, HelpCircle, PackageCheck } from "lucide-react"
 import { BillingsListToggle } from "@/features/invoices/components/BillingsListToggle"
+import type { GrnStatus } from "../types"
 
-export const PurchaseOrderListPage: React.FC = () => {
+function grnStatusVariant(status: GrnStatus): "success" | "warning" | "destructive" | "outline" {
+  if (status === "LINKED") return "success"
+  if (status === "UNLINKED") return "warning"
+  if (status === "FAILED") return "destructive"
+  return "outline"
+}
+
+function truncateNotes(notes: string | null, maxLength = 60): string {
+  if (!notes) return "—"
+  const trimmed = notes.trim()
+  if (trimmed.length <= maxLength) return trimmed
+  return `${trimmed.slice(0, maxLength).trimEnd()}…`
+}
+
+export const GrnListPage: React.FC = () => {
   const navigate = useNavigate()
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState("")
-  const [customerFilter, setCustomerFilter] = useState("")
   const [currentPage, setCurrentPage] = useState(1)
   const itemsPerPage = 10
   const debouncedSearch = useDebouncedValue(searchTerm)
@@ -41,37 +52,31 @@ export const PurchaseOrderListPage: React.FC = () => {
       offset: 0,
       ...(debouncedSearch.trim() ? { search: debouncedSearch.trim() } : {}),
       ...(statusFilter ? { status: statusFilter } : {}),
-      ...(customerFilter ? { customer_id: customerFilter } : {}),
     }),
-    [debouncedSearch, statusFilter, customerFilter]
+    [debouncedSearch, statusFilter]
   )
 
   const {
-    data: purchaseOrders = [],
+    data: grns = [],
     isLoading,
     isError,
     refetch,
-  } = usePurchaseOrders(listParams)
-
-  const { data: customers = [] } = useCustomers({ limit: 500 })
+  } = useGrns(listParams)
 
   useEffect(() => {
     setCurrentPage(1)
-  }, [debouncedSearch, statusFilter, customerFilter])
+  }, [debouncedSearch, statusFilter])
 
-  const totalItems = purchaseOrders.length
+  const totalItems = grns.length
   const totalPages = Math.max(1, Math.ceil(totalItems / itemsPerPage))
   const startIndex = (currentPage - 1) * itemsPerPage
-  const paginatedOrders = purchaseOrders.slice(startIndex, startIndex + itemsPerPage)
+  const paginatedGrns = grns.slice(startIndex, startIndex + itemsPerPage)
 
-  const totalPoValue = purchaseOrders.reduce((sum, po) => sum + po.total_amount, 0)
-
-  const hasActiveFilters = !!searchTerm || !!statusFilter || !!customerFilter
+  const hasActiveFilters = !!searchTerm || !!statusFilter
 
   const clearFilters = () => {
     setSearchTerm("")
     setStatusFilter("")
-    setCustomerFilter("")
     setCurrentPage(1)
   }
 
@@ -81,7 +86,7 @@ export const PurchaseOrderListPage: React.FC = () => {
         items={[
           { label: "Dashboard", to: getDashboardPath() },
           { label: "Receivables", to: "/invoices" },
-          { label: "Purchase orders" },
+          { label: "GRNs" },
         ]}
       />
 
@@ -96,7 +101,7 @@ export const PurchaseOrderListPage: React.FC = () => {
           }
         />
 
-        <BillingsListToggle active="purchase-orders" />
+        <BillingsListToggle active="grns" />
       </div>
 
       <Card>
@@ -106,53 +111,32 @@ export const PurchaseOrderListPage: React.FC = () => {
             size="sm"
             searchValue={searchTerm}
             onSearchChange={setSearchTerm}
-            searchPlaceholder="Search by PO number or customer…"
+            searchPlaceholder="Search by GRN number or PO number…"
             showClear={hasActiveFilters}
             onClear={clearFilters}
-            footer={
-              <>
-                Total PO value:{" "}
-                <span className="font-semibold tabular-nums text-foreground">
-                  {formatCurrency(totalPoValue)}
-                </span>
-              </>
-            }
           >
             <FilterSelect
-              id="po-status-filter"
+              id="grn-status-filter"
               aria-label="Status"
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
             >
               <option value="">All statuses</option>
-              <option value="OPEN">Open</option>
-              <option value="PARTIALLY_INVOICED">Partially invoiced</option>
-              <option value="FULLY_INVOICED">Fully invoiced</option>
-            </FilterSelect>
-            <FilterSelect
-              id="po-customer-filter"
-              aria-label="Customer"
-              value={customerFilter}
-              onChange={(e) => setCustomerFilter(e.target.value)}
-            >
-              <option value="">All customers</option>
-              {customers.map((cust) => (
-                <option key={cust.id} value={cust.id}>
-                  {cust.customer_name}
-                </option>
-              ))}
+              <option value="LINKED">Linked</option>
+              <option value="UNLINKED">Unlinked</option>
             </FilterSelect>
           </FilterBar>
         </div>
+
         <CardContent className="p-0">
           {isLoading ? (
             <div className="p-4">
-              <TableSkeleton rows={8} columns={6} />
+              <TableSkeleton rows={8} columns={5} />
             </div>
           ) : isError ? (
             <EmptyState
               icon={<HelpCircle className="h-6 w-6 text-destructive" />}
-              title="Failed to load purchase orders"
+              title="Failed to load goods receipt notes"
               description="Verify the Accounts Receivable database backend service is active and responsive."
               action={
                 <Button variant="primary" size="sm" onClick={() => refetch()}>
@@ -161,54 +145,46 @@ export const PurchaseOrderListPage: React.FC = () => {
                 </Button>
               }
             />
-          ) : purchaseOrders.length === 0 ? (
+          ) : grns.length === 0 ? (
             <EmptyState
-              icon={<ClipboardList className="h-6 w-6" />}
-              title="No purchase orders found"
-              description="No purchase orders match the current filters."
+              icon={<PackageCheck className="h-6 w-6" />}
+              title="No goods receipt notes found"
+              description="No goods receipt notes match the current filters."
             />
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead>GRN number</TableHead>
+                  <TableHead>GRN date</TableHead>
                   <TableHead>PO number</TableHead>
-                  <TableHead>Customer</TableHead>
-                  <TableHead>PO date</TableHead>
-                  <TableHead className="text-center">Total amount</TableHead>
                   <TableHead className="text-center">Status</TableHead>
-                  <TableHead className="text-center">Linked invoices</TableHead>
-                  <TableHead className="text-center">GRN</TableHead>
+                  <TableHead>Notes</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {paginatedOrders.map((po) => (
+                {paginatedGrns.map((grn) => (
                   <TableRow
-                    key={po.id}
+                    key={grn.id}
                     className="cursor-pointer"
-                    onClick={() => navigate(`/purchase-orders/${po.id}`)}
+                    onClick={() => navigate(`/grns/${grn.id}`)}
                   >
                     <TableCell className="font-medium text-foreground">
-                      {po.po_number}
+                      {grn.grn_number}
                     </TableCell>
                     <TableCell className="text-muted-foreground">
-                      {po.customer?.customer_name || "Active account"}
+                      {new Date(grn.grn_date).toLocaleDateString()}
                     </TableCell>
                     <TableCell className="text-muted-foreground">
-                      {new Date(po.po_date).toLocaleDateString()}
-                    </TableCell>
-                    <TableCell className="text-center font-medium tabular-nums text-foreground">
-                      {formatCurrency(po.total_amount)}
+                      {grn.po_number ?? "—"}
                     </TableCell>
                     <TableCell className="text-center">
-                      <PurchaseOrderStatusBadge status={po.status} />
+                      <Badge variant={grnStatusVariant(grn.status)} shape="pill">
+                        {grn.status}
+                      </Badge>
                     </TableCell>
-                    <TableCell className="text-center tabular-nums text-muted-foreground">
-                      {po.linked_invoice_count > 0 ? po.linked_invoice_count : "—"}
-                    </TableCell>
-                    <TableCell className="text-center">
-                      <span className="inline-flex justify-center">
-                        <PoGrnLinkBadge linkedGrnCount={po.linked_grn_count} />
-                      </span>
+                    <TableCell className="max-w-xs text-muted-foreground">
+                      {truncateNotes(grn.notes)}
                     </TableCell>
                   </TableRow>
                 ))}
@@ -231,4 +207,4 @@ export const PurchaseOrderListPage: React.FC = () => {
   )
 }
 
-export default PurchaseOrderListPage
+export default GrnListPage

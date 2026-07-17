@@ -40,6 +40,7 @@ import {
 } from "lucide-react"
 import { PurchaseOrderStatusBadge } from "../components/PurchaseOrderStatusBadge"
 import { LinkInvoiceDialog } from "../components/LinkInvoiceDialog"
+import { LinkGrnDialog } from "../components/LinkGrnDialog"
 import { purchaseOrderService } from "../services/purchaseOrderService"
 import { grnService } from "@/features/grn/services/grnService"
 import type { GoodsReceiptNote, GrnStatus } from "@/features/grn/types"
@@ -150,12 +151,14 @@ function LinkedGrnsTable({
   openingPdfGrnId,
   onViewPdf,
   onGoToUpload,
+  onRowClick,
 }: {
   grns: GoodsReceiptNote[]
   isLoading: boolean
   openingPdfGrnId: string | null
   onViewPdf: (grn: GoodsReceiptNote) => void
   onGoToUpload: () => void
+  onRowClick: (grnId: string) => void
 }) {
   if (isLoading) {
     return (
@@ -196,7 +199,11 @@ function LinkedGrnsTable({
         {grns.map((grn) => {
           const isOpeningPdf = openingPdfGrnId === grn.id
           return (
-            <TableRow key={grn.id}>
+            <TableRow
+              key={grn.id}
+              className="cursor-pointer"
+              onClick={() => onRowClick(grn.id)}
+            >
               <TableCell className="font-medium text-foreground">
                 {grn.grn_number}
               </TableCell>
@@ -216,7 +223,10 @@ function LinkedGrnsTable({
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => onViewPdf(grn)}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onViewPdf(grn)
+                    }}
                     disabled={isOpeningPdf}
                   >
                     {isOpeningPdf ? (
@@ -244,6 +254,7 @@ export const PurchaseOrderDetailPage: React.FC = () => {
   const { toast } = useToast()
   const [activeTab, setActiveTab] = useState("overview")
   const [linkDialogOpen, setLinkDialogOpen] = useState(false)
+  const [linkGrnDialogOpen, setLinkGrnDialogOpen] = useState(false)
   const [isOpeningSourcePdf, setIsOpeningSourcePdf] = useState(false)
   const [openingPdfGrnId, setOpeningPdfGrnId] = useState<string | null>(null)
 
@@ -257,6 +268,11 @@ export const PurchaseOrderDetailPage: React.FC = () => {
   const linkedInvoiceIds = useMemo(
     () => linkedInvoices.map((inv) => inv.id),
     [linkedInvoices]
+  )
+
+  const linkedGrnIds = useMemo(
+    () => linkedGrns.map((grn) => grn.id),
+    [linkedGrns]
   )
 
   const recentLinkedInvoices = useMemo(
@@ -345,7 +361,7 @@ export const PurchaseOrderDetailPage: React.FC = () => {
         <PageBreadcrumb
           items={[
             { label: "Dashboard", to: getDashboardPath() },
-            { label: "Billings", to: "/invoices" },
+            { label: "Receivables", to: "/invoices" },
             { label: "Purchase orders", to: "/purchase-orders" },
             { label: "Purchase order" },
           ]}
@@ -369,7 +385,7 @@ export const PurchaseOrderDetailPage: React.FC = () => {
       <PageBreadcrumb
         items={[
           { label: "Dashboard", to: getDashboardPath() },
-          { label: "Billings", to: "/invoices" },
+          { label: "Receivables", to: "/invoices" },
           { label: "Purchase orders", to: "/purchase-orders" },
           { label: `PO #${po.po_number}` },
         ]}
@@ -653,11 +669,15 @@ export const PurchaseOrderDetailPage: React.FC = () => {
 
         <TabsContent value="grns">
           <Card>
-            <CardHeader className="border-b border-border pb-4">
+            <CardHeader className="flex flex-row items-center justify-between border-b border-border pb-4">
               <CardTitle className="flex items-center gap-2 text-base font-semibold">
                 <PackageCheck className="h-4 w-4 text-primary" aria-hidden />
                 Goods receipt notes
               </CardTitle>
+              <Button variant="secondary" size="sm" onClick={() => setLinkGrnDialogOpen(true)}>
+                <Plus className="h-3.5 w-3.5" aria-hidden />
+                Link GRN
+              </Button>
             </CardHeader>
             <CardContent className="p-0">
               <LinkedGrnsTable
@@ -666,6 +686,7 @@ export const PurchaseOrderDetailPage: React.FC = () => {
                 openingPdfGrnId={openingPdfGrnId}
                 onViewPdf={handleOpenGrnPdf}
                 onGoToUpload={() => navigate("/upload")}
+                onRowClick={(grnId) => navigate(`/grns/${grnId}`)}
               />
             </CardContent>
           </Card>
@@ -677,6 +698,12 @@ export const PurchaseOrderDetailPage: React.FC = () => {
         onOpenChange={setLinkDialogOpen}
         purchaseOrder={po}
         linkedInvoiceIds={linkedInvoiceIds}
+      />
+      <LinkGrnDialog
+        open={linkGrnDialogOpen}
+        onOpenChange={setLinkGrnDialogOpen}
+        purchaseOrder={po}
+        linkedGrnIds={linkedGrnIds}
       />
     </div>
   )
