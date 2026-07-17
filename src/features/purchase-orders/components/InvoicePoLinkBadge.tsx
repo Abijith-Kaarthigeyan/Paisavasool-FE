@@ -38,7 +38,6 @@ export function InvoicePoLinkBadge({
         className={cn("inline-flex items-center gap-1 text-success", className)}
         title="Linked to purchase order"
       >
-        <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-success" aria-hidden />
         {!compact && (
           <Badge variant="success" shape="pill" className="gap-1 text-[10px]">
             <Link2 className="h-3 w-3" aria-hidden />

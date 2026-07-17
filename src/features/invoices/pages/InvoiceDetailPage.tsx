@@ -106,9 +106,11 @@ export const InvoiceDetailPage: React.FC = () => {
 
   if (isDetailsLoading) {
     return (
-      <div className="mx-auto max-w-4xl space-y-6">
-        <Skeleton className="h-10 w-48" />
-        <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+      <div className="space-y-8">
+        <Skeleton className="h-10 w-64" />
+        <Skeleton className="h-12 w-full max-w-xl" />
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
+          <Skeleton className="h-48 w-full" />
           <Skeleton className="h-48 w-full" />
           <Skeleton className="h-48 w-full" />
         </div>
@@ -119,7 +121,14 @@ export const InvoiceDetailPage: React.FC = () => {
 
   if (detailsError || !invoice) {
     return (
-      <div className="mx-auto max-w-md py-16">
+      <div className="space-y-8">
+        <PageBreadcrumb
+          items={[
+            { label: "Dashboard", to: getDashboardPath() },
+            { label: "Billings", to: "/invoices" },
+            { label: "Invoice" },
+          ]}
+        />
         <EmptyState
           icon={<HelpCircle className="h-6 w-6 text-destructive" />}
           title="Invoice not found"
@@ -142,7 +151,7 @@ export const InvoiceDetailPage: React.FC = () => {
   )
 
   return (
-    <div className="mx-auto max-w-4xl space-y-8">
+    <div className="space-y-8">
       <PageBreadcrumb
         items={[
           { label: "Dashboard", to: getDashboardPath() },
@@ -283,7 +292,7 @@ export const InvoiceDetailPage: React.FC = () => {
         </Card>
       )}
 
-      <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
         <Card>
           <CardHeader className="border-b border-border pb-4">
             <CardTitle className="flex items-center gap-2 text-base font-semibold">
@@ -335,6 +344,32 @@ export const InvoiceDetailPage: React.FC = () => {
                 <span className="text-muted-foreground">Billing currency</span>
                 <span className="font-medium text-foreground">INR (₹)</span>
               </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="md:col-span-2 xl:col-span-1">
+          <CardHeader className="border-b border-border pb-4">
+            <CardTitle className="flex items-center gap-2 text-base font-semibold">
+              <ClipboardList className="h-4 w-4 text-primary" aria-hidden />
+              Purchase order
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-4">
+            {invoice.purchase_order ? (
+              <PurchaseOrderSummaryCard
+                purchaseOrder={invoice.purchase_order}
+                layout="wide"
+              />
+            ) : invoice.po_number ? (
+              <div className="rounded-lg border border-warning/50 bg-warning-muted/10 p-3.5 text-sm leading-relaxed text-warning-foreground">
+                PO #{invoice.po_number} referenced on invoice — not yet matched in system.
+                Upload the PO or link manually once available.
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                No purchase order reference on this invoice
+              </p>
             )}
           </CardContent>
         </Card>
@@ -418,32 +453,6 @@ export const InvoiceDetailPage: React.FC = () => {
               </div>
             </div>
           </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader className="border-b border-border pb-4">
-          <CardTitle className="flex items-center gap-2 text-base font-semibold">
-            <ClipboardList className="h-4 w-4 text-primary" aria-hidden />
-            Purchase order
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="pt-4">
-          {invoice.purchase_order ? (
-            <PurchaseOrderSummaryCard
-              purchaseOrder={invoice.purchase_order}
-              layout="wide"
-            />
-          ) : invoice.po_number ? (
-            <div className="rounded-lg border border-warning/50 bg-warning-muted/10 p-3.5 text-sm leading-relaxed text-warning-foreground">
-              PO #{invoice.po_number} referenced on invoice — not yet matched in system.
-              Upload the PO or link manually once available.
-            </div>
-          ) : (
-            <p className="text-sm text-muted-foreground">
-              No purchase order reference on this invoice
-            </p>
-          )}
         </CardContent>
       </Card>
     </div>

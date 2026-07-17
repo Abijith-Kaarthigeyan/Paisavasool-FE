@@ -126,7 +126,7 @@ export const PurchaseOrderListPage: React.FC = () => {
               <option value="">All statuses</option>
               <option value="OPEN">Open</option>
               <option value="PARTIALLY_INVOICED">Partially invoiced</option>
-              <option value="CLOSED">Closed</option>
+              <option value="FULLY_INVOICED">Fully invoiced</option>
             </FilterSelect>
             <FilterSelect
               id="po-customer-filter"
@@ -200,7 +200,9 @@ export const PurchaseOrderListPage: React.FC = () => {
                     <TableCell className="text-center">
                       <PurchaseOrderStatusBadge status={po.status} />
                     </TableCell>
-                    <TableCell className="text-center text-muted-foreground">—</TableCell>
+                    <TableCell className="text-center tabular-nums text-muted-foreground">
+                      {po.linked_invoice_count > 0 ? po.linked_invoice_count : "—"}
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>

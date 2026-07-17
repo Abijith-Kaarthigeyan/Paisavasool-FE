@@ -1,9 +1,11 @@
 import React, { useMemo } from "react"
+import { useNavigate } from "react-router-dom"
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip } from "recharts"
 import { ChartCard } from "@/components/ui/chart-card"
 import { CHART_COLORS } from "@/lib/design-tokens"
 import { WidgetNavLink } from "./WidgetNavLink"
 import { ChartHoverTooltip } from "@/components/ui/chart-tooltip"
+import { getDisputeCategoryDrillDownPath } from "../utils/chartDrillDown"
 
 export interface DisputeCategoryDatum {
   dispute_category?: string | null
@@ -26,6 +28,8 @@ export const DisputeCategoryChart: React.FC<DisputeCategoryChartProps> = ({
   compact = false,
   showFooter = false,
 }) => {
+  const navigate = useNavigate()
+
   const chartData = useMemo(() => {
     const counts: Record<string, number> = {}
     disputes.forEach((d) => {
@@ -61,9 +65,14 @@ export const DisputeCategoryChart: React.FC<DisputeCategoryChartProps> = ({
             paddingAngle={3}
             dataKey="value"
             nameKey="name"
+            cursor="pointer"
           >
-            {chartData.map((_, index) => (
-              <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+            {chartData.map((entry, index) => (
+              <Cell
+                key={`cell-${index}`}
+                fill={CHART_COLORS[index % CHART_COLORS.length]}
+                onClick={() => navigate(getDisputeCategoryDrillDownPath(entry.name))}
+              />
             ))}
           </Pie>
           <Tooltip content={<ChartHoverTooltip valueLabel="disputes" />} />

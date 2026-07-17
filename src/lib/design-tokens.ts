@@ -52,7 +52,7 @@ export const INVOICE_STATUS_VARIANT: Record<string, BadgeVariant> = {
 export const PO_STATUS_VARIANT: Record<string, BadgeVariant> = {
   OPEN: "default",
   PARTIALLY_INVOICED: "info",
-  CLOSED: "outline",
+  FULLY_INVOICED: "success",
 }
 
 export const PO_LINK_STATUS_VARIANT: Record<string, BadgeVariant> = {

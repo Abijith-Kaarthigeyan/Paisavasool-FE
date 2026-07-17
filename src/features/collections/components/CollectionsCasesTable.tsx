@@ -1,5 +1,5 @@
-import React, { useMemo, useState } from "react"
-import { useNavigate } from "react-router-dom"
+import React, { useEffect, useMemo, useState } from "react"
+import { useNavigate, useSearchParams } from "react-router-dom"
 import { CollectionCase } from "../types"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -48,10 +48,11 @@ export const CollectionsCasesTable: React.FC<CollectionsCasesTableProps> = ({
   breadcrumbItems,
 }) => {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
 
   const [searchTerm, setSearchTerm] = useState("")
   const [priorityFilter, setPriorityFilter] = useState("")
-  const [bucketFilter, setBucketFilter] = useState("")
+  const [bucketFilter, setBucketFilter] = useState(searchParams.get("bucket") || "")
   const [customerFilter, setCustomerFilter] = useState("")
   const [associateFilter, setAssociateFilter] = useState("")
 
@@ -59,6 +60,14 @@ export const CollectionsCasesTable: React.FC<CollectionsCasesTableProps> = ({
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc")
   const [currentPage, setCurrentPage] = useState(1)
   const itemsPerPage = 10
+
+  useEffect(() => {
+    const bucket = searchParams.get("bucket")
+    if (bucket) {
+      setBucketFilter(bucket)
+      setCurrentPage(1)
+    }
+  }, [searchParams])
 
   const handleSort = (field: string) => {
     if (sortField === field) {

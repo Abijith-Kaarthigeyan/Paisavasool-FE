@@ -32,6 +32,7 @@ import {
 } from "@/lib/design-tokens"
 import { useDebouncedValue } from "@/lib/useDebouncedValue"
 import { FolderOpen, ArrowUpDown, RefreshCw } from "lucide-react"
+import { isUnclassifiedDisputeCategory } from "@/features/dashboard/utils/chartDrillDown"
 
 const DISPUTE_CATEGORIES = [
   "AMENDMENT",
@@ -90,7 +91,7 @@ export const DisputesTable: React.FC<DisputesTableProps> = ({
 
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState(searchParams.get("status") || "")
-  const [categoryFilter, setCategoryFilter] = useState("")
+  const [categoryFilter, setCategoryFilter] = useState(searchParams.get("category") || "")
   const [invoiceFilter, setInvoiceFilter] = useState("")
   const [customerFilter, setCustomerFilter] = useState("")
   const [assigneeFilter, setAssigneeFilter] = useState("")
@@ -103,6 +104,13 @@ export const DisputesTable: React.FC<DisputesTableProps> = ({
     }
   }, [searchParams])
 
+  React.useEffect(() => {
+    const category = searchParams.get("category")
+    if (category) {
+      setCategoryFilter(category)
+    }
+  }, [searchParams])
+
   const [sortField, setSortField] = useState<string>("created_at")
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc")
   const [currentPage, setCurrentPage] = useState(1)
@@ -110,6 +118,7 @@ export const DisputesTable: React.FC<DisputesTableProps> = ({
 
   const slaParam = searchParams.get("sla")
   const teamParam = searchParams.get("team")
+  const unclassifiedCategoryFilter = isUnclassifiedDisputeCategory(categoryFilter)
 
   const serverParams = useMemo(() => {
     if (!serverMode) return undefined
@@ -119,7 +128,9 @@ export const DisputesTable: React.FC<DisputesTableProps> = ({
       ...baseParams,
       ...(debouncedSearch.trim() ? { search: debouncedSearch.trim() } : {}),
       ...(statusFilter ? { status: statusFilter } : {}),
-      ...(categoryFilter ? { category: categoryFilter } : {}),
+      ...(categoryFilter && !unclassifiedCategoryFilter
+        ? { category: categoryFilter }
+        : {}),
       ...(invoiceFilter ? { invoice_number: invoiceFilter } : {}),
       ...(customerFilter ? { customer_id: customerFilter } : {}),
       ...(assigneeFilter ? { assigned_to: assigneeFilter } : {}),
@@ -137,6 +148,7 @@ export const DisputesTable: React.FC<DisputesTableProps> = ({
     assigneeFilter,
     slaParam,
     teamParam,
+    unclassifiedCategoryFilter,
   ])
 
   const serverQuery = useDisputes(serverParams, { enabled: serverMode })
@@ -216,7 +228,10 @@ export const DisputesTable: React.FC<DisputesTableProps> = ({
 
   const filteredDisputes = useMemo(() => {
     const rows = serverMode
-      ? [...disputes]
+      ? disputes.filter((d) => {
+          if (!unclassifiedCategoryFilter) return true
+          return !d.dispute_category
+        })
       : disputes.filter((d) => {
           const term = searchTerm.toLowerCase()
           const matchesSearch =
@@ -225,7 +240,9 @@ export const DisputesTable: React.FC<DisputesTableProps> = ({
             (d.customer?.customer_name || "").toLowerCase().includes(term)
 
           const matchesStatus = !statusFilter || d.status === statusFilter
-          const matchesCategory = !categoryFilter || d.dispute_category === categoryFilter
+          const matchesCategory = unclassifiedCategoryFilter
+            ? !d.dispute_category
+            : !categoryFilter || d.dispute_category === categoryFilter
           const matchesInvoice = !invoiceFilter || d.invoice_number === invoiceFilter
           const matchesCustomer =
             !customerFilter || d.customer?.customer_name === customerFilter
@@ -279,6 +296,7 @@ export const DisputesTable: React.FC<DisputesTableProps> = ({
     assigneeFilter,
     slaParam,
     teamParam,
+    unclassifiedCategoryFilter,
     sortField,
     sortDirection,
   ])

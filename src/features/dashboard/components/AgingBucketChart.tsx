@@ -1,9 +1,14 @@
 import React, { useMemo } from "react"
+import { useNavigate } from "react-router-dom"
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell } from "recharts"
 import { ChartCard } from "@/components/ui/chart-card"
 import { AGING_BUCKET_CHART_COLORS } from "@/lib/design-tokens"
 import type { AgingAnalytics } from "@/features/collections/types"
 import { WidgetNavLink } from "./WidgetNavLink"
+import {
+  AGING_CHART_BUCKETS,
+  getAgingBucketDrillDownPath,
+} from "../utils/chartDrillDown"
 
 interface AgingBucketChartProps {
   aging?: AgingAnalytics | null
@@ -26,15 +31,18 @@ export const AgingBucketChart: React.FC<AgingBucketChartProps> = ({
   title = "Aging distribution",
   description,
 }) => {
+  const navigate = useNavigate()
+
   const chartData = useMemo(() => {
     if (!aging) return []
-    return [
-      { name: "Current", Amount: aging.CURRENT },
-      { name: "0-30", Amount: aging["0-30"] },
-      { name: "31-60", Amount: aging["31-60"] },
-      { name: "61-90", Amount: aging["61-90"] },
-      { name: "90+", Amount: aging["90_PLUS"] || 0 },
-    ]
+    return AGING_CHART_BUCKETS.map(({ name, bucket }) => ({
+      name,
+      bucket,
+      Amount:
+        bucket === "90_PLUS"
+          ? aging["90_PLUS"] || 0
+          : aging[bucket as keyof AgingAnalytics] ?? 0,
+    }))
   }, [aging])
 
   const isEmpty =
@@ -70,11 +78,12 @@ export const AgingBucketChart: React.FC<AgingBucketChartProps> = ({
             tickFormatter={(v) => `₹${v.toLocaleString(undefined, { notation: "compact" })}`}
           />
           <Tooltip formatter={(v: number | string) => [`₹${Number(v).toLocaleString()}`, "Outstanding"]} />
-          <Bar dataKey="Amount" radius={[4, 4, 0, 0]}>
-            {chartData.map((_, index) => (
+          <Bar dataKey="Amount" radius={[4, 4, 0, 0]} cursor="pointer">
+            {chartData.map((entry, index) => (
               <Cell
                 key={`cell-${index}`}
                 fill={AGING_BUCKET_CHART_COLORS[index % AGING_BUCKET_CHART_COLORS.length]}
+                onClick={() => navigate(getAgingBucketDrillDownPath(entry.bucket))}
               />
             ))}
           </Bar>

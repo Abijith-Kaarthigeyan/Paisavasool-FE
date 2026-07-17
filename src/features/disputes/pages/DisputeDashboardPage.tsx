@@ -1,4 +1,5 @@
 import React, { useMemo } from "react"
+import { useNavigate } from "react-router-dom"
 import { useDisputes, useCases } from "../hooks/useDisputes"
 import { KpiCard } from "@/components/ui/kpi-card"
 import { ChartCard } from "@/components/ui/chart-card"
@@ -35,8 +36,10 @@ import {
   FolderOpen,
 } from "lucide-react"
 import { KpiWidgetWithLink } from "@/features/dashboard/components/KpiWidgetWithLink"
+import { getDisputeCategoryDrillDownPath } from "@/features/dashboard/utils/chartDrillDown"
 
 export const DisputeDashboardPage: React.FC = () => {
+  const navigate = useNavigate()
   const { data: disputes = [], isLoading, refetch } = useDisputes();
   const { data: disputeCases = [], isLoading: isCasesLoading } = useCases();
 
@@ -194,9 +197,13 @@ export const DisputeDashboardPage: React.FC = () => {
               <XAxis dataKey="name" hide />
               <YAxis fontSize={9} fontWeight={600} allowDecimals={false} />
               <Tooltip content={<ChartHoverTooltip valueLabel="disputes" />} cursor={{ fill: "hsl(var(--muted) / 0.35)" }} />
-              <Bar dataKey="value" radius={[3, 3, 0, 0]}>
-                {categoryChartData.map((_entry, index) => (
-                  <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+              <Bar dataKey="value" radius={[3, 3, 0, 0]} cursor="pointer">
+                {categoryChartData.map((entry, index) => (
+                  <Cell
+                    key={`cell-${index}`}
+                    fill={CHART_COLORS[index % CHART_COLORS.length]}
+                    onClick={() => navigate(getDisputeCategoryDrillDownPath(entry.name))}
+                  />
                 ))}
               </Bar>
             </BarChart>

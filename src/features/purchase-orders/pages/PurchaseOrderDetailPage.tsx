@@ -144,10 +144,16 @@ export const PurchaseOrderDetailPage: React.FC = () => {
     [linkedInvoices]
   )
 
+  const linkedInvoicedTotal = useMemo(
+    () => linkedInvoices.reduce((sum, inv) => sum + inv.total_amount, 0),
+    [linkedInvoices]
+  )
+
   if (isDetailsLoading) {
     return (
-      <div className="mx-auto max-w-4xl space-y-6">
-        <Skeleton className="h-10 w-48" />
+      <div className="space-y-8">
+        <Skeleton className="h-10 w-64" />
+        <Skeleton className="h-12 w-full max-w-xl" />
         <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
           <Skeleton className="h-48 w-full" />
           <Skeleton className="h-48 w-full" />
@@ -159,7 +165,15 @@ export const PurchaseOrderDetailPage: React.FC = () => {
 
   if (detailsError || !po) {
     return (
-      <div className="mx-auto max-w-md py-16">
+      <div className="space-y-8">
+        <PageBreadcrumb
+          items={[
+            { label: "Dashboard", to: getDashboardPath() },
+            { label: "Billings", to: "/invoices" },
+            { label: "Purchase orders", to: "/purchase-orders" },
+            { label: "Purchase order" },
+          ]}
+        />
         <EmptyState
           icon={<HelpCircle className="h-6 w-6 text-destructive" />}
           title="Purchase order not found"
@@ -175,7 +189,7 @@ export const PurchaseOrderDetailPage: React.FC = () => {
   }
 
   return (
-    <div className="mx-auto max-w-4xl space-y-8">
+    <div className="space-y-8">
       <PageBreadcrumb
         items={[
           { label: "Dashboard", to: getDashboardPath() },
@@ -215,7 +229,7 @@ export const PurchaseOrderDetailPage: React.FC = () => {
         </TabsList>
 
         <TabsContent value="overview">
-          <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
             <Card>
               <CardHeader className="border-b border-border pb-4">
                 <CardTitle className="flex items-center gap-2 text-base font-semibold">
@@ -250,6 +264,14 @@ export const PurchaseOrderDetailPage: React.FC = () => {
                   <span className="font-semibold text-foreground">Total</span>
                   <span className="font-semibold tabular-nums text-foreground">
                     {formatCurrency(po.total_amount)}
+                  </span>
+                </div>
+                <div className="flex justify-between gap-4">
+                  <span className="text-muted-foreground">Invoiced</span>
+                  <span className="font-medium tabular-nums text-foreground">
+                    {isInvoicesLoading
+                      ? "…"
+                      : `${formatCurrency(linkedInvoicedTotal)} of ${formatCurrency(po.total_amount)}`}
                   </span>
                 </div>
               </CardContent>

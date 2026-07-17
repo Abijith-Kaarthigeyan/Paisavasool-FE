@@ -10,7 +10,7 @@ export type { BatchStatus, FileStatus }
 export type PoUploadBatch = InvoiceUploadBatch
 export type PoUploadFile = InvoiceUploadFile
 
-export type PurchaseOrderStatus = "OPEN" | "PARTIALLY_INVOICED" | "CLOSED"
+export type PurchaseOrderStatus = "OPEN" | "PARTIALLY_INVOICED" | "FULLY_INVOICED"
 
 export interface PurchaseOrderSummary {
   id: string
@@ -26,6 +26,7 @@ export interface PurchaseOrder extends PurchaseOrderSummary {
   customer?: Customer
   subtotal_amount: number
   tax_amount: number
+  linked_invoice_count: number
   batch_id: string | null
   created_at: string
   updated_at: string

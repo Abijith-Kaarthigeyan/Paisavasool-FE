@@ -9,6 +9,8 @@ import { useToast } from "@/components/ui/toast"
 import { EmptyState } from "@/components/ui/empty-state"
 import { Button } from "@/components/ui/button"
 import { PageBreadcrumb } from "@/components/ui/page-breadcrumb"
+import { PageHeader } from "@/components/ui/page-header"
+import { getDashboardPath } from "@/lib/navigation"
 import {
   Table,
   TableBody,
@@ -56,10 +58,11 @@ export const CustomerDetailPage: React.FC = () => {
 
   if (isLoading) {
     return (
-      <div className="mx-auto max-w-5xl space-y-8 animate-pulse">
-        <Skeleton className="h-8 w-48" />
+      <div className="space-y-8 animate-pulse">
+        <Skeleton className="h-10 w-64" />
+        <Skeleton className="h-12 w-full max-w-xl" />
         <Card className="h-48 w-full" />
-        <Skeleton className="h-10 w-full max-w-md" />
+        <Skeleton className="h-10 w-80" />
         <Card className="h-64 w-full" />
       </div>
     )
@@ -67,7 +70,14 @@ export const CustomerDetailPage: React.FC = () => {
 
   if (isError || !customerDetail) {
     return (
-      <div className="mx-auto max-w-md py-16 text-center">
+      <div className="space-y-8">
+        <PageBreadcrumb
+          items={[
+            { label: "Dashboard", to: getDashboardPath() },
+            { label: "Customers directory", to: "/customers" },
+            { label: "Customer" },
+          ]}
+        />
         <EmptyState
           icon={<HelpCircle className="h-6 w-6 text-destructive" />}
           title="Customer not found"
@@ -85,24 +95,23 @@ export const CustomerDetailPage: React.FC = () => {
   const { customer, aliases, invoices, payments, credits } = customerDetail
 
   return (
-    <div className="mx-auto max-w-5xl space-y-8">
+    <div className="space-y-8">
       <PageBreadcrumb
         items={[
-          { label: "Customers", to: "/customers" },
+          { label: "Dashboard", to: getDashboardPath() },
+          { label: "Customers directory", to: "/customers" },
           { label: customer.customer_name },
         ]}
       />
 
-      <header className="flex flex-col gap-4 border-b border-border pb-5 sm:flex-row sm:items-center sm:justify-between">
-        <div className="space-y-1">
-          <h1 className="m-0 text-2xl font-semibold tracking-tight text-foreground md:text-3xl">
-            {customer.customer_name}
-          </h1>
+      <PageHeader
+        title={customer.customer_name}
+        meta={
           <Badge variant="outline" className="font-mono text-xs font-medium text-primary">
             {customer.customer_code}
           </Badge>
-        </div>
-      </header>
+        }
+      />
 
       <Card>
         <CardHeader className="mb-4 border-b border-border bg-muted/50 pb-3">
@@ -150,7 +159,7 @@ export const CustomerDetailPage: React.FC = () => {
       </Card>
 
       <Tabs defaultValue="invoices" className="w-full">
-        <TabsList className="mb-6 grid w-full max-w-md grid-cols-3">
+        <TabsList className="mb-6 w-fit">
           <TabsTrigger value="invoices" className="flex items-center gap-1.5">
             <FileText className="h-4 w-4" aria-hidden />
             Invoices ({invoices.length})
