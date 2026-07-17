@@ -1,9 +1,6 @@
 import React from "react"
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom"
-import {
-  useBatchPurchaseOrders,
-  usePoBatchStatus,
-} from "../hooks/usePurchaseOrders"
+import { useBatchGrns, useGrnBatchStatus } from "../hooks/useGrns"
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -13,7 +10,6 @@ import { EmptyState } from "@/components/ui/empty-state"
 import { Button } from "@/components/ui/button"
 import { KpiCard, KpiGrid } from "@/components/ui/kpi-card"
 import { AiAgentCard } from "@/components/ui/ai-agent-card"
-import { PurchaseOrderStatusBadge } from "../components/PurchaseOrderStatusBadge"
 import {
   Table,
   TableBody,
@@ -27,7 +23,6 @@ import {
   INVOICE_FILE_STATUS_VARIANT,
   getStatusVariant,
 } from "@/lib/design-tokens"
-import { formatCurrency } from "@/lib/formatCurrency"
 import {
   CheckCircle,
   XCircle,
@@ -35,21 +30,19 @@ import {
   Calendar,
   Layers,
   ChevronLeft,
-  AlertTriangle,
   ExternalLink,
 } from "lucide-react"
-import type { PoUploadFile } from "../types"
+import type { GrnStatus, GrnUploadFile } from "../types"
 
 type ParsedFileMeta = {
   reason: string
   rawText: string
-  reviewItemId: string | null
-  existingPoId: string | null
+  existingGrnId: string | null
 }
 
 function parseErrorMessage(errorMsg: string | null): ParsedFileMeta {
   if (!errorMsg) {
-    return { reason: "Unknown error occurred.", rawText: "", reviewItemId: null, existingPoId: null }
+    return { reason: "Unknown error occurred.", rawText: "", existingGrnId: null }
   }
   try {
     if (errorMsg.trim().startsWith("{")) {
@@ -57,14 +50,13 @@ function parseErrorMessage(errorMsg: string | null): ParsedFileMeta {
       return {
         reason: parsed.reason || "Extraction failed.",
         rawText: parsed.raw_text || "",
-        reviewItemId: parsed.review_item_id || null,
-        existingPoId: parsed.existing_po_id || null,
+        existingGrnId: parsed.existing_grn_id || null,
       }
     }
   } catch {
     // Fallback if it's not JSON
   }
-  return { reason: errorMsg, rawText: "", reviewItemId: null, existingPoId: null }
+  return { reason: errorMsg, rawText: "", existingGrnId: null }
 }
 
 function formatStatus(status: string | undefined) {
@@ -73,19 +65,26 @@ function formatStatus(status: string | undefined) {
 }
 
 function formatFailureReason(reason: string) {
-  if (reason === "DUPLICATE_PO") {
-    return "Duplicate PO — already exists"
+  if (reason === "DUPLICATE_GRN") {
+    return "Duplicate GRN — already exists"
   }
   return formatStatus(reason)
 }
 
-export const PurchaseOrderBatchDetailsPage: React.FC = () => {
+function grnStatusVariant(status: GrnStatus): "success" | "warning" | "destructive" | "outline" {
+  if (status === "LINKED") return "success"
+  if (status === "UNLINKED") return "warning"
+  if (status === "FAILED") return "destructive"
+  return "outline"
+}
+
+export const GrnBatchDetailsPage: React.FC = () => {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const fromSessionId = searchParams.get("fromSession")
 
-  const { data: batch, isLoading: isBatchLoading, error: batchError } = usePoBatchStatus(id)
+  const { data: batch, isLoading: isBatchLoading, error: batchError } = useGrnBatchStatus(id)
 
   const isProcessing = batch?.status === "UPLOADED" || batch?.status === "PROCESSING"
   const batchComplete =
@@ -93,7 +92,7 @@ export const PurchaseOrderBatchDetailsPage: React.FC = () => {
     batch?.status === "PARTIAL_SUCCESS" ||
     batch?.status === "FAILED"
 
-  const { data: purchaseOrders, isLoading: isPosLoading } = useBatchPurchaseOrders(
+  const { data: grns, isLoading: isGrnsLoading } = useBatchGrns(
     id,
     !!batchComplete && !isProcessing
   )
@@ -102,8 +101,6 @@ export const PurchaseOrderBatchDetailsPage: React.FC = () => {
     if (!batch?.files) return []
     return batch.files.filter((f) => f.status === "FAILED")
   }, [batch])
-
-  const pendingReviewCount = batch?.pending_review_count ?? 0
 
   const processedPercent =
     batch && batch.total_files > 0
@@ -151,18 +148,18 @@ export const PurchaseOrderBatchDetailsPage: React.FC = () => {
             ? [
                 { label: "Upload documents", to: "/upload" },
                 { label: "Session", to: `/upload/sessions/${fromSessionId}` },
-                { label: "PO batch details" },
+                { label: "GRN batch details" },
               ]
             : [
                 { label: "Upload documents", to: "/upload" },
-                { label: "PO batch details" },
+                { label: "GRN batch details" },
               ]
         }
       />
 
       <PageHeader
         title={batch.file_name}
-        description="Purchase order batch ingestion"
+        description="Goods receipt note batch ingestion"
         actions={
           <div className="flex items-center gap-2">
             {fromSessionId && (
@@ -185,7 +182,7 @@ export const PurchaseOrderBatchDetailsPage: React.FC = () => {
         }
       />
 
-      <KpiGrid columns={pendingReviewCount > 0 ? 5 : 4}>
+      <KpiGrid columns={4}>
         <KpiCard
           label="Total files"
           value={batch.total_files}
@@ -197,14 +194,6 @@ export const PurchaseOrderBatchDetailsPage: React.FC = () => {
           icon={<CheckCircle className="h-5 w-5" />}
           iconTone="success"
         />
-        {pendingReviewCount > 0 && (
-          <KpiCard
-            label="Needs review"
-            value={pendingReviewCount}
-            icon={<AlertTriangle className="h-5 w-5" />}
-            iconTone="warning"
-          />
-        )}
         <KpiCard
           label="Failed"
           value={batch.failed_count}
@@ -228,7 +217,7 @@ export const PurchaseOrderBatchDetailsPage: React.FC = () => {
 
       {isProcessing && (
         <AiAgentCard
-          agentName="PO extraction agent"
+          agentName="GRN extraction agent"
           stage={`Processing file ${batch.processed_files} of ${batch.total_files}`}
           stageLabel="Extraction stage"
           progress={processedPercent}
@@ -251,7 +240,7 @@ export const PurchaseOrderBatchDetailsPage: React.FC = () => {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {batch.files.map((file: PoUploadFile) => (
+                {batch.files.map((file: GrnUploadFile) => (
                   <TableRow key={file.id}>
                     <TableCell
                       className="max-w-[280px] truncate font-medium"
@@ -278,50 +267,54 @@ export const PurchaseOrderBatchDetailsPage: React.FC = () => {
       {batchComplete && !isProcessing && (
         <Card>
           <CardHeader className="border-b border-border pb-4">
-            <CardTitle className="text-base font-semibold">Imported purchase orders</CardTitle>
+            <CardTitle className="text-base font-semibold">Imported goods receipt notes</CardTitle>
             <CardDescription>
-              Purchase orders successfully created from this batch.
+              GRNs successfully created from this batch. Linked status means a matching PO was found.
             </CardDescription>
           </CardHeader>
           <CardContent className="p-0">
-            {isPosLoading ? (
+            {isGrnsLoading ? (
               <div className="p-6">
                 <Skeleton className="h-24 w-full" />
               </div>
-            ) : purchaseOrders && purchaseOrders.length > 0 ? (
+            ) : grns && grns.length > 0 ? (
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead>GRN number</TableHead>
                     <TableHead>PO number</TableHead>
-                    <TableHead>Customer</TableHead>
-                    <TableHead>PO date</TableHead>
-                    <TableHead>Total</TableHead>
+                    <TableHead>GRN date</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead className="text-right">Action</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {purchaseOrders.map((po) => (
-                    <TableRow key={po.id}>
-                      <TableCell className="font-medium">{po.po_number}</TableCell>
-                      <TableCell>{po.customer?.customer_name ?? "—"}</TableCell>
+                  {grns.map((grn) => (
+                    <TableRow key={grn.id}>
+                      <TableCell className="font-medium">{grn.grn_number}</TableCell>
+                      <TableCell>{grn.po_number ?? "—"}</TableCell>
                       <TableCell>
-                        {new Date(po.po_date).toLocaleDateString(undefined, {
+                        {new Date(grn.grn_date).toLocaleDateString(undefined, {
                           dateStyle: "medium",
                         })}
                       </TableCell>
-                      <TableCell>{formatCurrency(po.total_amount)}</TableCell>
                       <TableCell>
-                        <PurchaseOrderStatusBadge status={po.status} />
+                        <Badge variant={grnStatusVariant(grn.status)} shape="pill">
+                          {formatStatus(grn.status)}
+                        </Badge>
                       </TableCell>
                       <TableCell className="text-right">
-                        <Link
-                          to={`/purchase-orders/${po.id}`}
-                          className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline"
-                        >
-                          View PO
-                          <ExternalLink className="h-3.5 w-3.5" aria-hidden />
-                        </Link>
+                        {grn.po_id ? (
+                          <Link
+                            to={`/purchase-orders/${grn.po_id}`}
+                            className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline"
+                          >
+                            View PO
+                            <ExternalLink className="h-3.5 w-3.5" aria-hidden />
+                          </Link>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">Unlinked</span>
+                        )}
                       </TableCell>
                     </TableRow>
                   ))}
@@ -329,7 +322,7 @@ export const PurchaseOrderBatchDetailsPage: React.FC = () => {
               </Table>
             ) : (
               <div className="p-6 text-sm text-muted-foreground">
-                No purchase orders were imported from this batch.
+                No goods receipt notes were imported from this batch.
               </div>
             )}
           </CardContent>
@@ -344,8 +337,7 @@ export const PurchaseOrderBatchDetailsPage: React.FC = () => {
               Failed ingestion details
             </CardTitle>
             <CardDescription>
-              Files that could not be imported. Duplicate purchase orders are rejected
-              automatically.
+              Files that could not be imported. Duplicate GRNs are rejected automatically.
             </CardDescription>
           </CardHeader>
           <CardContent className="p-0">
@@ -354,13 +346,13 @@ export const PurchaseOrderBatchDetailsPage: React.FC = () => {
                 <TableRow>
                   <TableHead>File name</TableHead>
                   <TableHead>Failure reason</TableHead>
-                  <TableHead className="text-right">Existing PO</TableHead>
+                  <TableHead className="text-right">Existing GRN</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {failedFiles.map((file: PoUploadFile) => {
-                  const { reason, existingPoId } = parseErrorMessage(file.error_message)
-                  const isDuplicate = reason === "DUPLICATE_PO"
+                {failedFiles.map((file: GrnUploadFile) => {
+                  const { reason, existingGrnId } = parseErrorMessage(file.error_message)
+                  const isDuplicate = reason === "DUPLICATE_GRN"
                   return (
                     <TableRow key={file.id}>
                       <TableCell
@@ -375,14 +367,10 @@ export const PurchaseOrderBatchDetailsPage: React.FC = () => {
                         {formatFailureReason(reason)}
                       </TableCell>
                       <TableCell className="text-right">
-                        {existingPoId ? (
-                          <Link
-                            to={`/purchase-orders/${existingPoId}`}
-                            className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline"
-                          >
-                            View existing PO
-                            <ExternalLink className="h-3.5 w-3.5" aria-hidden />
-                          </Link>
+                        {existingGrnId ? (
+                          <span className="text-xs text-muted-foreground">
+                            {existingGrnId}
+                          </span>
                         ) : (
                           <span className="text-xs text-muted-foreground">—</span>
                         )}
@@ -415,9 +403,9 @@ export const PurchaseOrderBatchDetailsPage: React.FC = () => {
             <XCircle className="h-5 w-5 shrink-0 text-destructive" aria-hidden />
             <p className="text-sm text-foreground">
               {failedFiles.some(
-                (f) => parseErrorMessage(f.error_message).reason === "DUPLICATE_PO"
+                (f) => parseErrorMessage(f.error_message).reason === "DUPLICATE_GRN"
               )
-                ? "This upload was rejected because the purchase order already exists."
+                ? "This upload was rejected because the goods receipt note already exists."
                 : `All ${batch.total_files} file(s) failed to process.`}
             </p>
           </CardContent>
@@ -438,4 +426,4 @@ export const PurchaseOrderBatchDetailsPage: React.FC = () => {
   )
 }
 
-export default PurchaseOrderBatchDetailsPage
+export default GrnBatchDetailsPage

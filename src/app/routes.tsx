@@ -14,6 +14,7 @@ import { InvoiceDetailPage } from "@/features/invoices/pages/InvoiceDetailPage"
 import { PurchaseOrderListPage } from "@/features/purchase-orders/pages/PurchaseOrderListPage"
 import { PurchaseOrderDetailPage } from "@/features/purchase-orders/pages/PurchaseOrderDetailPage"
 import { PurchaseOrderBatchDetailsPage } from "@/features/purchase-orders/pages/PurchaseOrderBatchDetailsPage"
+import { GrnBatchDetailsPage } from "@/features/grn/pages/GrnBatchDetailsPage"
 import { UnifiedUploadPage } from "@/features/document-upload/pages/UnifiedUploadPage"
 import { UnifiedUploadHubPage } from "@/features/document-upload/pages/UnifiedUploadHubPage"
 import { PaymentUploadHistoryPage } from "@/features/payments/pages/PaymentUploadHistoryPage"
@@ -142,6 +143,18 @@ export const AppRoutes = () => {
             element={
               <ProtectedRoute allowedRoles={["FINANCE_ASSOCIATE"]}>
                 <PurchaseOrderBatchDetailsPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/grn-upload"
+            element={<Navigate to="/upload" replace />}
+          />
+          <Route
+            path="/grn-upload/batches/:id"
+            element={
+              <ProtectedRoute allowedRoles={["FINANCE_ASSOCIATE"]}>
+                <GrnBatchDetailsPage />
               </ProtectedRoute>
             }
           />

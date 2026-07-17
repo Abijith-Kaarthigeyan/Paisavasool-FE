@@ -1,6 +1,11 @@
-export type DocumentType = "INVOICE" | "PAYMENT" | "PURCHASE_ORDER" | "UNKNOWN"
+export type DocumentType =
+  | "INVOICE"
+  | "PAYMENT"
+  | "PURCHASE_ORDER"
+  | "GRN"
+  | "UNKNOWN"
 
-export type ConfirmableType = "INVOICE" | "PAYMENT" | "PURCHASE_ORDER"
+export type ConfirmableType = "INVOICE" | "PAYMENT" | "PURCHASE_ORDER" | "GRN"
 
 export type DocumentFileStatus =
   | "PENDING_CONFIRMATION"
@@ -15,7 +20,11 @@ export type DocumentSessionStatus =
   | "COMPLETED"
   | "FAILED"
 
-export type DocumentTargetType = "INVOICE_BATCH" | "PO_BATCH" | "PAYMENT_UPLOAD"
+export type DocumentTargetType =
+  | "INVOICE_BATCH"
+  | "PO_BATCH"
+  | "PAYMENT_UPLOAD"
+  | "GRN_BATCH"
 
 export interface DocumentUploadFile {
   id: string
@@ -56,6 +65,7 @@ export interface DocumentUploadFileConfirmation {
 
 export function formatDocumentType(type: string | null | undefined): string {
   if (!type || type === "UNKNOWN") return "Unknown"
+  if (type === "GRN") return "Goods receipt note"
   return type
     .split("_")
     .map((word) => word.charAt(0) + word.slice(1).toLowerCase())

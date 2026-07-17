@@ -4,6 +4,7 @@ import {
   usePurchaseOrderDetails,
   usePurchaseOrderItems,
   usePurchaseOrderInvoices,
+  usePurchaseOrderGrns,
 } from "../hooks/usePurchaseOrders"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -13,6 +14,7 @@ import { PageBreadcrumb } from "@/components/ui/page-breadcrumb"
 import { EmptyState } from "@/components/ui/empty-state"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
+import { useToast } from "@/components/ui/toast"
 import {
   Table,
   TableBody,
@@ -29,12 +31,18 @@ import {
   User,
   HelpCircle,
   FileSpreadsheet,
+  FileText,
   Link2,
   ClipboardList,
+  Loader2,
+  PackageCheck,
   Plus,
 } from "lucide-react"
 import { PurchaseOrderStatusBadge } from "../components/PurchaseOrderStatusBadge"
 import { LinkInvoiceDialog } from "../components/LinkInvoiceDialog"
+import { purchaseOrderService } from "../services/purchaseOrderService"
+import { grnService } from "@/features/grn/services/grnService"
+import type { GoodsReceiptNote, GrnStatus } from "@/features/grn/types"
 import type { Invoice } from "@/features/invoices/types"
 
 const getDisplayInvoiceStatus = (invoice: Invoice): string => {
@@ -44,6 +52,20 @@ const getDisplayInvoiceStatus = (invoice: Invoice): string => {
   return invoice.outstanding_amount >= invoice.total_amount
     ? "PENDING"
     : "PARTIALLY_PAID"
+}
+
+function grnStatusVariant(status: GrnStatus): "success" | "warning" | "destructive" | "outline" {
+  if (status === "LINKED") return "success"
+  if (status === "UNLINKED") return "warning"
+  if (status === "FAILED") return "destructive"
+  return "outline"
+}
+
+function truncateNotes(notes: string | null, maxLength = 80): string {
+  if (!notes) return "—"
+  const trimmed = notes.trim()
+  if (trimmed.length <= maxLength) return trimmed
+  return `${trimmed.slice(0, maxLength).trimEnd()}…`
 }
 
 function LinkedInvoicesTable({
@@ -122,17 +144,115 @@ function LinkedInvoicesTable({
   )
 }
 
+function LinkedGrnsTable({
+  grns,
+  isLoading,
+  openingPdfGrnId,
+  onViewPdf,
+  onGoToUpload,
+}: {
+  grns: GoodsReceiptNote[]
+  isLoading: boolean
+  openingPdfGrnId: string | null
+  onViewPdf: (grn: GoodsReceiptNote) => void
+  onGoToUpload: () => void
+}) {
+  if (isLoading) {
+    return (
+      <div className="space-y-3 p-4">
+        <Skeleton className="h-8 w-full" />
+        <Skeleton className="h-8 w-full" />
+      </div>
+    )
+  }
+
+  if (grns.length === 0) {
+    return (
+      <EmptyState
+        title="No goods receipt notes"
+        description="No goods receipt notes linked to this PO yet. Upload a GRN via Global Upload."
+        className="py-8"
+        action={
+          <Button variant="ghost" size="sm" onClick={onGoToUpload}>
+            Go to Global Upload
+          </Button>
+        }
+      />
+    )
+  }
+
+  return (
+    <Table>
+      <TableHeader>
+        <TableRow>
+          <TableHead>GRN number</TableHead>
+          <TableHead>GRN date</TableHead>
+          <TableHead className="text-center">Status</TableHead>
+          <TableHead>Notes</TableHead>
+          <TableHead className="text-right">Actions</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {grns.map((grn) => {
+          const isOpeningPdf = openingPdfGrnId === grn.id
+          return (
+            <TableRow key={grn.id}>
+              <TableCell className="font-medium text-foreground">
+                {grn.grn_number}
+              </TableCell>
+              <TableCell className="text-muted-foreground">
+                {new Date(grn.grn_date).toLocaleDateString()}
+              </TableCell>
+              <TableCell className="text-center">
+                <Badge variant={grnStatusVariant(grn.status)} shape="pill">
+                  {grn.status}
+                </Badge>
+              </TableCell>
+              <TableCell className="max-w-xs text-muted-foreground">
+                {truncateNotes(grn.notes)}
+              </TableCell>
+              <TableCell className="text-right">
+                {grn.has_source_pdf ? (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => onViewPdf(grn)}
+                    disabled={isOpeningPdf}
+                  >
+                    {isOpeningPdf ? (
+                      <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <FileText className="mr-1.5 h-3.5 w-3.5" />
+                    )}
+                    View PDF
+                  </Button>
+                ) : (
+                  <span className="text-xs text-muted-foreground">No PDF</span>
+                )}
+              </TableCell>
+            </TableRow>
+          )
+        })}
+      </TableBody>
+    </Table>
+  )
+}
+
 export const PurchaseOrderDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const { toast } = useToast()
   const [activeTab, setActiveTab] = useState("overview")
   const [linkDialogOpen, setLinkDialogOpen] = useState(false)
+  const [isOpeningSourcePdf, setIsOpeningSourcePdf] = useState(false)
+  const [openingPdfGrnId, setOpeningPdfGrnId] = useState<string | null>(null)
 
   const { data: po, isLoading: isDetailsLoading, error: detailsError } =
     usePurchaseOrderDetails(id)
   const { data: items = [], isLoading: isItemsLoading } = usePurchaseOrderItems(id)
   const { data: linkedInvoices = [], isLoading: isInvoicesLoading } =
     usePurchaseOrderInvoices(id)
+  const { data: linkedGrns = [], isLoading: isGrnsLoading } = usePurchaseOrderGrns(id)
 
   const linkedInvoiceIds = useMemo(
     () => linkedInvoices.map((inv) => inv.id),
@@ -148,6 +268,62 @@ export const PurchaseOrderDetailPage: React.FC = () => {
     () => linkedInvoices.reduce((sum, inv) => sum + inv.total_amount, 0),
     [linkedInvoices]
   )
+
+  const handleOpenSourcePdf = () => {
+    if (!po?.id || !po.has_source_pdf || isOpeningSourcePdf) {
+      return
+    }
+
+    const previewTab = window.open("about:blank", "_blank")
+    setIsOpeningSourcePdf(true)
+
+    purchaseOrderService
+      .openSourcePdfInTab(previewTab, po.id, `PO-${po.po_number}.pdf`)
+      .catch((error) => {
+        if (previewTab && !previewTab.closed) {
+          previewTab.close()
+        }
+        toast({
+          title: "Could not open source PDF",
+          description: "Failed to load the original purchase order PDF.",
+          type: "error",
+        })
+        console.error(error)
+      })
+      .finally(() => {
+        setIsOpeningSourcePdf(false)
+      })
+  }
+
+  const handleOpenGrnPdf = (grn: GoodsReceiptNote) => {
+    if (!grn.has_source_pdf || openingPdfGrnId) {
+      return
+    }
+
+    const previewTab = window.open("about:blank", "_blank")
+    setOpeningPdfGrnId(grn.id)
+
+    grnService
+      .openSourcePdfInTab(
+        previewTab,
+        grn.id,
+        grn.source_file_name ?? `GRN-${grn.grn_number}.pdf`
+      )
+      .catch((error) => {
+        if (previewTab && !previewTab.closed) {
+          previewTab.close()
+        }
+        toast({
+          title: "Could not open GRN PDF",
+          description: "Failed to load the goods receipt note PDF.",
+          type: "error",
+        })
+        console.error(error)
+      })
+      .finally(() => {
+        setOpeningPdfGrnId(null)
+      })
+  }
 
   if (isDetailsLoading) {
     return (
@@ -211,7 +387,26 @@ export const PurchaseOrderDetailPage: React.FC = () => {
             </Link>
           ) : undefined
         }
-        actions={<PurchaseOrderStatusBadge status={po.status} />}
+        actions={
+          <div className="flex items-center gap-2">
+            <PurchaseOrderStatusBadge status={po.status} />
+            {po.has_source_pdf && (
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={handleOpenSourcePdf}
+                disabled={isOpeningSourcePdf}
+              >
+                {isOpeningSourcePdf ? (
+                  <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <FileText className="mr-1.5 h-3.5 w-3.5" />
+                )}
+                Source Pdf
+              </Button>
+            )}
+          </div>
+        }
       />
 
       <Tabs value={activeTab} onValueChange={setActiveTab} defaultValue="overview">
@@ -223,6 +418,14 @@ export const PurchaseOrderDetailPage: React.FC = () => {
             {linkedInvoices.length > 0 && (
               <span className="ml-1.5 rounded-full bg-muted px-1.5 py-0.5 text-xs tabular-nums">
                 {linkedInvoices.length}
+              </span>
+            )}
+          </TabsTrigger>
+          <TabsTrigger value="grns">
+            GRNs
+            {linkedGrns.length > 0 && (
+              <span className="ml-1.5 rounded-full bg-muted px-1.5 py-0.5 text-xs tabular-nums">
+                {linkedGrns.length}
               </span>
             )}
           </TabsTrigger>
@@ -443,6 +646,26 @@ export const PurchaseOrderDetailPage: React.FC = () => {
                 invoices={linkedInvoices}
                 isLoading={isInvoicesLoading}
                 onRowClick={(invoiceId) => navigate(`/invoices/${invoiceId}`)}
+              />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="grns">
+          <Card>
+            <CardHeader className="border-b border-border pb-4">
+              <CardTitle className="flex items-center gap-2 text-base font-semibold">
+                <PackageCheck className="h-4 w-4 text-primary" aria-hidden />
+                Goods receipt notes
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-0">
+              <LinkedGrnsTable
+                grns={linkedGrns}
+                isLoading={isGrnsLoading}
+                openingPdfGrnId={openingPdfGrnId}
+                onViewPdf={handleOpenGrnPdf}
+                onGoToUpload={() => navigate("/upload")}
               />
             </CardContent>
           </Card>

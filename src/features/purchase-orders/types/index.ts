@@ -28,6 +28,7 @@ export interface PurchaseOrder extends PurchaseOrderSummary {
   tax_amount: number
   linked_invoice_count: number
   batch_id: string | null
+  has_source_pdf: boolean
   created_at: string
   updated_at: string
 }

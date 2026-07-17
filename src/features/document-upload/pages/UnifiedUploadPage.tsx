@@ -13,7 +13,12 @@ import { useToast } from "@/components/ui/toast"
 import type { ConfirmableType, DocumentUploadFile, DocumentUploadSession } from "../types"
 
 function isConfirmableType(type: string | null | undefined): type is ConfirmableType {
-  return type === "INVOICE" || type === "PAYMENT" || type === "PURCHASE_ORDER"
+  return (
+    type === "INVOICE" ||
+    type === "PAYMENT" ||
+    type === "PURCHASE_ORDER" ||
+    type === "GRN"
+  )
 }
 
 function buildInitialSelections(files: DocumentUploadFile[]): Record<string, ConfirmableType> {
@@ -46,6 +51,10 @@ function tryShortcutNavigate(
   }
   if (file.target_type === "PO_BATCH") {
     navigate(`/po-upload/batches/${file.target_id}`)
+    return true
+  }
+  if (file.target_type === "GRN_BATCH") {
+    navigate(`/grn-upload/batches/${file.target_id}`)
     return true
   }
   return false
@@ -137,7 +146,7 @@ export const UnifiedUploadPage: React.FC = () => {
       await routeSession(sessionId, pendingSelections)
       toast({
         title: "Documents routed",
-        description: "Processing has started in the invoice, purchase order, and payment pipelines.",
+        description: "Processing has started in the invoice, purchase order, GRN, and payment pipelines.",
         type: "success",
       })
     } catch (err: unknown) {
@@ -163,7 +172,7 @@ export const UnifiedUploadPage: React.FC = () => {
 
       <PageHeader
         title="Upload documents"
-        description="Upload invoices, purchase orders, or payment proofs — the agent will classify each document automatically."
+        description="Upload invoices, purchase orders, goods receipt notes, or payment proofs — the agent will classify each document automatically."
       />
 
       {!showReview ? (

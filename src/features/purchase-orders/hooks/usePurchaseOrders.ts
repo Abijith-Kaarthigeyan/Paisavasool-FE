@@ -38,6 +38,14 @@ export const usePurchaseOrderInvoices = (poId: string | undefined) => {
   })
 }
 
+export const usePurchaseOrderGrns = (poId: string | undefined) => {
+  return useQuery({
+    queryKey: ["purchase-order", poId, "grns"],
+    queryFn: () => purchaseOrderService.getLinkedGrns(poId!),
+    enabled: !!poId,
+  })
+}
+
 export const usePoBatchStatus = (batchId: string | undefined) => {
   return useQuery({
     queryKey: ["poBatchStatus", batchId],
@@ -46,14 +54,10 @@ export const usePoBatchStatus = (batchId: string | undefined) => {
     refetchInterval: (query) => {
       const state = query.state.data
       if (!state) return 3000
-      const hasPendingReview =
-        (state.pending_review_count ?? 0) > 0 ||
-        state.files?.some((f) => f.status === "PENDING_REVIEW")
       if (
-        (state.status === "COMPLETED" ||
-          state.status === "FAILED" ||
-          state.status === "PARTIAL_SUCCESS") &&
-        !hasPendingReview
+        state.status === "COMPLETED" ||
+        state.status === "FAILED" ||
+        state.status === "PARTIAL_SUCCESS"
       ) {
         return false
       }

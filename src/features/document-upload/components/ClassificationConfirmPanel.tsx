@@ -1,5 +1,5 @@
 import React from "react"
-import { FileText, CreditCard, ClipboardList, AlertCircle } from "lucide-react"
+import { FileText, CreditCard, ClipboardList, Package, AlertCircle } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -15,10 +15,20 @@ interface ClassificationConfirmPanelProps {
   isConfirming: boolean
 }
 
-const CONFIRMABLE_TYPES: ConfirmableType[] = ["INVOICE", "PAYMENT", "PURCHASE_ORDER"]
+const CONFIRMABLE_TYPES: ConfirmableType[] = [
+  "INVOICE",
+  "PAYMENT",
+  "PURCHASE_ORDER",
+  "GRN",
+]
 
 function isConfirmableType(type: string | null | undefined): type is ConfirmableType {
-  return type === "INVOICE" || type === "PAYMENT" || type === "PURCHASE_ORDER"
+  return (
+    type === "INVOICE" ||
+    type === "PAYMENT" ||
+    type === "PURCHASE_ORDER" ||
+    type === "GRN"
+  )
 }
 
 function getTypeIcon(type: string | null | undefined) {
@@ -27,6 +37,9 @@ function getTypeIcon(type: string | null | undefined) {
   }
   if (type === "PURCHASE_ORDER") {
     return <ClipboardList className="h-4 w-4 shrink-0 text-muted-foreground" />
+  }
+  if (type === "GRN") {
+    return <Package className="h-4 w-4 shrink-0 text-muted-foreground" />
   }
   return <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
 }
@@ -167,6 +180,19 @@ export const ClassificationConfirmPanel: React.FC<ClassificationConfirmPanelProp
                         >
                           <CreditCard className="h-3.5 w-3.5" aria-hidden />
                           Payment
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant={selected === "GRN" ? "primary" : "secondary"}
+                          onClick={() => onSelectionChange(file.id, "GRN")}
+                          className={cn(
+                            "gap-1.5",
+                            selected === "GRN" && "ring-2 ring-primary/30"
+                          )}
+                        >
+                          <Package className="h-3.5 w-3.5" aria-hidden />
+                          GRN
                         </Button>
                       </div>
                     </div>

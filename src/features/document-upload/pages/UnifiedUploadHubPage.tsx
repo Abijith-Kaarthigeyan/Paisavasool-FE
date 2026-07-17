@@ -26,13 +26,18 @@ import {
   getStatusVariant,
 } from "@/lib/design-tokens"
 import { useToast } from "@/components/ui/toast"
-import { ExternalLink, RefreshCw, FileText, CreditCard, ClipboardList } from "lucide-react"
+import { ExternalLink, RefreshCw, FileText, CreditCard, ClipboardList, Package } from "lucide-react"
 import type { ConfirmableType, DocumentUploadFile } from "../types"
 import { formatDocumentType } from "../types"
 import { SessionInvoiceBatchReview } from "../components/SessionInvoiceDuplicateReview"
 
 function isConfirmableType(type: string | null | undefined): type is ConfirmableType {
-  return type === "INVOICE" || type === "PAYMENT" || type === "PURCHASE_ORDER"
+  return (
+    type === "INVOICE" ||
+    type === "PAYMENT" ||
+    type === "PURCHASE_ORDER" ||
+    type === "GRN"
+  )
 }
 
 function getTypeIcon(type: string | null | undefined) {
@@ -41,6 +46,9 @@ function getTypeIcon(type: string | null | undefined) {
   }
   if (type === "PURCHASE_ORDER") {
     return <ClipboardList className="h-4 w-4 shrink-0 text-muted-foreground" />
+  }
+  if (type === "GRN") {
+    return <Package className="h-4 w-4 shrink-0 text-muted-foreground" />
   }
   return <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
 }
@@ -72,6 +80,12 @@ function getDestinationLink(
     return {
       label: "View PO batch",
       to: `/po-upload/batches/${file.target_id}${returnQuery}`,
+    }
+  }
+  if (file.target_type === "GRN_BATCH") {
+    return {
+      label: "View GRN batch",
+      to: `/grn-upload/batches/${file.target_id}${returnQuery}`,
     }
   }
   return null
@@ -228,7 +242,7 @@ export const UnifiedUploadHubPage: React.FC = () => {
           <CardHeader className="border-b border-border pb-4">
             <CardTitle className="text-base font-semibold">Documents in this session</CardTitle>
             <CardDescription>
-              Each file was classified and routed to the invoice, purchase order, or payment
+              Each file was classified and routed to the invoice, purchase order, GRN, or payment
               pipeline.
             </CardDescription>
           </CardHeader>
