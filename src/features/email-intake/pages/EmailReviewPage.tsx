@@ -1,4 +1,4 @@
-import React, { useState } from "react"
+import React, { useEffect, useState } from "react"
 import {
   useEmailManualReview,
   useConfirmEmailAction,
@@ -13,6 +13,8 @@ import { getDashboardPath } from "@/lib/navigation"
 import { EmptyState } from "@/components/ui/empty-state"
 import { Button } from "@/components/ui/button"
 import { ConfidenceMeter } from "@/components/ui/confidence-meter"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import {
   Sheet,
   SheetContent,
@@ -45,9 +47,13 @@ import { CheckCircle, HelpCircle, Mail, RefreshCw } from "lucide-react"
 const sectionCard = "rounded-lg border border-border bg-card shadow-card"
 const sectionLabel = "text-xs font-semibold uppercase tracking-wide text-muted-foreground"
 
-const EMAIL_CLASSIFICATION_VARIANT: Record<string, "success" | "warning" | "neutral"> = {
+const EMAIL_CLASSIFICATION_VARIANT: Record<
+  string,
+  "success" | "warning" | "neutral" | "info"
+> = {
   PAYMENT: "success",
   DISPUTE: "warning",
+  PROMISE: "info",
   OTHER: "neutral",
 }
 
@@ -56,13 +62,19 @@ type ConfirmAction = EmailManualAction
 const CONFIRM_MESSAGES: Record<ConfirmAction, string> = {
   ROUTE_PAYMENT: "Route this email to the payment upload pipeline?",
   ROUTE_DISPUTE: "Create a dispute case from this email?",
+  ROUTE_PROMISE: "Create a payment promise from this email?",
   DISMISS: "Dismiss this email? It will be removed from the review queue.",
 }
 
 const SUCCESS_MESSAGES: Record<ConfirmAction, string> = {
   ROUTE_PAYMENT: "Email routed to the payment upload pipeline.",
   ROUTE_DISPUTE: "Dispute case created from this email.",
+  ROUTE_PROMISE: "Payment promise created from this email.",
   DISMISS: "Email dismissed and removed from the review queue.",
+}
+
+function todayIsoDate(): string {
+  return new Date().toISOString().slice(0, 10)
 }
 
 export const EmailReviewPage: React.FC = () => {
@@ -71,10 +83,23 @@ export const EmailReviewPage: React.FC = () => {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false)
   const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(null)
   const [isConfirmOpen, setIsConfirmOpen] = useState(false)
+  const [promiseInvoice, setPromiseInvoice] = useState("")
+  const [promiseDate, setPromiseDate] = useState("")
+  const [promiseAmount, setPromiseAmount] = useState("")
 
   const { data: emails = [], isLoading, isError, refetch, isFetching } =
     useEmailManualReview()
   const confirmMutation = useConfirmEmailAction()
+
+  useEffect(() => {
+    if (!selectedEmail) return
+    const extraction = selectedEmail.extraction
+    setPromiseInvoice(extraction?.invoice_number ?? "")
+    setPromiseDate(extraction?.promised_date ?? todayIsoDate())
+    setPromiseAmount(
+      extraction?.promised_amount != null ? String(extraction.promised_amount) : ""
+    )
+  }, [selectedEmail])
 
   const handleRowClick = (email: EmailIntakeItem) => {
     setSelectedEmail(email)
@@ -83,10 +108,42 @@ export const EmailReviewPage: React.FC = () => {
 
   const handleActionConfirm = () => {
     if (!selectedEmail || !confirmAction) return
+
+    if (confirmAction === "ROUTE_PROMISE") {
+      if (!promiseInvoice.trim()) {
+        toast({
+          title: "Invoice required",
+          description: "Enter an invoice number to create a promise.",
+          type: "error",
+        })
+        return
+      }
+      if (!promiseDate) {
+        toast({
+          title: "Date required",
+          description: "Enter a promised payment date.",
+          type: "error",
+        })
+        return
+      }
+    }
+
     setIsConfirmOpen(false)
 
+    const body =
+      confirmAction === "ROUTE_PROMISE"
+        ? {
+            action: confirmAction,
+            invoice_number: promiseInvoice.trim(),
+            promised_date: promiseDate,
+            promised_amount: promiseAmount.trim()
+              ? Number(promiseAmount)
+              : null,
+          }
+        : { action: confirmAction }
+
     confirmMutation.mutate(
-      { id: selectedEmail.id, body: { action: confirmAction } },
+      { id: selectedEmail.id, body },
       {
         onSuccess: (result) => {
           let description = SUCCESS_MESSAGES[confirmAction]
@@ -94,6 +151,8 @@ export const EmailReviewPage: React.FC = () => {
             description += ` View at /payment-upload/${result.payment_upload_id}`
           } else if (confirmAction === "ROUTE_DISPUTE" && result.dispute_case_id) {
             description += ` View at /disputes/cases/${result.dispute_case_id}`
+          } else if (confirmAction === "ROUTE_PROMISE" && result.payment_promise_id) {
+            description += ` Promise ID ${result.payment_promise_id}`
           }
 
           toast({
@@ -121,6 +180,8 @@ export const EmailReviewPage: React.FC = () => {
     setConfirmAction(action)
     setIsConfirmOpen(true)
   }
+
+  const extraction = selectedEmail?.extraction
 
   return (
     <div className="space-y-8">
@@ -303,6 +364,34 @@ export const EmailReviewPage: React.FC = () => {
                 )}
               </div>
 
+              {(extraction?.invoice_number ||
+                extraction?.promised_date ||
+                extraction?.promised_amount != null ||
+                selectedEmail.error_message) && (
+                <div className={cn(sectionCard, "space-y-3 p-4")}>
+                  <span className={sectionLabel}>Promise extraction</span>
+                  <div className="grid gap-2 text-sm">
+                    <p>
+                      <span className="text-muted-foreground">Invoice: </span>
+                      {extraction?.invoice_number || "—"}
+                    </p>
+                    <p>
+                      <span className="text-muted-foreground">Promised date: </span>
+                      {extraction?.promised_date || "—"}
+                    </p>
+                    <p>
+                      <span className="text-muted-foreground">Amount: </span>
+                      {extraction?.promised_amount != null
+                        ? extraction.promised_amount
+                        : "Outstanding (default)"}
+                    </p>
+                    {selectedEmail.error_message && (
+                      <p className="text-destructive">{selectedEmail.error_message}</p>
+                    )}
+                  </div>
+                </div>
+              )}
+
               {selectedEmail.reasoning && selectedEmail.reasoning.length > 0 && (
                 <div className={cn(sectionCard, "space-y-3 p-4")}>
                   <span className={sectionLabel}>Reasoning</span>
@@ -347,6 +436,15 @@ export const EmailReviewPage: React.FC = () => {
                 >
                   Route as Dispute
                 </Button>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => openConfirm("ROUTE_PROMISE")}
+                  disabled={confirmMutation.isPending}
+                >
+                  Create promise
+                </Button>
               </div>
             )}
           </SheetFooter>
@@ -361,6 +459,45 @@ export const EmailReviewPage: React.FC = () => {
               {confirmAction ? CONFIRM_MESSAGES[confirmAction] : ""}
             </DialogDescription>
           </DialogHeader>
+
+          {confirmAction === "ROUTE_PROMISE" && (
+            <div className="space-y-3 py-2">
+              <div className="space-y-1.5">
+                <Label htmlFor="promise-invoice">Invoice number</Label>
+                <Input
+                  id="promise-invoice"
+                  value={promiseInvoice}
+                  onChange={(e) => setPromiseInvoice(e.target.value)}
+                  placeholder="INV-1234"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="promise-date">Promised date</Label>
+                <Input
+                  id="promise-date"
+                  type="date"
+                  min={todayIsoDate()}
+                  value={promiseDate}
+                  onChange={(e) => setPromiseDate(e.target.value)}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="promise-amount">
+                  Amount (optional — defaults to outstanding)
+                </Label>
+                <Input
+                  id="promise-amount"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={promiseAmount}
+                  onChange={(e) => setPromiseAmount(e.target.value)}
+                  placeholder="Leave blank for full outstanding"
+                />
+              </div>
+            </div>
+          )}
+
           <DialogFooter>
             <Button variant="secondary" size="sm" onClick={() => setIsConfirmOpen(false)}>
               Cancel

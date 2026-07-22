@@ -49,7 +49,7 @@ interface DisputeAttentionPanelProps {
 
 function getAttentionCopy(
   actionState: DisputeActionState,
-  isQualityDispute: boolean
+  hasAiRecommendation: boolean
 ): { title: string; description: string } {
   if (actionState.isPaymentSettlementConfirmation || actionState.isWaitingPaymentReview) {
     return {
@@ -63,7 +63,7 @@ function getAttentionCopy(
       description: "Acknowledge the internal team request to resume workflow execution.",
     }
   }
-  if (isQualityDispute) {
+  if (hasAiRecommendation) {
     return {
       title: "Needs your attention",
       description: "Review the AI recommendation and accept or decline it.",
@@ -216,8 +216,10 @@ export function DisputeAttentionPanel({
     isAmendmentDispute,
   } = actionState
 
-  const isQualityDispute = dispute.dispute_category === "QUALITY"
-  const attentionCopy = getAttentionCopy(actionState, isQualityDispute)
+  const hasAiRecommendation =
+    dispute.dispute_category === "QUALITY" ||
+    dispute.dispute_category === "LATE_DELIVERY"
+  const attentionCopy = getAttentionCopy(actionState, hasAiRecommendation)
   const recForDisplay = latestRecommendation ?? latestAmendmentRecommendation
   const amendmentRec = latestAmendmentRecommendation
   const poContext = getInvoicePoContext(dispute.invoice)
@@ -230,12 +232,12 @@ export function DisputeAttentionPanel({
 
   const approveLabel = isPaymentSettlementConfirmation
     ? "Confirm settlement"
-    : isQualityDispute
+    : hasAiRecommendation
       ? "Accept recommendation"
       : "Approve"
   const declineLabel = isPaymentSettlementConfirmation
     ? "Settlement not confirmed"
-    : isQualityDispute
+    : hasAiRecommendation
       ? "Decline recommendation"
       : "Decline"
 
@@ -430,7 +432,7 @@ export function DisputeAttentionPanel({
         decision={pendingDecision}
         onConfirm={handleConfirm}
         isSubmitting={isSubmitting}
-        isQualityRecommendation={isQualityDispute}
+        isAiRecommendation={hasAiRecommendation}
       />
     </>
   )

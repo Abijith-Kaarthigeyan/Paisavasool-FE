@@ -1,6 +1,21 @@
-export type EmailClassification = "PAYMENT" | "DISPUTE" | "OTHER" | string
+export type EmailClassification =
+  | "PAYMENT"
+  | "DISPUTE"
+  | "PROMISE"
+  | "OTHER"
+  | string
 
-export type EmailManualAction = "ROUTE_PAYMENT" | "ROUTE_DISPUTE" | "DISMISS"
+export type EmailManualAction =
+  | "ROUTE_PAYMENT"
+  | "ROUTE_DISPUTE"
+  | "ROUTE_PROMISE"
+  | "DISMISS"
+
+export interface PromiseExtraction {
+  invoice_number?: string | null
+  promised_date?: string | null
+  promised_amount?: number | null
+}
 
 export interface EmailIntakeItem {
   id: string
@@ -15,6 +30,8 @@ export interface EmailIntakeItem {
   routing_status: string
   dispute_case_id: string | null
   payment_upload_id: string | null
+  payment_promise_id?: string | null
+  extraction?: PromiseExtraction | null
   error_message: string | null
   created_at: string
   updated_at: string
@@ -23,6 +40,9 @@ export interface EmailIntakeItem {
 export interface EmailManualActionRequest {
   action: EmailManualAction
   reason?: string | null
+  invoice_number?: string | null
+  promised_date?: string | null
+  promised_amount?: number | null
 }
 
 export interface EmailPollResponse {

@@ -169,7 +169,8 @@ export function DisputeOverviewTab({
       )}
 
       {(dispute.dispute_category === "AMENDMENT" ||
-        dispute.dispute_category === "QUALITY") &&
+        dispute.dispute_category === "QUALITY" ||
+        dispute.dispute_category === "LATE_DELIVERY") &&
         parsedRec &&
         latestRecommendation && (
           <Card>

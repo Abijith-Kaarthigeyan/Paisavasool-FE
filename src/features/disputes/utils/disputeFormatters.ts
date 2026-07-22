@@ -104,7 +104,7 @@ export function parseRecommendationAction(action: string): {
   reasoning: string
 } {
   const match = action.match(
-    /^(?:AMENDMENT_DECISION|QUALITY_DECISION):\s*([A-Z_]+)\.\s*Reason:\s*(.*)$/s
+    /^(?:AMENDMENT_DECISION|QUALITY_DECISION|LATE_DELIVERY_DECISION):\s*([A-Z_]+)\.\s*Reason:\s*(.*)$/s
   )
   if (match) {
     return {
