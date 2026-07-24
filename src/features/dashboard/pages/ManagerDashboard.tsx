@@ -34,8 +34,11 @@ export const ManagerDashboard: React.FC = () => {
 
   const teamAssociateIds = useMemo(() => teamAssociates.map((a) => a.id), [teamAssociates])
 
-  const { data: allCases = [], isLoading: isCasesLoading } = useCollections()
-  const { data: escalatedCases = [], isLoading: isEscalatedLoading } = useEscalatedCases()
+  const { data: allCases = [], isLoading: isCasesLoading } = useCollections({
+    limit: 500,
+  })
+  const { data: escalatedCases = [], isLoading: isEscalatedLoading } =
+    useEscalatedCases({ limit: 500 })
 
   const teamCases = useMemo(() => {
     return allCases.filter((c) => c.assigned_to && teamAssociateIds.includes(c.assigned_to))

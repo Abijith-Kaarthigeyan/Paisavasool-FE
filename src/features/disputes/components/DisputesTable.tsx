@@ -1,11 +1,9 @@
-import React, { useEffect, useMemo, useState } from "react"
+import React, { useMemo, useState } from "react"
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom"
 import { buildDisputeDetailPath } from "../utils/disputeBreadcrumbs"
 import { Dispute } from "../types"
 import { useDisputes } from "../hooks/useDisputes"
 import { useCustomers } from "@/features/customers/hooks/useCustomers"
-import { useQuery } from "@tanstack/react-query"
-import { userService } from "@/features/users/services/userService"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { TableSkeleton } from "@/components/ui/skeleton"
@@ -13,13 +11,16 @@ import { Pagination } from "@/components/ui/pagination"
 import { PageHeader } from "@/components/ui/page-header"
 import { PageBreadcrumb, type BreadcrumbItem } from "@/components/ui/page-breadcrumb"
 import { FilterBar, FilterSelect } from "@/components/ui/filter-bar"
+import { ActiveFilterChips } from "@/components/ui/active-filter-chips"
+import { MobileColumnFilters } from "@/components/ui/mobile-column-filters"
+import { SortableHeader } from "@/components/ui/sortable-header"
+import { TableListEmpty } from "@/components/ui/table-list-empty"
 import { EmptyState } from "@/components/ui/empty-state"
 import { Button } from "@/components/ui/button"
 import {
   Table,
   TableBody,
   TableCell,
-  TableHead,
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
@@ -31,8 +32,20 @@ import {
   getStatusVariant,
 } from "@/lib/design-tokens"
 import { useDebouncedValue } from "@/lib/useDebouncedValue"
-import { FolderOpen, ArrowUpDown, RefreshCw } from "lucide-react"
-import { isUnclassifiedDisputeCategory } from "@/features/dashboard/utils/chartDrillDown"
+import {
+  CLIENT_FETCH_CAP,
+  TABLE_PAGE_SIZE,
+  isEmptyFilterValue,
+  shouldShowTableLoading,
+  useClientTable,
+  useTableUrlState,
+  type ColumnDef,
+  type DateRangeFilterValue,
+  type FilterValues,
+  type SortState,
+} from "@/lib/table"
+import { FolderOpen, Inbox, RefreshCw } from "lucide-react"
+import { isUnclassifiedDisputeCategory, UNCLASSIFIED_DISPUTE_CATEGORY } from "@/features/dashboard/utils/chartDrillDown"
 
 const DISPUTE_CATEGORIES = [
   "AMENDMENT",
@@ -43,6 +56,50 @@ const DISPUTE_CATEGORIES = [
   "LATE_DELIVERY",
   "OTHER",
 ]
+
+const STATUS_OPTIONS = [
+  { value: "OPEN", label: "Open" },
+  { value: "IN_REVIEW", label: "In review" },
+  { value: "WAITING_CUSTOMER", label: "Waiting customer" },
+  { value: "WAITING_INTERNAL", label: "Waiting internal" },
+  { value: "RESOLVED", label: "Resolved" },
+  { value: "CLOSED", label: "Closed" },
+]
+
+const PRIORITY_OPTIONS = [
+  { value: "HIGH", label: "High" },
+  { value: "MEDIUM", label: "Medium" },
+  { value: "LOW", label: "Low" },
+  { value: "CLOSED", label: "Closed" },
+  { value: "N/A", label: "N/A" },
+]
+
+const INITIAL_SORT = { id: "created_at", direction: "desc" as const }
+const URL_EXTRA_KEYS = ["q", "customer"] as const
+const PRESERVE_KEYS = ["sla", "team"] as const
+
+/** API allowlisted sort columns — anything else needs a full client-side page. */
+const SERVER_SORT_IDS = new Set([
+  "created_at",
+  "opened_at",
+  "dispute_number",
+  "invoice_number",
+  "status",
+  "dispute_category",
+])
+
+/**
+ * Column filters that cannot be expressed exactly by the list API
+ * (computed fields, name text, or partial text vs exact API match).
+ * When any of these are active we fetch a capped full list and paginate locally.
+ */
+const CLIENT_ONLY_COLUMN_FILTER_IDS = new Set([
+  "priority",
+  "sla_percentage",
+  "assigned_user_name",
+  "dispute_number",
+  "invoice_number",
+])
 
 interface DisputesTableProps {
   title: string
@@ -90,252 +147,305 @@ export const DisputesTable: React.FC<DisputesTableProps> = ({
   const serverMode = externalDisputes === undefined
 
   const [searchTerm, setSearchTerm] = useState("")
-  const [statusFilter, setStatusFilter] = useState(searchParams.get("status") || "")
-  const [categoryFilter, setCategoryFilter] = useState(searchParams.get("category") || "")
-  const [invoiceFilter, setInvoiceFilter] = useState("")
   const [customerFilter, setCustomerFilter] = useState("")
-  const [assigneeFilter, setAssigneeFilter] = useState("")
+  const [page, setPage] = useState(1)
   const debouncedSearch = useDebouncedValue(searchTerm)
 
-  React.useEffect(() => {
-    const slaParam = searchParams.get("sla")
-    if (slaParam === "breached") {
-      setStatusFilter("")
-    }
-  }, [searchParams])
-
-  React.useEffect(() => {
-    const category = searchParams.get("category")
-    if (category) {
-      setCategoryFilter(category)
-    }
-  }, [searchParams])
-
-  const [sortField, setSortField] = useState<string>("created_at")
-  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc")
-  const [currentPage, setCurrentPage] = useState(1)
-  const itemsPerPage = 10
+  // Mirrors table.sort / table.filters so the server-side request can include
+  // sort_by/sort_order and column filters without a circular dependency on the
+  // useClientTable instance, which itself consumes the fetched rows.
+  const [sortOverride, setSortOverride] = useState<SortState>(INITIAL_SORT)
+  const [columnFilters, setColumnFilters] = useState<FilterValues>({})
 
   const slaParam = searchParams.get("sla")
   const teamParam = searchParams.get("team")
-  const unclassifiedCategoryFilter = isUnclassifiedDisputeCategory(categoryFilter)
 
-  const serverParams = useMemo(() => {
+  const columnStatus =
+    typeof columnFilters.status === "string" ? columnFilters.status : ""
+  const columnCategory =
+    typeof columnFilters.dispute_category === "string"
+      ? columnFilters.dispute_category
+      : ""
+  const columnCreatedAt = columnFilters.created_at as DateRangeFilterValue | undefined
+
+  const effectiveStatus = columnStatus
+  const effectiveCategory = columnCategory
+  const effectiveUnclassified = isUnclassifiedDisputeCategory(effectiveCategory)
+
+  const hasClientOnlyColumnFilter = Object.entries(columnFilters).some(
+    ([id, value]) =>
+      !isEmptyFilterValue(value) && CLIENT_ONLY_COLUMN_FILTER_IDS.has(id)
+  )
+  const sortNeedsClientPaging = !!(
+    sortOverride?.id && !SERVER_SORT_IDS.has(sortOverride.id)
+  )
+
+  // Fall back to a capped fetch whenever filtering/sorting cannot be done on the
+  // server — otherwise client filters would only see the current page of rows.
+  const clientOnlyPaging =
+    serverMode &&
+    (effectiveUnclassified || hasClientOnlyColumnFilter || sortNeedsClientPaging)
+
+  const listParams = useMemo(() => {
     if (!serverMode) return undefined
     return {
-      limit: 500,
-      offset: 0,
+      limit: clientOnlyPaging ? CLIENT_FETCH_CAP : TABLE_PAGE_SIZE,
+      offset: clientOnlyPaging ? 0 : (page - 1) * TABLE_PAGE_SIZE,
       ...baseParams,
       ...(debouncedSearch.trim() ? { search: debouncedSearch.trim() } : {}),
-      ...(statusFilter ? { status: statusFilter } : {}),
-      ...(categoryFilter && !unclassifiedCategoryFilter
-        ? { category: categoryFilter }
+      ...(effectiveStatus ? { status: effectiveStatus } : {}),
+      ...(effectiveCategory && !effectiveUnclassified
+        ? { category: effectiveCategory }
         : {}),
-      ...(invoiceFilter ? { invoice_number: invoiceFilter } : {}),
       ...(customerFilter ? { customer_id: customerFilter } : {}),
-      ...(assigneeFilter ? { assigned_to: assigneeFilter } : {}),
       ...(slaParam === "breached" ? { sla_status: "BREACHED" } : {}),
       ...(teamParam === "true" ? { has_assignee: true } : {}),
+      ...(columnCreatedAt?.from ? { created_at_from: columnCreatedAt.from } : {}),
+      ...(columnCreatedAt?.to ? { created_at_to: columnCreatedAt.to } : {}),
+      ...(sortOverride && SERVER_SORT_IDS.has(sortOverride.id)
+        ? { sort_by: sortOverride.id, sort_order: sortOverride.direction }
+        : {}),
     }
   }, [
     serverMode,
+    clientOnlyPaging,
+    page,
     baseParams,
     debouncedSearch,
-    statusFilter,
-    categoryFilter,
-    invoiceFilter,
+    effectiveStatus,
+    effectiveCategory,
+    effectiveUnclassified,
     customerFilter,
-    assigneeFilter,
     slaParam,
     teamParam,
-    unclassifiedCategoryFilter,
+    columnCreatedAt,
+    sortOverride,
   ])
 
-  const serverQuery = useDisputes(serverParams, { enabled: serverMode })
-  const { data: customers = [] } = useCustomers({ limit: 500 })
-  const { data: users = [] } = useQuery({
-    queryKey: ["users"],
-    queryFn: userService.listUsers,
-    staleTime: 5 * 60 * 1000,
-    enabled: serverMode,
-  })
+  const {
+    data: serverDisputes = [],
+    total: serverTotal = 0,
+    isLoading: serverLoading,
+    isFetching: serverFetching,
+    isPlaceholderData: serverPlaceholder,
+    isError: serverError,
+    refetch: serverRefetch,
+  } = useDisputes(listParams, { enabled: serverMode })
 
-  const disputes = serverMode ? serverQuery.data : (externalDisputes ?? [])
-  const isLoading = serverMode ? serverQuery.isLoading : !!externalLoading
-  const isError = serverMode ? serverQuery.isError : !!externalError
-  const refetch = serverMode ? serverQuery.refetch : externalRefetch ?? (() => {})
+  const { data: customersPage } = useCustomers({ limit: CLIENT_FETCH_CAP })
+  const customers = customersPage?.items ?? []
 
-  const handleSort = (field: string) => {
-    if (sortField === field) {
-      setSortDirection(sortDirection === "asc" ? "desc" : "asc")
-    } else {
-      setSortField(field)
-      setSortDirection("desc")
-    }
-    setCurrentPage(1)
-  }
+  const disputes = serverMode ? serverDisputes : (externalDisputes ?? [])
+  const isLoading = serverMode ? serverLoading : !!externalLoading
+  const isFetching = serverMode ? serverFetching : false
+  const isError = serverMode ? serverError : !!externalError
+  const refetch = serverMode ? serverRefetch : externalRefetch ?? (() => {})
 
-  const getSortAria = (field: string): "none" | "ascending" | "descending" => {
-    if (sortField !== field) return "none"
-    return sortDirection === "asc" ? "ascending" : "descending"
-  }
-
-  const filterOptions = useMemo(() => {
+  const customerOptions = useMemo(() => {
     if (serverMode) {
-      const invoices = new Set<string>()
-      disputes.forEach((d) => {
-        if (d.invoice_number) invoices.add(d.invoice_number)
-      })
-      return {
-        categories: DISPUTE_CATEGORIES,
-        invoices: Array.from(invoices).sort(),
-        customers: customers
-          .map((c) => ({ id: c.id, name: c.customer_name }))
-          .sort((a, b) => a.name.localeCompare(b.name)),
-        assignees: users
-          .filter((u) => u.role.role_name === "FINANCE_ASSOCIATE" && u.is_active)
-          .map((u) => ({
-            id: u.id,
-            name: `${u.first_name} ${u.last_name}`.trim(),
-          }))
-          .sort((a, b) => a.name.localeCompare(b.name)),
-      }
+      return customers
+        .map((c) => ({ id: c.id, name: c.customer_name }))
+        .sort((a, b) => a.name.localeCompare(b.name))
     }
 
-    const categories = new Set<string>()
-    const invoices = new Set<string>()
     const customerNames = new Set<string>()
-    const assignees = new Set<string>()
-
     disputes.forEach((d) => {
-      if (d.dispute_category) categories.add(d.dispute_category)
-      if (d.invoice_number) invoices.add(d.invoice_number)
       if (d.customer?.customer_name) customerNames.add(d.customer.customer_name)
-      if (d.assigned_user_name) assignees.add(d.assigned_user_name)
     })
+    return Array.from(customerNames)
+      .sort()
+      .map((name) => ({ id: name, name }))
+  }, [disputes, serverMode, customers])
 
-    return {
-      categories: Array.from(categories).sort(),
-      invoices: Array.from(invoices).sort(),
-      customers: Array.from(customerNames)
-        .sort()
-        .map((name) => ({ id: name, name })),
-      assignees: Array.from(assignees)
-        .sort()
-        .map((name) => ({ id: name, name })),
-    }
-  }, [disputes, serverMode, customers, users])
-
-  const filteredDisputes = useMemo(() => {
-    const rows = serverMode
+  const toolbarFiltered = useMemo(() => {
+    return serverMode
       ? disputes.filter((d) => {
-          if (!unclassifiedCategoryFilter) return true
+          if (!effectiveUnclassified) return true
           return !d.dispute_category
         })
       : disputes.filter((d) => {
           const term = searchTerm.toLowerCase()
           const matchesSearch =
+            !term ||
             d.dispute_number.toLowerCase().includes(term) ||
             d.invoice_number.toLowerCase().includes(term) ||
             (d.customer?.customer_name || "").toLowerCase().includes(term)
 
-          const matchesStatus = !statusFilter || d.status === statusFilter
-          const matchesCategory = unclassifiedCategoryFilter
-            ? !d.dispute_category
-            : !categoryFilter || d.dispute_category === categoryFilter
-          const matchesInvoice = !invoiceFilter || d.invoice_number === invoiceFilter
           const matchesCustomer =
             !customerFilter || d.customer?.customer_name === customerFilter
-          const matchesAssignee =
-            !assigneeFilter || d.assigned_user_name === assigneeFilter
           const matchesSlaParam =
             slaParam !== "breached" || d.sla?.status === "BREACHED"
           const matchesTeamParam = teamParam !== "true" || !!d.assigned_to
 
           return (
             matchesSearch &&
-            matchesStatus &&
-            matchesCategory &&
-            matchesInvoice &&
             matchesCustomer &&
-            matchesAssignee &&
             matchesSlaParam &&
             matchesTeamParam
           )
         })
-
-    return rows.sort((a, b) => {
-      let aVal: unknown = a[sortField as keyof typeof a]
-      let bVal: unknown = b[sortField as keyof typeof b]
-
-      if (sortField === "sla_percentage") {
-        aVal = a.sla?.current_percentage ?? 0
-        bVal = b.sla?.current_percentage ?? 0
-      }
-
-      if (aVal === undefined || aVal === null) return 1
-      if (bVal === undefined || bVal === null) return -1
-
-      if (typeof aVal === "string") {
-        return sortDirection === "asc"
-          ? aVal.localeCompare(String(bVal))
-          : String(bVal).localeCompare(aVal)
-      }
-      return sortDirection === "asc"
-        ? Number(aVal) - Number(bVal)
-        : Number(bVal) - Number(aVal)
-    })
   }, [
     disputes,
     serverMode,
     searchTerm,
-    statusFilter,
-    categoryFilter,
-    invoiceFilter,
     customerFilter,
-    assigneeFilter,
     slaParam,
     teamParam,
-    unclassifiedCategoryFilter,
-    sortField,
-    sortDirection,
+    effectiveUnclassified,
   ])
 
-  useEffect(() => {
-    setCurrentPage(1)
-  }, [
-    debouncedSearch,
-    statusFilter,
-    categoryFilter,
-    invoiceFilter,
-    customerFilter,
-    assigneeFilter,
-    slaParam,
-    teamParam,
-  ])
+  const columns = useMemo<ColumnDef<Dispute>[]>(
+    () => [
+      {
+        id: "dispute_number",
+        label: "Dispute number",
+        sortable: true,
+        filter: { type: "text", placeholder: "Dispute number…" },
+      },
+      {
+        id: "invoice_number",
+        label: "Invoice",
+        sortable: true,
+        filter: { type: "text", placeholder: "Invoice number…" },
+      },
+      {
+        id: "dispute_category",
+        label: "Category",
+        sortable: true,
+        accessor: (row) => row.dispute_category || UNCLASSIFIED_DISPUTE_CATEGORY,
+        filter: {
+          type: "select",
+          options: [
+            ...DISPUTE_CATEGORIES.map((cat) => ({
+              value: cat,
+              label: cat.replace(/_/g, " "),
+            })),
+            {
+              value: UNCLASSIFIED_DISPUTE_CATEGORY,
+              label: UNCLASSIFIED_DISPUTE_CATEGORY,
+            },
+          ],
+        },
+      },
+      {
+        id: "status",
+        label: "Status",
+        sortable: true,
+        align: "center",
+        filter: { type: "select", options: STATUS_OPTIONS },
+      },
+      {
+        id: "priority",
+        label: "Priority",
+        sortable: true,
+        align: "center",
+        accessor: getPriorityKey,
+        filter: { type: "select", options: PRIORITY_OPTIONS },
+      },
+      {
+        id: "sla_percentage",
+        label: "SLA status",
+        sortable: true,
+        className: "w-40",
+        accessor: (row) => row.sla?.current_percentage ?? 0,
+        defaultSortDirection: "desc",
+        filter: { type: "number-range", placeholder: "%" },
+      },
+      {
+        id: "assigned_user_name",
+        label: "Assigned to",
+        sortable: true,
+        accessor: (row) => row.assigned_user_name ?? "",
+        filter: { type: "text", placeholder: "Assignee…" },
+      },
+      {
+        id: "created_at",
+        label: "Created",
+        sortable: true,
+        align: "right",
+        defaultSortDirection: "desc",
+        filter: { type: "date-range" },
+      },
+    ],
+    []
+  )
 
-  const totalItems = filteredDisputes.length
-  const totalPages = Math.max(1, Math.ceil(totalItems / itemsPerPage))
-  const startIndex = (currentPage - 1) * itemsPerPage
-  const paginatedDisputes = filteredDisputes.slice(startIndex, startIndex + itemsPerPage)
+  const table = useClientTable({
+    data: toolbarFiltered,
+    columns,
+    initialSort: INITIAL_SORT,
+    pageSize: TABLE_PAGE_SIZE,
+    paginationMode: serverMode ? (clientOnlyPaging ? "client" : "server") : "client",
+    serverTotal: serverMode ? serverTotal : 0,
+    page,
+    onPageChange: setPage,
+  })
 
-  const hasActiveFilters =
-    !!searchTerm ||
-    !!statusFilter ||
-    !!categoryFilter ||
-    !!invoiceFilter ||
-    !!customerFilter ||
-    !!assigneeFilter
+  // Sync during render so filter changes update list params in the same turn
+  // (avoids one paint of the previous page's filtered rows).
+  const filtersKey = JSON.stringify(table.filters)
+  const sortKey = `${table.sort?.id ?? ""}:${table.sort?.direction ?? ""}`
+  const [syncedKeys, setSyncedKeys] = useState({ filtersKey, sortKey })
+  if (syncedKeys.filtersKey !== filtersKey || syncedKeys.sortKey !== sortKey) {
+    setSyncedKeys({ filtersKey, sortKey })
+    setSortOverride((prev) =>
+      prev?.id === table.sort?.id && prev?.direction === table.sort?.direction
+        ? prev
+        : table.sort
+    )
+    setColumnFilters((prev) =>
+      JSON.stringify(prev) === JSON.stringify(table.filters) ? prev : table.filters
+    )
+  }
+
+  const urlExtras = useMemo(
+    () => ({
+      q: searchTerm || undefined,
+      customer: customerFilter || undefined,
+    }),
+    [searchTerm, customerFilter]
+  )
+
+  useTableUrlState({
+    columns,
+    sort: table.sort,
+    filters: table.filters,
+    page: table.page,
+    setSort: table.setSort,
+    setFilter: table.setFilter,
+    setPage: table.setPage,
+    replaceFilters: table.replaceFilters,
+    extras: urlExtras,
+    extraKeys: [...URL_EXTRA_KEYS],
+    preserveKeys: [...PRESERVE_KEYS],
+    defaultSort: INITIAL_SORT,
+    onExtrasChange: (extras) => {
+      if (extras.q != null) setSearchTerm(extras.q)
+      if (extras.customer != null) setCustomerFilter(extras.customer)
+    },
+  })
+
+  const hasToolbarFilters = !!searchTerm || !!customerFilter
+
+  const hasActiveFilters = hasToolbarFilters || table.hasNonDefaultState
+
+  const showTableLoading = shouldShowTableLoading({
+    isLoading,
+    isFetching,
+    isPlaceholderData: serverMode ? serverPlaceholder : false,
+    clientOnlyPaging,
+    hasActiveFilters,
+    cachedItemCount: disputes.length,
+    pageSize: TABLE_PAGE_SIZE,
+  })
 
   const clearFilters = () => {
     setSearchTerm("")
-    setStatusFilter("")
-    setCategoryFilter("")
-    setInvoiceFilter("")
     setCustomerFilter("")
-    setAssigneeFilter("")
-    setCurrentPage(1)
+    table.clearAll()
   }
+
+  const emptySourceCount = serverMode ? serverTotal : disputes.length
 
   const breadcrumb = breadcrumbItems ?? [
     { label: "Disputes", to: "/disputes" },
@@ -357,7 +467,7 @@ export const DisputesTable: React.FC<DisputesTableProps> = ({
       />
 
       <Card>
-        <div className="border-b border-border p-3">
+        <div className="space-y-2 border-b border-border p-3">
           <FilterBar
             variant="toolbar"
             size="sm"
@@ -368,75 +478,32 @@ export const DisputesTable: React.FC<DisputesTableProps> = ({
             onClear={clearFilters}
           >
             <FilterSelect
-              id="filter-category"
-              aria-label="Category"
-              value={categoryFilter}
-              onChange={(e) => setCategoryFilter(e.target.value)}
-            >
-              <option value="">All categories</option>
-              {filterOptions.categories.map((cat) => (
-                <option key={cat} value={cat}>
-                  {cat.replace(/_/g, " ")}
-                </option>
-              ))}
-            </FilterSelect>
-            <FilterSelect
-              id="filter-status"
-              aria-label="Status"
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-            >
-              <option value="">All statuses</option>
-              <option value="OPEN">Open</option>
-              <option value="IN_REVIEW">In review</option>
-              <option value="WAITING_CUSTOMER">Waiting customer</option>
-              <option value="WAITING_INTERNAL">Waiting internal</option>
-              <option value="RESOLVED">Resolved</option>
-              <option value="CLOSED">Closed</option>
-            </FilterSelect>
-            <FilterSelect
-              id="filter-invoice"
-              aria-label="Invoice"
-              value={invoiceFilter}
-              onChange={(e) => setInvoiceFilter(e.target.value)}
-            >
-              <option value="">All invoices</option>
-              {filterOptions.invoices.map((inv) => (
-                <option key={inv} value={inv}>
-                  {inv}
-                </option>
-              ))}
-            </FilterSelect>
-            <FilterSelect
               id="filter-customer"
               aria-label="Customer"
               value={customerFilter}
               onChange={(e) => setCustomerFilter(e.target.value)}
             >
               <option value="">All customers</option>
-              {filterOptions.customers.map((cust) => (
+              {customerOptions.map((cust) => (
                 <option key={cust.id} value={cust.id}>
                   {cust.name}
                 </option>
               ))}
             </FilterSelect>
-            <FilterSelect
-              id="filter-assignee"
-              aria-label="Assignee"
-              value={assigneeFilter}
-              onChange={(e) => setAssigneeFilter(e.target.value)}
-            >
-              <option value="">All assignees</option>
-              {filterOptions.assignees.map((a) => (
-                <option key={a.id} value={a.id}>
-                  {a.name}
-                </option>
-              ))}
-            </FilterSelect>
+            <MobileColumnFilters
+              columns={columns}
+              filters={table.filters}
+              onFilterChange={table.setFilter}
+            />
           </FilterBar>
+
+          <ActiveFilterChips
+            chips={table.activeChips}
+            onRemove={table.clearFilter}
+          />
         </div>
         <CardContent className="p-0">
-          {isLoading ? (
+          {showTableLoading ? (
             <TableSkeleton rows={8} columns={8} />
           ) : isError ? (
             <EmptyState
@@ -449,57 +516,37 @@ export const DisputesTable: React.FC<DisputesTableProps> = ({
                 </Button>
               }
             />
-          ) : paginatedDisputes.length === 0 ? (
-            <EmptyState
-              title="No disputes found"
-              description="No active disputes match the current filters."
-            />
           ) : (
+            <TableListEmpty
+              sourceCount={emptySourceCount}
+              filteredCount={table.filteredRows.length}
+              hasActiveFilters={hasActiveFilters}
+              emptyTitle="No disputes yet"
+              emptyDescription="No disputes have been registered yet."
+              emptyIcon={<Inbox className="h-6 w-6" />}
+              noMatchesTitle="No disputes found"
+              noMatchesDescription="No active disputes match the current filters."
+              onClearFilters={clearFilters}
+            />
+          )}
+          {!showTableLoading && !isError && table.filteredRows.length > 0 && (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>
-                    <button
-                      type="button"
-                      onClick={() => handleSort("dispute_number")}
-                      aria-sort={getSortAria("dispute_number")}
-                      className="inline-flex items-center gap-1 hover:text-foreground"
-                    >
-                      Dispute number
-                      <ArrowUpDown className="h-3 w-3" aria-hidden />
-                    </button>
-                  </TableHead>
-                  <TableHead>Invoice</TableHead>
-                  <TableHead>Category</TableHead>
-                  <TableHead className="text-center">Status</TableHead>
-                  <TableHead className="text-center">Priority</TableHead>
-                  <TableHead className="w-40">
-                    <button
-                      type="button"
-                      onClick={() => handleSort("sla_percentage")}
-                      aria-sort={getSortAria("sla_percentage")}
-                      className="inline-flex items-center gap-1 hover:text-foreground"
-                    >
-                      SLA status
-                      <ArrowUpDown className="h-3 w-3" aria-hidden />
-                    </button>
-                  </TableHead>
-                  <TableHead>Assigned to</TableHead>
-                  <TableHead className="text-right">
-                    <button
-                      type="button"
-                      onClick={() => handleSort("created_at")}
-                      aria-sort={getSortAria("created_at")}
-                      className="ml-auto inline-flex items-center gap-1 hover:text-foreground"
-                    >
-                      Created
-                      <ArrowUpDown className="h-3 w-3" aria-hidden />
-                    </button>
-                  </TableHead>
+                  {columns.map((column) => (
+                    <SortableHeader
+                      key={column.id}
+                      column={column}
+                      sort={table.sort}
+                      onSort={table.cycleSort}
+                      filterValue={table.filters[column.id]}
+                      onFilterChange={table.setFilter}
+                    />
+                  ))}
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {paginatedDisputes.map((d) => {
+                {table.rows.map((d) => {
                   const priorityKey = getPriorityKey(d)
                   return (
                     <TableRow
@@ -567,13 +614,13 @@ export const DisputesTable: React.FC<DisputesTableProps> = ({
         </CardContent>
       </Card>
 
-      {!isLoading && !isError && totalPages > 1 && (
+      {!showTableLoading && !isError && table.totalPages > 1 && (
         <Pagination
-          currentPage={currentPage}
-          totalPages={totalPages}
-          onPageChange={setCurrentPage}
-          totalItems={totalItems}
-          pageSize={itemsPerPage}
+          currentPage={table.page}
+          totalPages={table.totalPages}
+          onPageChange={table.setPage}
+          totalItems={table.total}
+          pageSize={table.pageSize}
         />
       )}
     </div>

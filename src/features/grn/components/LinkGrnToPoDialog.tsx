@@ -51,7 +51,8 @@ export function LinkGrnToPoDialog({ open, onOpenChange, grn }: LinkGrnToPoDialog
     [debouncedSearch]
   )
 
-  const { data: purchaseOrders = [], isLoading } = usePurchaseOrders(listParams)
+  const { data: poPage, isLoading } = usePurchaseOrders(listParams)
+  const purchaseOrders = poPage?.items ?? []
   const linkMutation = useLinkGrnToPurchaseOrder()
 
   const selectablePos = useMemo(() => {

@@ -1,16 +1,24 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
+import { listQueryOptions } from "@/lib/listQueryOptions"
 import { purchaseOrderService } from "../services/purchaseOrderService"
 
 export const usePurchaseOrders = (params?: {
   customer_id?: string
   status?: string
   search?: string
+  po_date_from?: string
+  po_date_to?: string
+  total_amount_min?: number
+  total_amount_max?: number
+  sort_by?: string
+  sort_order?: "asc" | "desc"
   limit?: number
   offset?: number
 }) => {
   return useQuery({
     queryKey: ["purchase-orders", params],
     queryFn: () => purchaseOrderService.listPurchaseOrders(params),
+    ...listQueryOptions,
   })
 }
 

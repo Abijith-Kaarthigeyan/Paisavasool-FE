@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { useBrokenPromises, usePromises } from "../hooks/useCollections"
+import type { CollectionCase, PaymentPromise } from "../types"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { TableSkeleton } from "@/components/ui/skeleton"
@@ -8,6 +9,10 @@ import { Pagination } from "@/components/ui/pagination"
 import { PageHeader } from "@/components/ui/page-header"
 import { PageBreadcrumb } from "@/components/ui/page-breadcrumb"
 import { FilterBar } from "@/components/ui/filter-bar"
+import { ActiveFilterChips } from "@/components/ui/active-filter-chips"
+import { MobileColumnFilters } from "@/components/ui/mobile-column-filters"
+import { SortableHeader } from "@/components/ui/sortable-header"
+import { TableListEmpty } from "@/components/ui/table-list-empty"
 import { EmptyState } from "@/components/ui/empty-state"
 import { Button } from "@/components/ui/button"
 import { KpiCard, KpiGrid } from "@/components/ui/kpi-card"
@@ -15,31 +20,53 @@ import {
   Table,
   TableBody,
   TableCell,
-  TableHead,
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
 import { COLLECTION_STATUS_VARIANT, getStatusVariant } from "@/lib/design-tokens"
+import {
+  CLIENT_FETCH_CAP,
+  TABLE_PAGE_SIZE,
+  useClientTable,
+  useTableUrlState,
+  type ColumnDef,
+} from "@/lib/table"
 import { AlertCircle, HeartOff, RefreshCw } from "lucide-react"
+
+type BrokenCaseRow = CollectionCase & {
+  brokenPromise?: PaymentPromise
+  daysOverdue: number
+}
+
+const INITIAL_SORT = { id: "daysOverdue", direction: "desc" as const }
+const URL_EXTRA_KEYS = ["q"] as const
+
+const STATUS_OPTIONS = [
+  { value: "OPEN", label: "Open" },
+  { value: "IN_PROGRESS", label: "In progress" },
+  { value: "PROMISED", label: "Promised" },
+  { value: "ESCALATED", label: "Escalated" },
+  { value: "DISPUTED", label: "Disputed" },
+  { value: "CLOSED", label: "Closed" },
+]
 
 export const BrokenPromisesPage: React.FC = () => {
   const navigate = useNavigate()
+
+  const [searchTerm, setSearchTerm] = useState("")
+
   const {
     data: cases = [],
     isLoading: isLoadingCases,
     isError: isCasesError,
     refetch: refetchCases,
-  } = useBrokenPromises()
+  } = useBrokenPromises({ limit: CLIENT_FETCH_CAP })
   const {
     data: promises = [],
     isLoading: isLoadingPromises,
     isError: isPromisesError,
     refetch: refetchPromises,
   } = usePromises()
-
-  const [searchTerm, setSearchTerm] = useState("")
-  const [currentPage, setCurrentPage] = useState(1)
-  const itemsPerPage = 10
 
   const handleRetry = () => {
     refetchCases()
@@ -49,48 +76,131 @@ export const BrokenPromisesPage: React.FC = () => {
   const isLoading = isLoadingCases || isLoadingPromises
   const isError = isCasesError || isPromisesError
 
-  const enrichedBrokenCases = useMemo(() => {
+  const enrichedBrokenCases = useMemo<BrokenCaseRow[]>(() => {
     if (!cases.length) return []
 
     const brokenPromisesMap = new Map(
       promises.filter((p) => p.status === "BROKEN").map((p) => [p.collection_case_id, p])
     )
 
-    return cases
-      .map((c) => {
-        const activeBrokenPromise = brokenPromisesMap.get(c.id)
+    return cases.map((c) => {
+      const activeBrokenPromise = brokenPromisesMap.get(c.id)
 
-        let daysOverdue = 0
-        if (activeBrokenPromise?.promised_date) {
-          const promiseTime = new Date(activeBrokenPromise.promised_date).getTime()
-          const diffTime = Date.now() - promiseTime
-          daysOverdue = Math.max(0, Math.floor(diffTime / (1000 * 60 * 60 * 24)))
-        }
+      let daysOverdue = 0
+      if (activeBrokenPromise?.promised_date) {
+        const promiseTime = new Date(activeBrokenPromise.promised_date).getTime()
+        const diffTime = Date.now() - promiseTime
+        daysOverdue = Math.max(0, Math.floor(diffTime / (1000 * 60 * 60 * 24)))
+      }
 
-        return {
-          ...c,
-          brokenPromise: activeBrokenPromise,
-          daysOverdue,
-        }
-      })
-      .sort((a, b) => b.daysOverdue - a.daysOverdue)
+      return {
+        ...c,
+        brokenPromise: activeBrokenPromise,
+        daysOverdue,
+      }
+    })
   }, [cases, promises])
 
-  const filteredCases = useMemo(() => {
-    return enrichedBrokenCases.filter((c) => {
-      const term = searchTerm.toLowerCase()
-      return (
+  const toolbarFiltered = useMemo(() => {
+    if (!searchTerm.trim()) return enrichedBrokenCases
+    const term = searchTerm.toLowerCase()
+    return enrichedBrokenCases.filter(
+      (c) =>
         (c.customer?.customer_name || "").toLowerCase().includes(term) ||
         (c.invoice?.invoice_number || "").toLowerCase().includes(term) ||
         c.id.toLowerCase().includes(term)
-      )
-    })
+    )
   }, [enrichedBrokenCases, searchTerm])
 
-  const totalItems = filteredCases.length
-  const totalPages = Math.max(1, Math.ceil(totalItems / itemsPerPage))
-  const startIndex = (currentPage - 1) * itemsPerPage
-  const paginatedCases = filteredCases.slice(startIndex, startIndex + itemsPerPage)
+  const columns = useMemo<ColumnDef<BrokenCaseRow>[]>(
+    () => [
+      {
+        id: "customer_name",
+        label: "Customer",
+        sortable: true,
+        accessor: (row) => row.customer?.customer_name ?? "Active account",
+        filter: { type: "text", placeholder: "Customer…" },
+      },
+      {
+        id: "invoice_number",
+        label: "Invoice",
+        sortable: true,
+        accessor: (row) => row.invoice?.invoice_number ?? "INV-N/A",
+        filter: { type: "text", placeholder: "Invoice…" },
+      },
+      {
+        id: "outstanding_amount",
+        label: "Outstanding",
+        sortable: true,
+        align: "right",
+        defaultSortDirection: "desc",
+        accessor: (row) => row.invoice?.outstanding_amount ?? row.outstanding_amount_snapshot,
+        filter: { type: "number-range" },
+      },
+      {
+        id: "promise_date",
+        label: "Promise date",
+        sortable: true,
+        align: "center",
+        accessor: (row) => row.brokenPromise?.promised_date ?? "",
+        filter: { type: "date-range" },
+      },
+      {
+        id: "daysOverdue",
+        label: "Days overdue",
+        sortable: true,
+        align: "center",
+        defaultSortDirection: "desc",
+        filter: { type: "number-range" },
+      },
+      {
+        id: "assigned_associate_name",
+        label: "Assigned associate",
+        sortable: true,
+        accessor: (row) => row.assigned_associate_name ?? "",
+        filter: { type: "text", placeholder: "Associate…" },
+      },
+      {
+        id: "status",
+        label: "Status",
+        sortable: true,
+        align: "center",
+        filter: { type: "select", options: STATUS_OPTIONS },
+      },
+    ],
+    []
+  )
+
+  const table = useClientTable({
+    data: toolbarFiltered,
+    columns,
+    initialSort: INITIAL_SORT,
+    pageSize: TABLE_PAGE_SIZE,
+  })
+
+  const urlExtras = useMemo(
+    () => ({
+      q: searchTerm || undefined,
+    }),
+    [searchTerm]
+  )
+
+  useTableUrlState({
+    columns,
+    sort: table.sort,
+    filters: table.filters,
+    page: table.page,
+    setSort: table.setSort,
+    setFilter: table.setFilter,
+    setPage: table.setPage,
+    replaceFilters: table.replaceFilters,
+    extras: urlExtras,
+    extraKeys: [...URL_EXTRA_KEYS],
+    onExtrasChange: (extras) => {
+      if (extras.q != null) setSearchTerm(extras.q)
+    },
+    defaultSort: INITIAL_SORT,
+  })
 
   const avgOverdueDays =
     enrichedBrokenCases.length > 0
@@ -104,6 +214,13 @@ export const BrokenPromisesPage: React.FC = () => {
     (sum, c) => sum + (c.invoice?.outstanding_amount ?? c.outstanding_amount_snapshot),
     0
   )
+
+  const hasActiveFilters = !!searchTerm || table.hasNonDefaultState
+
+  const clearFilters = () => {
+    setSearchTerm("")
+    table.clearAll()
+  }
 
   return (
     <div className="space-y-6 animate-in fade-in duration-150">
@@ -153,21 +270,26 @@ export const BrokenPromisesPage: React.FC = () => {
       </KpiGrid>
 
       <Card className="border-t-2 border-t-destructive/40">
-        <div className="border-b border-border p-3">
+        <div className="space-y-2 border-b border-border p-3">
           <FilterBar
             variant="toolbar"
             size="sm"
             searchValue={searchTerm}
-            onSearchChange={(value) => {
-              setSearchTerm(value)
-              setCurrentPage(1)
-            }}
+            onSearchChange={setSearchTerm}
             searchPlaceholder="Search by customer name or invoice number…"
-            showClear={!!searchTerm}
-            onClear={() => {
-              setSearchTerm("")
-              setCurrentPage(1)
-            }}
+            showClear={hasActiveFilters}
+            onClear={clearFilters}
+          >
+            <MobileColumnFilters
+              columns={columns}
+              filters={table.filters}
+              onFilterChange={table.setFilter}
+            />
+          </FilterBar>
+
+          <ActiveFilterChips
+            chips={table.activeChips}
+            onRemove={table.clearFilter}
           />
         </div>
         <CardContent className="p-0">
@@ -184,27 +306,37 @@ export const BrokenPromisesPage: React.FC = () => {
                 </Button>
               }
             />
-          ) : paginatedCases.length === 0 ? (
-            <EmptyState
-              icon={<HeartOff className="h-6 w-6 text-muted-foreground" />}
-              title="No broken promises"
-              description="No active collection cases have broken promises."
-            />
           ) : (
+            <TableListEmpty
+              sourceCount={enrichedBrokenCases.length}
+              filteredCount={table.filteredRows.length}
+              hasActiveFilters={hasActiveFilters}
+              emptyTitle="No broken promises"
+              emptyDescription="No active collection cases have broken promises."
+              emptyIcon={<HeartOff className="h-6 w-6 text-muted-foreground" />}
+              noMatchesTitle="No broken promises found"
+              noMatchesDescription="No broken promises match the current filters."
+              onClearFilters={clearFilters}
+            />
+          )}
+          {!isLoading && !isError && table.filteredRows.length > 0 && (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Customer</TableHead>
-                  <TableHead>Invoice</TableHead>
-                  <TableHead className="text-right">Outstanding</TableHead>
-                  <TableHead className="text-center">Promise date</TableHead>
-                  <TableHead className="text-center">Days overdue</TableHead>
-                  <TableHead>Assigned associate</TableHead>
-                  <TableHead className="text-center">Status</TableHead>
+                  {columns.map((column) => (
+                    <SortableHeader
+                      key={column.id}
+                      column={column}
+                      sort={table.sort}
+                      onSort={table.cycleSort}
+                      filterValue={table.filters[column.id]}
+                      onFilterChange={table.setFilter}
+                    />
+                  ))}
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {paginatedCases.map((c) => {
+                {table.rows.map((c) => {
                   const outstanding =
                     c.invoice?.outstanding_amount ?? c.outstanding_amount_snapshot
                   return (
@@ -252,13 +384,13 @@ export const BrokenPromisesPage: React.FC = () => {
         </CardContent>
       </Card>
 
-      {!isLoading && !isError && totalPages > 1 && (
+      {!isLoading && !isError && table.totalPages > 1 && (
         <Pagination
-          currentPage={currentPage}
-          totalPages={totalPages}
-          onPageChange={setCurrentPage}
-          totalItems={totalItems}
-          pageSize={itemsPerPage}
+          currentPage={table.page}
+          totalPages={table.totalPages}
+          onPageChange={table.setPage}
+          totalItems={table.total}
+          pageSize={table.pageSize}
         />
       )}
     </div>

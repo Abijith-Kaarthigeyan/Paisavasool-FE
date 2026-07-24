@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useState } from "react"
-import { useNavigate, useSearchParams } from "react-router-dom"
+import React, { useEffect, useLayoutEffect, useMemo, useState } from "react"
+import { useNavigate } from "react-router-dom"
 import { CollectionCase } from "../types"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -7,14 +7,17 @@ import { TableSkeleton } from "@/components/ui/skeleton"
 import { Pagination } from "@/components/ui/pagination"
 import { PageHeader } from "@/components/ui/page-header"
 import { PageBreadcrumb, type BreadcrumbItem } from "@/components/ui/page-breadcrumb"
-import { FilterBar, FilterSelect } from "@/components/ui/filter-bar"
+import { FilterBar } from "@/components/ui/filter-bar"
+import { ActiveFilterChips } from "@/components/ui/active-filter-chips"
+import { MobileColumnFilters } from "@/components/ui/mobile-column-filters"
+import { SortableHeader } from "@/components/ui/sortable-header"
+import { TableListEmpty } from "@/components/ui/table-list-empty"
 import { EmptyState } from "@/components/ui/empty-state"
 import { Button } from "@/components/ui/button"
 import {
   Table,
   TableBody,
   TableCell,
-  TableHead,
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
@@ -24,7 +27,16 @@ import {
   getStatusVariant,
 } from "@/lib/design-tokens"
 import { formatCurrency } from "@/lib/formatCurrency"
-import { ArrowUpDown, FolderOpen, RefreshCw } from "lucide-react"
+import {
+  TABLE_PAGE_SIZE,
+  shouldShowTableLoading,
+  useClientTable,
+  useSyncTableQueryBridge,
+  useTableQueryBridge,
+  useTableUrlState,
+  type ColumnDef,
+} from "@/lib/table"
+import { FolderOpen, RefreshCw } from "lucide-react"
 
 export interface CollectionsCasesTableProps {
   cases: CollectionCase[]
@@ -35,7 +47,31 @@ export interface CollectionsCasesTableProps {
   showAssignedColumn?: boolean
   filterMode?: "full" | "basic"
   breadcrumbItems?: BreadcrumbItem[]
+  serverTotal?: number
+  page?: number
+  onPageChange?: (page: number) => void
+  isFetching?: boolean
+  isPlaceholderData?: boolean
+  onNeedsClientPagingChange?: (needsClientPaging: boolean) => void
 }
+
+const PRIORITY_OPTIONS = [
+  { value: "LOW", label: "Low" },
+  { value: "MEDIUM", label: "Medium" },
+  { value: "HIGH", label: "High" },
+]
+
+const BUCKET_OPTIONS = [
+  { value: "CURRENT", label: "Current" },
+  { value: "0-30", label: "0–30 days" },
+  { value: "31-60", label: "31–60 days" },
+  { value: "61-90", label: "61–90 days" },
+  { value: "90_PLUS", label: "90+ days" },
+]
+
+const INITIAL_SORT = { id: "opened_at", direction: "desc" as const }
+
+const URL_EXTRA_KEYS = ["q"] as const
 
 export const CollectionsCasesTable: React.FC<CollectionsCasesTableProps> = ({
   cases,
@@ -44,146 +80,170 @@ export const CollectionsCasesTable: React.FC<CollectionsCasesTableProps> = ({
   refetch,
   title,
   showAssignedColumn = true,
-  filterMode = "full",
   breadcrumbItems,
+  serverTotal,
+  page: controlledPage,
+  onPageChange,
+  isFetching,
+  isPlaceholderData,
+  onNeedsClientPagingChange,
 }) => {
   const navigate = useNavigate()
-  const [searchParams] = useSearchParams()
+
+  const serverMode =
+    serverTotal !== undefined && controlledPage !== undefined && !!onPageChange
 
   const [searchTerm, setSearchTerm] = useState("")
-  const [priorityFilter, setPriorityFilter] = useState("")
-  const [bucketFilter, setBucketFilter] = useState(searchParams.get("bucket") || "")
-  const [customerFilter, setCustomerFilter] = useState("")
-  const [associateFilter, setAssociateFilter] = useState("")
 
-  const [sortField, setSortField] = useState("opened_at")
-  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc")
-  const [currentPage, setCurrentPage] = useState(1)
-  const itemsPerPage = 10
+  const hasToolbarFilters = !!searchTerm
+
+  const bridge = useTableQueryBridge({
+    page: controlledPage ?? 1,
+    initialSort: INITIAL_SORT,
+    forceClientOnly: !!searchTerm, // search is client-side on the fetched rows
+  })
+
+  useLayoutEffect(() => {
+    onNeedsClientPagingChange?.(bridge.clientOnlyPaging)
+  }, [bridge.clientOnlyPaging, onNeedsClientPagingChange])
+
+  const toolbarFiltered = useMemo(() => {
+    return cases.filter((c) => {
+      const term = searchTerm.toLowerCase()
+      if (!term) return true
+      return (
+        c.id.toLowerCase().includes(term) ||
+        (c.customer?.customer_name || "").toLowerCase().includes(term) ||
+        (c.invoice?.invoice_number || "").toLowerCase().includes(term)
+      )
+    })
+  }, [cases, searchTerm])
+
+  const columns = useMemo<ColumnDef<CollectionCase>[]>(() => {
+    const cols: ColumnDef<CollectionCase>[] = [
+      {
+        id: "invoice_number",
+        label: "Invoice",
+        sortable: true,
+        accessor: (row) => row.invoice?.invoice_number ?? "",
+        filter: { type: "text", placeholder: "Invoice…" },
+      },
+      {
+        id: "customer_name",
+        label: "Customer",
+        sortable: true,
+        accessor: (row) => row.customer?.customer_name ?? "",
+        filter: { type: "text", placeholder: "Customer…" },
+      },
+      {
+        id: "outstanding_amount",
+        label: "Outstanding",
+        sortable: true,
+        align: "right",
+        defaultSortDirection: "desc",
+        accessor: (row) =>
+          row.invoice?.outstanding_amount ?? row.outstanding_amount_snapshot,
+        filter: { type: "number-range" },
+      },
+      {
+        id: "aging_bucket",
+        label: "Bucket",
+        sortable: true,
+        align: "center",
+        filter: { type: "select", options: BUCKET_OPTIONS },
+      },
+      {
+        id: "priority",
+        label: "Priority",
+        sortable: true,
+        align: "center",
+        filter: { type: "select", options: PRIORITY_OPTIONS },
+      },
+    ]
+
+    if (showAssignedColumn) {
+      cols.push({
+        id: "assigned_associate_name",
+        label: "Assigned to",
+        sortable: true,
+        accessor: (row) => row.assigned_associate_name ?? "",
+        filter: { type: "text", placeholder: "Associate…" },
+      })
+    }
+
+    cols.push({
+      id: "opened_at",
+      label: "Opened",
+      sortable: true,
+      align: "right",
+      defaultSortDirection: "desc",
+      filter: { type: "date-range" },
+    })
+
+    return cols
+  }, [showAssignedColumn])
+
+  const table = useClientTable({
+    data: toolbarFiltered,
+    columns,
+    initialSort: INITIAL_SORT,
+    pageSize: TABLE_PAGE_SIZE,
+    paginationMode: serverMode && !bridge.clientOnlyPaging ? "server" : "client",
+    serverTotal: serverMode ? serverTotal : 0,
+    page: serverMode ? controlledPage : undefined,
+    onPageChange: serverMode ? onPageChange : undefined,
+  })
+
+  useSyncTableQueryBridge(bridge, table)
+
+  const urlExtras = useMemo(
+    () => ({
+      q: searchTerm || undefined,
+    }),
+    [searchTerm]
+  )
+
+  useTableUrlState({
+    columns,
+    sort: table.sort,
+    filters: table.filters,
+    page: table.page,
+    setSort: table.setSort,
+    setFilter: table.setFilter,
+    setPage: table.setPage,
+    replaceFilters: table.replaceFilters,
+    extras: urlExtras,
+    extraKeys: [...URL_EXTRA_KEYS],
+    onExtrasChange: (extras) => {
+      if (extras.q != null) setSearchTerm(extras.q)
+    },
+    defaultSort: INITIAL_SORT,
+  })
 
   useEffect(() => {
-    const bucket = searchParams.get("bucket")
-    if (bucket) {
-      setBucketFilter(bucket)
-      setCurrentPage(1)
-    }
-  }, [searchParams])
+    table.setPage(1)
+    // Only reset when toolbar search changes; column filters reset page inside the hook.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchTerm])
 
-  const handleSort = (field: string) => {
-    if (sortField === field) {
-      setSortDirection(sortDirection === "asc" ? "desc" : "asc")
-    } else {
-      setSortField(field)
-      setSortDirection("desc")
-    }
-    setCurrentPage(1)
-  }
+  const hasActiveFilters = hasToolbarFilters || table.hasNonDefaultState
 
-  const getSortAria = (field: string): "none" | "ascending" | "descending" => {
-    if (sortField !== field) return "none"
-    return sortDirection === "asc" ? "ascending" : "descending"
-  }
-
-  const filterOptions = useMemo(() => {
-    const customers = new Set<string>()
-    const associates = new Set<string>()
-    cases.forEach((c) => {
-      if (c.customer?.customer_name) customers.add(c.customer.customer_name)
-      if (c.assigned_associate_name) associates.add(c.assigned_associate_name)
-    })
-    return {
-      customers: Array.from(customers).sort(),
-      associates: Array.from(associates).sort(),
-    }
-  }, [cases])
-
-  const filteredCases = useMemo(() => {
-    return cases
-      .filter((c) => {
-        const term = searchTerm.toLowerCase()
-        const matchesSearch =
-          c.id.toLowerCase().includes(term) ||
-          (c.customer?.customer_name || "").toLowerCase().includes(term) ||
-          (c.invoice?.invoice_number || "").toLowerCase().includes(term)
-
-        const matchesPriority = !priorityFilter || c.priority === priorityFilter
-        const matchesBucket = !bucketFilter || c.aging_bucket === bucketFilter
-        const matchesCustomer =
-          filterMode !== "full" || !customerFilter || c.customer?.customer_name === customerFilter
-        const matchesAssociate =
-          filterMode !== "full" ||
-          !associateFilter ||
-          c.assigned_associate_name === associateFilter
-
-        return (
-          matchesSearch &&
-          matchesPriority &&
-          matchesBucket &&
-          matchesCustomer &&
-          matchesAssociate
-        )
-      })
-      .sort((a, b) => {
-        let aVal: unknown
-        let bVal: unknown
-
-        if (sortField === "invoice_number") {
-          aVal = a.invoice?.invoice_number || ""
-          bVal = b.invoice?.invoice_number || ""
-        } else if (sortField === "customer_name") {
-          aVal = a.customer?.customer_name || ""
-          bVal = b.customer?.customer_name || ""
-        } else if (sortField === "outstanding_amount") {
-          aVal = a.invoice?.outstanding_amount ?? a.outstanding_amount_snapshot
-          bVal = b.invoice?.outstanding_amount ?? b.outstanding_amount_snapshot
-        } else {
-          aVal = a[sortField as keyof CollectionCase]
-          bVal = b[sortField as keyof CollectionCase]
-        }
-
-        if (aVal === undefined || aVal === null) return 1
-        if (bVal === undefined || bVal === null) return -1
-
-        if (typeof aVal === "string") {
-          return sortDirection === "asc"
-            ? aVal.localeCompare(String(bVal))
-            : String(bVal).localeCompare(aVal)
-        }
-        return sortDirection === "asc"
-          ? Number(aVal) - Number(bVal)
-          : Number(bVal) - Number(aVal)
-      })
-  }, [
-    cases,
-    searchTerm,
-    priorityFilter,
-    bucketFilter,
-    customerFilter,
-    associateFilter,
-    filterMode,
-    sortField,
-    sortDirection,
-  ])
-
-  const totalItems = filteredCases.length
-  const totalPages = Math.max(1, Math.ceil(totalItems / itemsPerPage))
-  const startIndex = (currentPage - 1) * itemsPerPage
-  const paginatedCases = filteredCases.slice(startIndex, startIndex + itemsPerPage)
-
-  const hasActiveFilters =
-    !!searchTerm ||
-    !!priorityFilter ||
-    !!bucketFilter ||
-    (filterMode === "full" && (!!customerFilter || !!associateFilter))
+  const showLoading = shouldShowTableLoading({
+    isLoading,
+    isFetching,
+    isPlaceholderData,
+    clientOnlyPaging: bridge.clientOnlyPaging,
+    hasActiveFilters,
+    cachedItemCount: cases.length,
+    pageSize: TABLE_PAGE_SIZE,
+  })
 
   const clearFilters = () => {
     setSearchTerm("")
-    setPriorityFilter("")
-    setBucketFilter("")
-    setCustomerFilter("")
-    setAssociateFilter("")
-    setCurrentPage(1)
+    table.clearAll()
   }
+
+  const emptySourceCount = serverMode ? (serverTotal ?? 0) : cases.length
 
   const breadcrumb = breadcrumbItems ?? [
     { label: "Collections", to: "/collections" },
@@ -205,89 +265,30 @@ export const CollectionsCasesTable: React.FC<CollectionsCasesTableProps> = ({
       />
 
       <Card>
-        <div className="border-b border-border p-3">
+        <div className="space-y-2 border-b border-border p-3">
           <FilterBar
             variant="toolbar"
             size="sm"
             searchValue={searchTerm}
-            onSearchChange={(value) => {
-              setSearchTerm(value)
-              setCurrentPage(1)
-            }}
+            onSearchChange={setSearchTerm}
             searchPlaceholder="Search by case ID, customer, or invoice…"
             showClear={hasActiveFilters}
             onClear={clearFilters}
           >
-            <FilterSelect
-              id="filter-priority"
-              aria-label="Priority"
-              value={priorityFilter}
-              onChange={(e) => {
-                setPriorityFilter(e.target.value)
-                setCurrentPage(1)
-              }}
-            >
-              <option value="">All priorities</option>
-              <option value="LOW">Low</option>
-              <option value="MEDIUM">Medium</option>
-              <option value="HIGH">High</option>
-            </FilterSelect>
-            {filterMode === "full" && (
-              <>
-                <FilterSelect
-                  id="filter-bucket"
-                  aria-label="Aging bucket"
-                  value={bucketFilter}
-                  onChange={(e) => {
-                    setBucketFilter(e.target.value)
-                    setCurrentPage(1)
-                  }}
-                >
-                  <option value="">All buckets</option>
-                  <option value="CURRENT">Current</option>
-                  <option value="0-30">0–30 days</option>
-                  <option value="31-60">31–60 days</option>
-                  <option value="61-90">61–90 days</option>
-                  <option value="90_PLUS">90+ days</option>
-                </FilterSelect>
-                <FilterSelect
-                  id="filter-customer"
-                  aria-label="Customer"
-                  value={customerFilter}
-                  onChange={(e) => {
-                    setCustomerFilter(e.target.value)
-                    setCurrentPage(1)
-                  }}
-                >
-                  <option value="">All customers</option>
-                  {filterOptions.customers.map((cust) => (
-                    <option key={cust} value={cust}>
-                      {cust}
-                    </option>
-                  ))}
-                </FilterSelect>
-                <FilterSelect
-                  id="filter-associate"
-                  aria-label="Assigned associate"
-                  value={associateFilter}
-                  onChange={(e) => {
-                    setAssociateFilter(e.target.value)
-                    setCurrentPage(1)
-                  }}
-                >
-                  <option value="">All associates</option>
-                  {filterOptions.associates.map((assoc) => (
-                    <option key={assoc} value={assoc}>
-                      {assoc}
-                    </option>
-                  ))}
-                </FilterSelect>
-              </>
-            )}
+            <MobileColumnFilters
+              columns={columns}
+              filters={table.filters}
+              onFilterChange={table.setFilter}
+            />
           </FilterBar>
+
+          <ActiveFilterChips
+            chips={table.activeChips}
+            onRemove={table.clearFilter}
+          />
         </div>
         <CardContent className="p-0">
-          {isLoading ? (
+          {showLoading ? (
             <TableSkeleton rows={8} columns={showAssignedColumn ? 7 : 6} />
           ) : isError ? (
             <EmptyState
@@ -300,66 +301,37 @@ export const CollectionsCasesTable: React.FC<CollectionsCasesTableProps> = ({
                 </Button>
               }
             />
-          ) : paginatedCases.length === 0 ? (
-            <EmptyState
-              title="No cases found"
-              description="No collection cases match the current filters."
-            />
           ) : (
+            <TableListEmpty
+              sourceCount={emptySourceCount}
+              filteredCount={table.filteredRows.length}
+              hasActiveFilters={hasActiveFilters}
+              emptyTitle="No cases found"
+              emptyDescription="No collection cases are available."
+              emptyIcon={<FolderOpen className="h-6 w-6" />}
+              noMatchesTitle="No cases found"
+              noMatchesDescription="No collection cases match the current filters."
+              onClearFilters={clearFilters}
+            />
+          )}
+          {!showLoading && !isError && table.filteredRows.length > 0 && (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>
-                    <button
-                      type="button"
-                      onClick={() => handleSort("invoice_number")}
-                      aria-sort={getSortAria("invoice_number")}
-                      className="inline-flex items-center gap-1 hover:text-foreground"
-                    >
-                      Invoice
-                      <ArrowUpDown className="h-3 w-3" aria-hidden />
-                    </button>
-                  </TableHead>
-                  <TableHead>
-                    <button
-                      type="button"
-                      onClick={() => handleSort("customer_name")}
-                      aria-sort={getSortAria("customer_name")}
-                      className="inline-flex items-center gap-1 hover:text-foreground"
-                    >
-                      Customer
-                      <ArrowUpDown className="h-3 w-3" aria-hidden />
-                    </button>
-                  </TableHead>
-                  <TableHead className="text-right">
-                    <button
-                      type="button"
-                      onClick={() => handleSort("outstanding_amount")}
-                      aria-sort={getSortAria("outstanding_amount")}
-                      className="ml-auto inline-flex items-center gap-1 hover:text-foreground"
-                    >
-                      Outstanding
-                      <ArrowUpDown className="h-3 w-3" aria-hidden />
-                    </button>
-                  </TableHead>
-                  <TableHead className="text-center">Bucket</TableHead>
-                  <TableHead className="text-center">Priority</TableHead>
-                  {showAssignedColumn && <TableHead>Assigned to</TableHead>}
-                  <TableHead className="text-right">
-                    <button
-                      type="button"
-                      onClick={() => handleSort("opened_at")}
-                      aria-sort={getSortAria("opened_at")}
-                      className="ml-auto inline-flex items-center gap-1 hover:text-foreground"
-                    >
-                      Opened
-                      <ArrowUpDown className="h-3 w-3" aria-hidden />
-                    </button>
-                  </TableHead>
+                  {columns.map((column) => (
+                    <SortableHeader
+                      key={column.id}
+                      column={column}
+                      sort={table.sort}
+                      onSort={table.cycleSort}
+                      filterValue={table.filters[column.id]}
+                      onFilterChange={table.setFilter}
+                    />
+                  ))}
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {paginatedCases.map((c) => {
+                {table.rows.map((c) => {
                   const outstanding =
                     c.invoice?.outstanding_amount ?? c.outstanding_amount_snapshot
                   return (
@@ -410,13 +382,13 @@ export const CollectionsCasesTable: React.FC<CollectionsCasesTableProps> = ({
         </CardContent>
       </Card>
 
-      {!isLoading && !isError && totalPages > 1 && (
+      {!showLoading && !isError && table.totalPages > 1 && (
         <Pagination
-          currentPage={currentPage}
-          totalPages={totalPages}
-          onPageChange={setCurrentPage}
-          totalItems={totalItems}
-          pageSize={itemsPerPage}
+          currentPage={table.page}
+          totalPages={table.totalPages}
+          onPageChange={table.setPage}
+          totalItems={table.total}
+          pageSize={table.pageSize}
         />
       )}
     </div>

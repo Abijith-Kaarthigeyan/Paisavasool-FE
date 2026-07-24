@@ -57,7 +57,8 @@ export function LinkGrnDialog({
     [debouncedSearch]
   )
 
-  const { data: grns = [], isLoading } = useGrns(listParams)
+  const { data: grnPage, isLoading } = useGrns(listParams)
+  const grns = grnPage?.items ?? []
   const linkMutation = useLinkGrnToPurchaseOrder()
 
   const selectableGrns = useMemo(() => {

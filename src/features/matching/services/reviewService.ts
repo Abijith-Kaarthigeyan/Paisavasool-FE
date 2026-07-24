@@ -1,4 +1,5 @@
 import { arApi } from "@/lib/axios"
+import { readTotalCount, toPaginatedList, type PaginatedList } from "@/lib/table"
 import {
   PaymentReviewResponse,
   PaymentDetailsResponse,
@@ -12,16 +13,19 @@ export type PaymentReviewListParams = {
   reason?: string
   search?: string
   confidence?: string
+  sort_by?: string
+  sort_order?: "asc" | "desc"
 }
 
 export const reviewService = {
   listPaymentReviews: async (
     params?: PaymentReviewListParams
-  ): Promise<PaymentReviewResponse[]> => {
+  ): Promise<PaginatedList<PaymentReviewResponse>> => {
     const response = await arApi.get<PaymentReviewResponse[]>("/payment-reviews", {
       params,
     })
-    return response.data
+    const items = response.data ?? []
+    return toPaginatedList(items, readTotalCount(response, { itemsLength: items.length }))
   },
 
   getFilterOptions: async (): Promise<{ reasons: string[] }> => {

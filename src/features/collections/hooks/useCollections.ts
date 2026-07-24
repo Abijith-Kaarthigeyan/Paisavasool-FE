@@ -2,11 +2,13 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { useSelector } from "react-redux"
 import { useMemo } from "react"
 import { RootState } from "@/app/store"
-import { collectionService } from "../services/collectionService"
+import { collectionService, CollectionCaseListParams } from "../services/collectionService"
 import { analyticsService } from "../services/analyticsService"
 import { invoiceService } from "@/features/invoices/services/invoiceService"
 import { customerService } from "@/features/customers/services/customerService"
 import { userService } from "@/features/users/services/userService"
+import { asListItems } from "@/lib/table"
+import { listQueryOptions } from "@/lib/listQueryOptions"
 import { CollectionCase } from "../types"
 
 // Helper function to enrich collection cases with invoices, customers, and users data
@@ -17,16 +19,16 @@ const useEnrichedCases = (
   const { user } = useSelector((state: RootState) => state.auth);
   const isPrivilegedUser = user?.role === "FINANCE_MANAGER" || user?.role === "ADMIN";
 
-  // Fetch invoices, customers, and users lists in parallel
+  // Keep the same PaginatedList cache shape as useInvoices / useCustomers.
   const invoicesQuery = useQuery({
-    queryKey: ["invoices"],
-    queryFn: () => invoiceService.getInvoices(),
+    queryKey: ["invoices", { limit: 500 }],
+    queryFn: () => invoiceService.getInvoices({ limit: 500 }),
     staleTime: 5 * 60 * 1000,
   });
 
   const customersQuery = useQuery({
-    queryKey: ["customers"],
-    queryFn: () => customerService.getCustomers(),
+    queryKey: ["customers", { limit: 500 }],
+    queryFn: () => customerService.getCustomers({ limit: 500 }),
     staleTime: 5 * 60 * 1000,
   });
 
@@ -40,9 +42,9 @@ const useEnrichedCases = (
   const enrichedData = useMemo(() => {
     if (!cases) return [];
 
-    const invoicesMap = new Map(invoicesQuery.data?.map((i) => [i.id, i]) || []);
-    const customersMap = new Map(customersQuery.data?.map((c) => [c.id, c]) || []);
-    const usersMap = new Map(usersQuery.data?.map((u) => [u.id, u]) || []);
+    const invoicesMap = new Map(asListItems(invoicesQuery.data).map((i) => [i.id, i]));
+    const customersMap = new Map(asListItems(customersQuery.data).map((c) => [c.id, c]));
+    const usersMap = new Map(asListItems(usersQuery.data).map((u) => [u.id, u]));
 
     return cases.map((c) => {
       const invoice = invoicesMap.get(c.invoice_id);
@@ -91,22 +93,31 @@ const useEnrichedCases = (
   };
 };
 
-export const useCollections = () => {
-  const { data: cases, isLoading } = useQuery({
-    queryKey: ["collectionCases"],
-    queryFn: collectionService.getCollections,
+export const useCollections = (params?: CollectionCaseListParams) => {
+  const { data: page, isLoading } = useQuery({
+    queryKey: ["collectionCases", params],
+    queryFn: () => collectionService.getCollections(params),
+    ...listQueryOptions,
   });
 
-  return useEnrichedCases(cases, isLoading);
+  const enriched = useEnrichedCases(page?.items, isLoading);
+  return { ...enriched, total: page?.total ?? enriched.data.length };
 };
 
-export const useOpenCollections = () => {
-  const { data: cases, isLoading } = useQuery({
-    queryKey: ["openCollectionCases"],
-    queryFn: collectionService.getOpenCollections,
+export const useOpenCollections = (params?: CollectionCaseListParams) => {
+  const { data: page, isLoading, isFetching, isPlaceholderData } = useQuery({
+    queryKey: ["openCollectionCases", params],
+    queryFn: () => collectionService.getOpenCollections(params),
+    ...listQueryOptions,
   });
 
-  return useEnrichedCases(cases, isLoading);
+  const enriched = useEnrichedCases(page?.items, isLoading);
+  return {
+    ...enriched,
+    total: page?.total ?? enriched.data.length,
+    isFetching,
+    isPlaceholderData,
+  };
 };
 
 export const useCollectionCase = (id: string) => {
@@ -145,31 +156,47 @@ export const useCollectionCase = (id: string) => {
   return query;
 };
 
-export const useAssignedCases = () => {
-  const { data: cases, isLoading } = useQuery({
-    queryKey: ["assignedCases"],
-    queryFn: collectionService.getMyCollections,
+export const useAssignedCases = (params?: CollectionCaseListParams) => {
+  const { data: page, isLoading, isFetching, isPlaceholderData } = useQuery({
+    queryKey: ["assignedCases", params],
+    queryFn: () => collectionService.getMyCollections(params),
+    ...listQueryOptions,
   });
 
-  return useEnrichedCases(cases, isLoading);
+  const enriched = useEnrichedCases(page?.items, isLoading);
+  return {
+    ...enriched,
+    total: page?.total ?? enriched.data.length,
+    isFetching,
+    isPlaceholderData,
+  };
 };
 
-export const useEscalatedCases = () => {
-  const { data: cases, isLoading } = useQuery({
-    queryKey: ["escalatedCases"],
-    queryFn: collectionService.getEscalatedCollections,
+export const useEscalatedCases = (params?: CollectionCaseListParams) => {
+  const { data: page, isLoading, isFetching, isPlaceholderData } = useQuery({
+    queryKey: ["escalatedCases", params],
+    queryFn: () => collectionService.getEscalatedCollections(params),
+    ...listQueryOptions,
   });
 
-  return useEnrichedCases(cases, isLoading);
+  const enriched = useEnrichedCases(page?.items, isLoading);
+  return {
+    ...enriched,
+    total: page?.total ?? enriched.data.length,
+    isFetching,
+    isPlaceholderData,
+  };
 };
 
-export const useBrokenPromises = () => {
-  const { data: cases, isLoading } = useQuery({
-    queryKey: ["brokenPromisesCases"],
-    queryFn: collectionService.getBrokenPromises,
+export const useBrokenPromises = (params?: CollectionCaseListParams) => {
+  const { data: page, isLoading } = useQuery({
+    queryKey: ["brokenPromisesCases", params],
+    queryFn: () => collectionService.getBrokenPromises(params),
+    ...listQueryOptions,
   });
 
-  return useEnrichedCases(cases, isLoading);
+  const enriched = useEnrichedCases(page?.items, isLoading);
+  return { ...enriched, total: page?.total ?? enriched.data.length };
 };
 
 export const usePromises = () => {

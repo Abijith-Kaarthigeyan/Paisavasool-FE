@@ -1,10 +1,12 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
+import { listQueryOptions } from "@/lib/listQueryOptions"
 import { grnService, type ListGrnsParams } from "../services/grnService"
 
 export const useGrns = (params?: ListGrnsParams) => {
   return useQuery({
     queryKey: ["grns", params],
     queryFn: () => grnService.listGrns(params),
+    ...listQueryOptions,
   })
 }
 

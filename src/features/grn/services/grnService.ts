@@ -1,9 +1,14 @@
 import { arApi } from "@/lib/axios"
+import { readTotalCount, toPaginatedList, type PaginatedList } from "@/lib/table"
 import type { GoodsReceiptNote, GrnUploadBatch } from "../types"
 
 export interface ListGrnsParams {
   status?: string
   search?: string
+  grn_date_from?: string
+  grn_date_to?: string
+  sort_by?: string
+  sort_order?: "asc" | "desc"
   limit?: number
   offset?: number
 }
@@ -16,9 +21,14 @@ export interface LinkGrnPoResponse {
 }
 
 export const grnService = {
-  listGrns: async (params?: ListGrnsParams): Promise<GoodsReceiptNote[]> => {
+  listGrns: async (params?: ListGrnsParams): Promise<PaginatedList<GoodsReceiptNote>> => {
     const response = await arApi.get("/grns", { params })
-    return response.data.goods_receipt_notes
+    const items: GoodsReceiptNote[] = response.data.goods_receipt_notes ?? []
+    const total = readTotalCount(response, {
+      bodyTotal: response.data.total,
+      itemsLength: items.length,
+    })
+    return toPaginatedList(items, total)
   },
 
   getBatchStatus: async (id: string): Promise<GrnUploadBatch> => {

@@ -16,9 +16,13 @@ import { TableSkeleton } from "@/components/ui/skeleton"
 import { PageHeader } from "@/components/ui/page-header"
 import { PageBreadcrumb } from "@/components/ui/page-breadcrumb"
 import { FilterBar, FilterSelect } from "@/components/ui/filter-bar"
+import { ActiveFilterChips } from "@/components/ui/active-filter-chips"
+import { MobileColumnFilters } from "@/components/ui/mobile-column-filters"
+import { SortableHeader } from "@/components/ui/sortable-header"
 import { Pagination } from "@/components/ui/pagination"
 import { getDashboardPath } from "@/lib/navigation"
 import { EmptyState } from "@/components/ui/empty-state"
+import { TableListEmpty } from "@/components/ui/table-list-empty"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
@@ -29,7 +33,6 @@ import {
   Table,
   TableBody,
   TableCell,
-  TableHead,
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
@@ -42,9 +45,27 @@ import {
 import { cn } from "@/lib/utils"
 import { formatCurrency } from "@/lib/formatCurrency"
 import { useDebouncedValue } from "@/lib/useDebouncedValue"
+import {
+  TABLE_PAGE_SIZE,
+  shouldShowTableLoading,
+  useClientTable,
+  useSyncTableQueryBridge,
+  useTableQueryBridge,
+  useTableUrlState,
+  type ColumnDef,
+} from "@/lib/table"
 import { AlertTriangle, Check, CheckCircle, HelpCircle, X } from "lucide-react"
 
 import type { PaymentReviewResponse } from "../types"
+
+const STATUS_OPTIONS = [
+  { value: "PENDING", label: "Pending" },
+  { value: "APPROVED", label: "Approved" },
+  { value: "REJECTED", label: "Rejected" },
+]
+
+const INITIAL_SORT = { id: "created_at", direction: "desc" as const }
+const URL_EXTRA_KEYS = ["q", "confidence"] as const
 
 const hoverScrollBase = "overflow-x-hidden hover-scroll-y"
 const hoverScrollList = cn(hoverScrollBase, "max-h-[280px] space-y-2.5")
@@ -57,31 +78,130 @@ export const ReviewQueuePage: React.FC = () => {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false)
 
   const [searchTerm, setSearchTerm] = useState("")
-  const [statusFilter, setStatusFilter] = useState("")
-  const [reasonFilter, setReasonFilter] = useState("")
   const [confidenceFilter, setConfidenceFilter] = useState("")
-  const [currentPage, setCurrentPage] = useState(1)
-  const itemsPerPage = 10
+  const [page, setPage] = useState(1)
   const debouncedSearch = useDebouncedValue(searchTerm)
+  const bridge = useTableQueryBridge({ page, initialSort: INITIAL_SORT })
 
   const [confirmAction, setConfirmAction] = useState<"approve" | "reject" | null>(null)
   const [isConfirmOpen, setIsConfirmOpen] = useState(false)
 
   const listParams = useMemo(
     () => ({
-      limit: 500,
-      offset: 0,
+      limit: bridge.limit,
+      offset: bridge.offset,
       ...(debouncedSearch.trim() ? { search: debouncedSearch.trim() } : {}),
-      ...(statusFilter ? { status: statusFilter } : {}),
-      ...(reasonFilter ? { reason: reasonFilter } : {}),
       ...(confidenceFilter ? { confidence: confidenceFilter } : {}),
+      ...(bridge.sortOverride
+        ? {
+            sort_by: bridge.sortOverride.id,
+            sort_order: bridge.sortOverride.direction,
+          }
+        : {}),
     }),
-    [debouncedSearch, statusFilter, reasonFilter, confidenceFilter]
+    [
+      bridge.limit,
+      bridge.offset,
+      bridge.sortOverride,
+      debouncedSearch,
+      confidenceFilter,
+    ]
   )
 
-  const { data: reviews = [], isLoading, isError } = usePaymentReviews(listParams)
+  const {
+    data: reviewsPage,
+    isLoading,
+    isFetching,
+    isPlaceholderData,
+    isError,
+  } = usePaymentReviews(listParams)
+  const reviews = reviewsPage?.items ?? []
+  const serverTotal = reviewsPage?.total ?? 0
   const { data: filterOptions } = usePaymentReviewFilterOptions()
   const reasons = filterOptions?.reasons ?? []
+
+  const reasonOptions = useMemo(
+    () => reasons.map((reason) => ({ value: reason, label: reason.replace(/_/g, " ") })),
+    [reasons]
+  )
+
+  const columns = useMemo<ColumnDef<PaymentReviewResponse>[]>(
+    () => [
+      {
+        id: "payment_receipt",
+        label: "Payment receipt",
+        sortable: false,
+        accessor: () => "Wire transfer",
+      },
+      {
+        id: "confidence",
+        label: "Confidence",
+        sortable: true,
+        defaultSortDirection: "desc",
+        filter: { type: "number-range" },
+      },
+      {
+        id: "review_reason",
+        label: "Review reason",
+        sortable: true,
+        filter: { type: "select", options: reasonOptions },
+      },
+      {
+        id: "created_at",
+        label: "Uploaded at",
+        sortable: true,
+        defaultSortDirection: "desc",
+        filter: { type: "date-range" },
+      },
+      {
+        id: "status",
+        label: "Status",
+        sortable: true,
+        align: "right",
+        filter: { type: "select", options: STATUS_OPTIONS },
+      },
+    ],
+    [reasonOptions]
+  )
+
+  const table = useClientTable({
+    data: reviews,
+    columns,
+    initialSort: INITIAL_SORT,
+    pageSize: TABLE_PAGE_SIZE,
+    paginationMode: bridge.paginationMode,
+    serverTotal,
+    page,
+    onPageChange: setPage,
+  })
+
+  useSyncTableQueryBridge(bridge, table)
+
+  const urlExtras = useMemo(
+    () => ({
+      q: searchTerm || undefined,
+      confidence: confidenceFilter || undefined,
+    }),
+    [searchTerm, confidenceFilter]
+  )
+
+  useTableUrlState({
+    columns,
+    sort: table.sort,
+    filters: table.filters,
+    page: table.page,
+    setSort: table.setSort,
+    setFilter: table.setFilter,
+    setPage: table.setPage,
+    replaceFilters: table.replaceFilters,
+    extras: urlExtras,
+    extraKeys: [...URL_EXTRA_KEYS],
+    onExtrasChange: (extras) => {
+      if (extras.q != null) setSearchTerm(extras.q)
+      if (extras.confidence != null) setConfidenceFilter(extras.confidence)
+    },
+    defaultSort: INITIAL_SORT,
+  })
 
   const approveMutation = useApproveReview()
   const rejectMutation = useRejectReview()
@@ -91,24 +211,22 @@ export const ReviewQueuePage: React.FC = () => {
     setIsDrawerOpen(true)
   }
 
-  const totalItems = reviews.length
-  const totalPages = Math.max(1, Math.ceil(totalItems / itemsPerPage))
-  const startIndex = (currentPage - 1) * itemsPerPage
-  const paginatedReviews = reviews.slice(startIndex, startIndex + itemsPerPage)
-
-  useEffect(() => {
-    setCurrentPage(1)
-  }, [debouncedSearch, statusFilter, reasonFilter, confidenceFilter])
-
-  const hasActiveFilters =
-    !!searchTerm || !!statusFilter || !!reasonFilter || !!confidenceFilter
+  const hasToolbarFilters = !!searchTerm || !!confidenceFilter
+  const hasActiveFilters = hasToolbarFilters || table.hasNonDefaultState
+  const showTableLoading = shouldShowTableLoading({
+    isLoading,
+    isFetching,
+    isPlaceholderData,
+    clientOnlyPaging: bridge.clientOnlyPaging,
+    hasActiveFilters,
+    cachedItemCount: reviews.length,
+    pageSize: TABLE_PAGE_SIZE,
+  })
 
   const clearFilters = () => {
     setSearchTerm("")
-    setStatusFilter("")
-    setReasonFilter("")
     setConfidenceFilter("")
-    setCurrentPage(1)
+    table.clearAll()
   }
 
   const handleActionConfirm = () => {
@@ -214,7 +332,8 @@ export const ReviewQueuePage: React.FC = () => {
   const trimmedCode = customerCodeInput.trim()
   const { data: searchedCustomers, isFetching: isSearchingCustomer } = useQuery({
     queryKey: ["customers", { customer_code: trimmedCode }],
-    queryFn: () => customerService.getCustomers({ customer_code: trimmedCode }),
+    queryFn: async () =>
+      (await customerService.getCustomers({ customer_code: trimmedCode })).items,
     enabled: trimmedCode.length >= 3,
   })
 
@@ -237,9 +356,10 @@ export const ReviewQueuePage: React.FC = () => {
     }
   }, [resolvedCustomer, trimmedCode, matchedCustomerDetail, paymentDetails])
 
-  const { data: customerInvoices = [], isLoading: isCustomerInvoicesLoading } = useInvoices(
+  const { data: invoicesPage, isLoading: isCustomerInvoicesLoading } = useInvoices(
     selectedCustomerId ? { customer_id: selectedCustomerId } : undefined
   )
+  const customerInvoices = invoicesPage?.items ?? []
 
   const allocatableInvoices = customerInvoices.filter(
     (inv) =>
@@ -306,63 +426,41 @@ export const ReviewQueuePage: React.FC = () => {
       />
 
       <Card>
-        <div className="border-b border-border p-3">
-            <FilterBar
-              variant="toolbar"
-              size="sm"
-              searchValue={searchTerm}
-              onSearchChange={(value) => {
-                setSearchTerm(value)
-              }}
-              searchPlaceholder="Search by reason or suggested customer…"
-              showClear={hasActiveFilters}
-              onClear={clearFilters}
+        <div className="space-y-2 border-b border-border p-3">
+          <FilterBar
+            variant="toolbar"
+            size="sm"
+            searchValue={searchTerm}
+            onSearchChange={setSearchTerm}
+            searchPlaceholder="Search by reason or suggested customer…"
+            showClear={hasActiveFilters}
+            onClear={clearFilters}
+          >
+            <FilterSelect
+              id="filter-confidence"
+              aria-label="Confidence"
+              value={confidenceFilter}
+              onChange={(e) => setConfidenceFilter(e.target.value)}
             >
-              <FilterSelect
-                id="filter-status"
-                aria-label="Status"
-                value={statusFilter}
-                onChange={(e) => {
-                  setStatusFilter(e.target.value)
-                }}
-              >
-                <option value="">All statuses</option>
-                <option value="PENDING">Pending</option>
-                <option value="APPROVED">Approved</option>
-                <option value="REJECTED">Rejected</option>
-              </FilterSelect>
-              <FilterSelect
-                id="filter-reason"
-                aria-label="Review reason"
-                value={reasonFilter}
-                onChange={(e) => {
-                  setReasonFilter(e.target.value)
-                }}
-              >
-                <option value="">All reasons</option>
-                {reasons.map((reason) => (
-                  <option key={reason} value={reason}>
-                    {reason.replace(/_/g, " ")}
-                  </option>
-                ))}
-              </FilterSelect>
-              <FilterSelect
-                id="filter-confidence"
-                aria-label="Confidence"
-                value={confidenceFilter}
-                onChange={(e) => {
-                  setConfidenceFilter(e.target.value)
-                }}
-              >
-                <option value="">All confidence levels</option>
-                <option value="high">High (80%+)</option>
-                <option value="medium">Medium (50–79%)</option>
-                <option value="low">Low (&lt;50%)</option>
-              </FilterSelect>
-            </FilterBar>
-          </div>
+              <option value="">All confidence levels</option>
+              <option value="high">High (80%+)</option>
+              <option value="medium">Medium (50–79%)</option>
+              <option value="low">Low (&lt;50%)</option>
+            </FilterSelect>
+            <MobileColumnFilters
+              columns={columns}
+              filters={table.filters}
+              onFilterChange={table.setFilter}
+            />
+          </FilterBar>
+
+          <ActiveFilterChips
+            chips={table.activeChips}
+            onRemove={table.clearFilter}
+          />
+        </div>
         <CardContent className="p-0">
-          {isLoading ? (
+          {showTableLoading ? (
             <div className="p-4">
               <TableSkeleton rows={6} columns={5} />
             </div>
@@ -372,30 +470,37 @@ export const ReviewQueuePage: React.FC = () => {
               title="Failed to load review queue"
               description="Verify the AR service microservice is active and responsive."
             />
-          ) : !hasActiveFilters && reviews.length === 0 ? (
-            <EmptyState
-              icon={<CheckCircle className="h-6 w-6 text-success" />}
-              title="Review queue is empty"
-              description="All payment matches have been resolved automatically."
-            />
-          ) : reviews.length === 0 ? (
-            <EmptyState
-              title="No reviews found"
-              description="No payment matches match the current filters."
-            />
           ) : (
+            <TableListEmpty
+              sourceCount={serverTotal}
+              filteredCount={table.filteredRows.length}
+              hasActiveFilters={hasActiveFilters}
+              emptyTitle="Review queue is empty"
+              emptyDescription="All payment matches have been resolved automatically."
+              emptyIcon={<CheckCircle className="h-6 w-6 text-success" />}
+              noMatchesTitle="No reviews found"
+              noMatchesDescription="No payment matches match the current filters."
+              onClearFilters={clearFilters}
+            />
+          )}
+          {!showTableLoading && !isError && table.filteredRows.length > 0 && (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Payment receipt</TableHead>
-                  <TableHead>Confidence</TableHead>
-                  <TableHead>Review reason</TableHead>
-                  <TableHead>Uploaded at</TableHead>
-                  <TableHead className="text-right">Status</TableHead>
+                  {columns.map((column) => (
+                    <SortableHeader
+                      key={column.id}
+                      column={column}
+                      sort={table.sort}
+                      onSort={table.cycleSort}
+                      filterValue={table.filters[column.id]}
+                      onFilterChange={table.setFilter}
+                    />
+                  ))}
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {paginatedReviews.map((rev) => (
+                {table.rows.map((rev) => (
                   <TableRow
                     key={rev.id}
                     className={cn(
@@ -440,13 +545,13 @@ export const ReviewQueuePage: React.FC = () => {
         </CardContent>
       </Card>
 
-      {!isLoading && !isError && totalPages > 1 && (
+      {!showTableLoading && !isError && table.totalPages > 1 && (
         <Pagination
-          currentPage={currentPage}
-          totalPages={totalPages}
-          onPageChange={setCurrentPage}
-          totalItems={totalItems}
-          pageSize={itemsPerPage}
+          currentPage={table.page}
+          totalPages={table.totalPages}
+          onPageChange={table.setPage}
+          totalItems={table.total}
+          pageSize={table.pageSize}
         />
       )}
 

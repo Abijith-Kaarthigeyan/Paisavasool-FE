@@ -2,10 +2,12 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { useSelector } from "react-redux"
 import { useMemo } from "react"
 import { RootState } from "@/app/store"
-import { disputeService } from "../services/disputeService"
+import { disputeService, DisputeListParams, CaseListParams } from "../services/disputeService"
 import { invoiceService } from "@/features/invoices/services/invoiceService"
 import { customerService } from "@/features/customers/services/customerService"
 import { userService } from "@/features/users/services/userService"
+import { asListItems } from "@/lib/table"
+import { listQueryOptions } from "@/lib/listQueryOptions"
 import { Dispute, DisputeCase, DisputeReviewQueueItem, DisputeComment, DisputeClosePayload, AssociateCommunicationSendPayload } from "../types"
 
 // Helper function to enrich disputes with Invoice, Customer, and User details
@@ -16,15 +18,16 @@ const useEnrichedDisputes = (
   const { user } = useSelector((state: RootState) => state.auth);
   const isPrivilegedUser = user?.role === "FINANCE_MANAGER" || user?.role === "ADMIN" || user?.role === "FINANCE_ASSOCIATE";
 
+  // Keep the same PaginatedList cache shape as useInvoices / useCustomers.
   const invoicesQuery = useQuery({
-    queryKey: ["invoices"],
-    queryFn: () => invoiceService.getInvoices(),
+    queryKey: ["invoices", { limit: 500 }],
+    queryFn: () => invoiceService.getInvoices({ limit: 500 }),
     staleTime: 5 * 60 * 1000,
   });
 
   const customersQuery = useQuery({
-    queryKey: ["customers"],
-    queryFn: () => customerService.getCustomers(),
+    queryKey: ["customers", { limit: 500 }],
+    queryFn: () => customerService.getCustomers({ limit: 500 }),
     staleTime: 5 * 60 * 1000,
   });
 
@@ -40,12 +43,25 @@ const useEnrichedDisputes = (
     queryKey: ["disputeSLAs", disputeIds],
     queryFn: async () => {
       if (!disputes?.length) return new Map<string, Dispute["sla"]>();
-      const entries = await Promise.all(
-        disputes.map(async (d) => {
-          const sla = await disputeService.getSLA(d.id).catch(() => undefined);
-          return [d.id, sla] as const;
-        })
+      // Bound concurrency — unbounded Promise.all saturates the browser and
+      // makes dashboards/tables feel stuck after the list itself has loaded.
+      const concurrency = 8;
+      const entries: Array<readonly [string, Dispute["sla"] | undefined]> = new Array(
+        disputes.length
       );
+      let nextIndex = 0;
+      const workers = Array.from(
+        { length: Math.min(concurrency, disputes.length) },
+        async () => {
+          while (nextIndex < disputes.length) {
+            const index = nextIndex++;
+            const dispute = disputes[index];
+            const sla = await disputeService.getSLA(dispute.id).catch(() => undefined);
+            entries[index] = [dispute.id, sla] as const;
+          }
+        }
+      );
+      await Promise.all(workers);
       return new Map(entries);
     },
     enabled: !!disputes?.length,
@@ -55,9 +71,9 @@ const useEnrichedDisputes = (
   const enrichedData = useMemo(() => {
     if (!disputes) return [];
 
-    const invoicesMap = new Map(invoicesQuery.data?.map((i) => [i.id, i]) || []);
-    const customersMap = new Map(customersQuery.data?.map((c) => [c.id, c]) || []);
-    const usersMap = new Map(usersQuery.data?.map((u) => [u.id, u]) || []);
+    const invoicesMap = new Map(asListItems(invoicesQuery.data).map((i) => [i.id, i]));
+    const customersMap = new Map(asListItems(customersQuery.data).map((c) => [c.id, c]));
+    const usersMap = new Map(asListItems(usersQuery.data).map((u) => [u.id, u]));
     const slaMap = slaQuery.data || new Map<string, Dispute["sla"]>();
 
     return disputes.map((d) => {
@@ -91,14 +107,19 @@ const useEnrichedDisputes = (
     });
   }, [disputes, invoicesQuery.data, customersQuery.data, usersQuery.data, slaQuery.data]);
 
+  // SLA is loaded asynchronously after the list — do not block charts/tables on it.
+  // Otherwise a dashboard (limit 500) or filtered table waits on hundreds of /sla calls.
+  const isSlaLoading =
+    !!disputes?.length && (slaQuery.isLoading || slaQuery.isFetching) && !slaQuery.data;
+
   return {
     data: enrichedData,
     isLoading:
       isLoadingDisputes ||
       invoicesQuery.isLoading ||
       customersQuery.isLoading ||
-      slaQuery.isLoading ||
       (isPrivilegedUser && usersQuery.isLoading),
+    isSlaLoading,
     isError:
       invoicesQuery.isError ||
       customersQuery.isError ||
@@ -108,30 +129,22 @@ const useEnrichedDisputes = (
 };
 
 export const useDisputes = (
-  params?: {
-    customer_id?: string
-    status?: string
-    category?: string
-    invoice_number?: string
-    assigned_to?: string
-    search?: string
-    sla_status?: string
-    has_assignee?: boolean
-    exclude_statuses?: string
-    limit?: number
-    offset?: number
-  },
+  params?: DisputeListParams,
   options?: { enabled?: boolean }
 ) => {
-  const { data: disputes, isLoading, isError, refetch } = useQuery({
+  const { data: page, isLoading, isFetching, isPlaceholderData, isError, refetch } = useQuery({
     queryKey: ["disputes", params],
     queryFn: () => disputeService.getDisputes(params),
     enabled: options?.enabled !== false,
+    ...listQueryOptions,
   });
 
-  const enriched = useEnrichedDisputes(disputes, isLoading);
+  const enriched = useEnrichedDisputes(page?.items, isLoading);
   return {
     ...enriched,
+    total: page?.total ?? enriched.data.length,
+    isFetching,
+    isPlaceholderData,
     isError: enriched.isError || isError,
     refetch: async () => {
       await refetch()
@@ -179,23 +192,27 @@ export const useDispute = (id: string) => {
   return query;
 };
 
-export const useCases = () => {
+export const useCases = (params?: CaseListParams) => {
   const query = useQuery({
-    queryKey: ["disputeCases"],
+    queryKey: ["disputeCases", params],
     queryFn: async () => {
-      const cases = await disputeService.getCases();
+      const casesPage = await disputeService.getCases(params);
       // Fetch disputes count/list to enrich if needed
-      const disputes = await disputeService.getDisputes();
+      const disputesPage = await disputeService.getDisputes({ limit: 500 });
       const caseCounts = new Map<string, number>();
-      disputes.forEach((d) => {
+      disputesPage.items.forEach((d) => {
         caseCounts.set(d.case_id, (caseCounts.get(d.case_id) || 0) + 1);
       });
 
-      return cases.map((c) => ({
-        ...c,
-        dispute_count: caseCounts.get(c.id) || 0,
-      })) as DisputeCase[];
+      return {
+        items: casesPage.items.map((c) => ({
+          ...c,
+          dispute_count: caseCounts.get(c.id) || 0,
+        })) as DisputeCase[],
+        total: casesPage.total,
+      };
     },
+    ...listQueryOptions,
   });
   return query;
 };
@@ -208,14 +225,14 @@ export const useCase = (id: string) => {
       const disputes = await disputeService.getCaseDisputes(id);
 
       // Enrich disputes inside case details
-      const [invoices, customers, users] = await Promise.all([
-        invoiceService.getInvoices().catch(() => []),
-        customerService.getCustomers().catch(() => []),
+      const [invoicesPage, customersPage, users] = await Promise.all([
+        invoiceService.getInvoices({ limit: 500 }).catch(() => ({ items: [], total: 0 })),
+        customerService.getCustomers({ limit: 500 }).catch(() => ({ items: [], total: 0 })),
         userService.listUsers().catch(() => []),
       ]);
 
-      const invoicesMap = new Map(invoices.map((inv: any) => [inv.id, inv]));
-      const customersMap = new Map(customers.map((cust: any) => [cust.id, cust]));
+      const invoicesMap = new Map(invoicesPage.items.map((inv: any) => [inv.id, inv]));
+      const customersMap = new Map(customersPage.items.map((cust: any) => [cust.id, cust]));
       const usersMap = new Map(users.map((u: any) => [u.id, u]));
 
       const enrichedDisputes = disputes.map((d) => {
@@ -249,8 +266,8 @@ export const useReviewQueue = (status?: string) => {
     queryKey: ["disputeReviewQueue", status],
     queryFn: async () => {
       const items = await disputeService.getReviewQueue(status);
-      const disputes = await disputeService.getDisputes();
-      const disputesMap = new Map(disputes.map((d) => [d.id, d]));
+      const disputesPage = await disputeService.getDisputes({ limit: 500 });
+      const disputesMap = new Map(disputesPage.items.map((d) => [d.id, d]));
 
       return items.map((item) => ({
         ...item,

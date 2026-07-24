@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
+import { listQueryOptions } from "@/lib/listQueryOptions"
 import { reviewService, type PaymentReviewListParams } from "../services/reviewService"
 import { PaymentReviewApproveRequest } from "../types"
 
@@ -6,6 +7,7 @@ export const usePaymentReviews = (params?: PaymentReviewListParams) => {
   return useQuery({
     queryKey: ["paymentReviews", params],
     queryFn: () => reviewService.listPaymentReviews(params),
+    ...listQueryOptions,
   })
 }
 

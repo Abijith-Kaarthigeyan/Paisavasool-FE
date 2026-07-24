@@ -26,6 +26,7 @@ import {
 import { INVOICE_STATUS_VARIANT, getStatusVariant } from "@/lib/design-tokens"
 import { formatCurrency } from "@/lib/formatCurrency"
 import { getDashboardPath } from "@/lib/navigation"
+import { cn } from "@/lib/utils"
 import {
   ChevronDown,
   ChevronUp,
@@ -37,6 +38,23 @@ import {
   ClipboardList,
 } from "lucide-react"
 import { PurchaseOrderSummaryCard } from "@/features/purchase-orders/components/PurchaseOrderSummaryCard"
+import {
+  computeInvoiceDiff,
+  lineItemKey,
+  normalizeInvoiceFromDispute,
+  normalizeInvoiceFromRecord,
+  type NormalizedInvoice,
+} from "../utils/computeInvoiceDiff"
+
+const CHANGED_VALUE_CLASS = "underline decoration-2 underline-offset-2"
+
+type LineItemCellChanges = {
+  removed: boolean
+  description: boolean
+  quantity: boolean
+  unit_price: boolean
+  amount: boolean
+}
 
 export const InvoiceDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>()
@@ -75,6 +93,75 @@ export const InvoiceDetailPage: React.FC = () => {
     }
     return liveItems
   }, [viewingHistorical, historicalVersion, liveItems, id])
+
+  const versionDiff = useMemo(() => {
+    if (!viewingHistorical || !historicalVersion || !invoice || isHistoricalLoading) {
+      return null
+    }
+
+    const historical = normalizeInvoiceFromRecord({
+      ...historicalVersion.invoice_snapshot,
+      items: historicalVersion.items_snapshot,
+    })
+    const live = normalizeInvoiceFromDispute(invoice, liveItems)
+    return computeInvoiceDiff(historical, live)
+  }, [
+    viewingHistorical,
+    historicalVersion,
+    invoice,
+    liveItems,
+    isHistoricalLoading,
+  ])
+
+  const changedFields = useMemo(() => {
+    const fields = new Set<keyof NormalizedInvoice>()
+    if (!versionDiff) return fields
+    for (const fieldDiff of versionDiff.fieldDiffs) {
+      if (fieldDiff.changed) fields.add(fieldDiff.field)
+    }
+    return fields
+  }, [versionDiff])
+
+  const outstandingChanged = useMemo(() => {
+    if (!viewingHistorical || !historicalVersion || !invoice) return false
+    return (
+      Number(historicalVersion.invoice_snapshot.outstanding_amount ?? 0) !==
+      Number(invoice.outstanding_amount ?? 0)
+    )
+  }, [viewingHistorical, historicalVersion, invoice])
+
+  const lineItemChangesByKey = useMemo(() => {
+    const map = new Map<string, LineItemCellChanges>()
+    if (!versionDiff) return map
+
+    for (const itemDiff of versionDiff.lineItemDiffs) {
+      if (itemDiff.status === "unchanged" || itemDiff.status === "added") continue
+      const historicalItem = itemDiff.current
+      if (!historicalItem) continue
+
+      if (itemDiff.status === "removed") {
+        map.set(historicalItem.key, {
+          removed: true,
+          description: true,
+          quantity: true,
+          unit_price: true,
+          amount: true,
+        })
+        continue
+      }
+
+      const liveItem = itemDiff.proposed
+      map.set(historicalItem.key, {
+        removed: false,
+        description: historicalItem.description !== (liveItem?.description ?? ""),
+        quantity: historicalItem.quantity !== (liveItem?.quantity ?? 0),
+        unit_price: historicalItem.unit_price !== (liveItem?.unit_price ?? 0),
+        amount: historicalItem.amount !== (liveItem?.amount ?? 0),
+      })
+    }
+
+    return map
+  }, [versionDiff])
 
   const headerInvoiceNumber = viewingHistorical
     ? String(displaySnapshot?.invoice_number ?? invoice?.invoice_number)
@@ -303,13 +390,23 @@ export const InvoiceDetailPage: React.FC = () => {
           <CardContent className="space-y-3 pt-4 text-sm leading-relaxed">
             <div className="flex justify-between gap-4">
               <span className="text-muted-foreground">Invoice date</span>
-              <span className="font-medium text-foreground">
+              <span
+                className={cn(
+                  "font-medium text-foreground",
+                  changedFields.has("invoice_date") && CHANGED_VALUE_CLASS
+                )}
+              >
                 {invoiceDate ? new Date(invoiceDate).toLocaleDateString() : "—"}
               </span>
             </div>
             <div className="flex justify-between gap-4">
               <span className="text-muted-foreground">Due date</span>
-              <span className="font-medium text-foreground">
+              <span
+                className={cn(
+                  "font-medium text-foreground",
+                  changedFields.has("due_date") && CHANGED_VALUE_CLASS
+                )}
+              >
                 {dueDate ? new Date(dueDate).toLocaleDateString() : "—"}
               </span>
             </div>
@@ -405,22 +502,48 @@ export const InvoiceDetailPage: React.FC = () => {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {displayItems.map((item) => (
-                  <TableRow key={item.id}>
-                    <TableCell className="font-medium text-foreground">
-                      {item.description}
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums text-muted-foreground">
-                      {item.quantity.toLocaleString()}
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums text-muted-foreground">
-                      {formatCurrency(item.unit_price)}
-                    </TableCell>
-                    <TableCell className="text-right font-medium tabular-nums text-foreground">
-                      {formatCurrency(item.amount)}
-                    </TableCell>
-                  </TableRow>
-                ))}
+                {displayItems.map((item, index) => {
+                  const itemChanges = lineItemChangesByKey.get(
+                    lineItemKey(item.description, index)
+                  )
+                  const underlineAll = itemChanges?.removed === true
+                  return (
+                    <TableRow key={item.id}>
+                      <TableCell
+                        className={cn(
+                          "font-medium text-foreground",
+                          (underlineAll || itemChanges?.description) && CHANGED_VALUE_CLASS
+                        )}
+                      >
+                        {item.description}
+                      </TableCell>
+                      <TableCell
+                        className={cn(
+                          "text-right tabular-nums text-muted-foreground",
+                          (underlineAll || itemChanges?.quantity) && CHANGED_VALUE_CLASS
+                        )}
+                      >
+                        {item.quantity.toLocaleString()}
+                      </TableCell>
+                      <TableCell
+                        className={cn(
+                          "text-right tabular-nums text-muted-foreground",
+                          (underlineAll || itemChanges?.unit_price) && CHANGED_VALUE_CLASS
+                        )}
+                      >
+                        {formatCurrency(item.unit_price)}
+                      </TableCell>
+                      <TableCell
+                        className={cn(
+                          "text-right font-medium tabular-nums text-foreground",
+                          (underlineAll || itemChanges?.amount) && CHANGED_VALUE_CLASS
+                        )}
+                      >
+                        {formatCurrency(item.amount)}
+                      </TableCell>
+                    </TableRow>
+                  )
+                })}
               </TableBody>
             </Table>
           )}
@@ -429,25 +552,45 @@ export const InvoiceDetailPage: React.FC = () => {
             <div className="ml-auto w-full max-w-sm space-y-3 text-sm">
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Subtotal</span>
-                <span className="font-medium tabular-nums text-foreground">
+                <span
+                  className={cn(
+                    "font-medium tabular-nums text-foreground",
+                    changedFields.has("subtotal_amount") && CHANGED_VALUE_CLASS
+                  )}
+                >
                   {formatCurrency(subtotal)}
                 </span>
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Taxes</span>
-                <span className="font-medium tabular-nums text-foreground">
+                <span
+                  className={cn(
+                    "font-medium tabular-nums text-foreground",
+                    changedFields.has("tax_amount") && CHANGED_VALUE_CLASS
+                  )}
+                >
                   {formatCurrency(tax)}
                 </span>
               </div>
               <div className="flex justify-between border-b border-border pb-3">
                 <span className="font-semibold text-foreground">Total invoice amount</span>
-                <span className="font-semibold tabular-nums text-foreground">
+                <span
+                  className={cn(
+                    "font-semibold tabular-nums text-foreground",
+                    changedFields.has("total_amount") && CHANGED_VALUE_CLASS
+                  )}
+                >
                   {formatCurrency(total)}
                 </span>
               </div>
               <div className="flex justify-between pt-1">
                 <span className="font-semibold text-destructive">Outstanding</span>
-                <span className="font-semibold tabular-nums text-destructive">
+                <span
+                  className={cn(
+                    "font-semibold tabular-nums text-destructive",
+                    outstandingChanged && CHANGED_VALUE_CLASS
+                  )}
+                >
                   {formatCurrency(outstanding)}
                 </span>
               </div>

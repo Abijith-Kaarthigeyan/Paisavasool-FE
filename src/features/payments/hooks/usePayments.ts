@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query"
+import { listQueryOptions } from "@/lib/listQueryOptions"
 import { paymentService, type PaymentUploadListParams } from "../services/paymentService"
 import { PaymentUploadResponse, PaymentUploadStatusResponse } from "../types"
 
@@ -11,6 +12,7 @@ export const usePaymentUploads = (
   return useQuery<PaymentUploadResponse[]>({
     queryKey: ["paymentUploads", params],
     queryFn: () => paymentService.listPaymentUploads(params),
+    ...listQueryOptions,
     ...options,
   })
 }

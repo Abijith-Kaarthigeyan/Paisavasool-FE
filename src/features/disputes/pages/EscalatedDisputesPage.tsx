@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react"
+import React, { useMemo, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { buildDisputeDetailPath } from "../utils/disputeBreadcrumbs"
 import { useQuery } from "@tanstack/react-query"
@@ -6,6 +6,7 @@ import { useSelector } from "react-redux"
 import { RootState } from "@/app/store"
 import { useDisputes, useReassignDispute } from "../hooks/useDisputes"
 import { userService } from "@/features/users/services/userService"
+import type { Dispute } from "../types"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { TableSkeleton, Skeleton } from "@/components/ui/skeleton"
@@ -14,6 +15,10 @@ import { useToast } from "@/components/ui/toast"
 import { PageHeader } from "@/components/ui/page-header"
 import { PageBreadcrumb } from "@/components/ui/page-breadcrumb"
 import { FilterBar } from "@/components/ui/filter-bar"
+import { ActiveFilterChips } from "@/components/ui/active-filter-chips"
+import { MobileColumnFilters } from "@/components/ui/mobile-column-filters"
+import { SortableHeader } from "@/components/ui/sortable-header"
+import { TableListEmpty } from "@/components/ui/table-list-empty"
 import { EmptyState } from "@/components/ui/empty-state"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
@@ -22,7 +27,6 @@ import {
   Table,
   TableBody,
   TableCell,
-  TableHead,
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
@@ -34,19 +38,25 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog"
 import { isEscalatedDispute } from "../utils/disputeFormatters"
-import { FolderOpen, ArrowUpDown, RefreshCw, UserMinus } from "lucide-react"
+import { useClientTable, TABLE_PAGE_SIZE, CLIENT_FETCH_CAP, type ColumnDef } from "@/lib/table"
+import { FolderOpen, Inbox, RefreshCw, UserMinus } from "lucide-react"
+
+const INITIAL_SORT = { id: "escalated", direction: "desc" as const }
 
 export const EscalatedDisputesPage: React.FC = () => {
   const navigate = useNavigate()
   const { toast } = useToast()
   const { user } = useSelector((state: RootState) => state.auth)
   const isManager = user?.role === "FINANCE_MANAGER" || user?.role === "ADMIN"
-  const { data: disputes = [], isLoading, isError, refetch } = useDisputes()
+  const { data: disputes = [], isLoading, isError, refetch } = useDisputes({
+    limit: CLIENT_FETCH_CAP,
+  })
   const reassignMutation = useReassignDispute()
 
   const [selectedDisputeId, setSelectedDisputeId] = useState<string | null>(null)
   const [selectedDisputeNum, setSelectedDisputeNum] = useState<string | null>(null)
   const [assigneeId, setAssigneeId] = useState("")
+  const [searchTerm, setSearchTerm] = useState("")
 
   const { data: users = [], isLoading: isUsersLoading } = useQuery({
     queryKey: ["users"],
@@ -57,60 +67,88 @@ export const EscalatedDisputesPage: React.FC = () => {
     return users.filter((u) => u.role?.role_name === "FINANCE_ASSOCIATE")
   }, [users])
 
-  const [searchTerm, setSearchTerm] = useState("")
-  const [sortField, setSortField] = useState("created_at")
-  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc")
-  const [currentPage, setCurrentPage] = useState(1)
-  const itemsPerPage = 10
-
   const escalatedDisputes = useMemo(
     () => disputes.filter(isEscalatedDispute),
     [disputes]
   )
 
-  const filteredEscalated = useMemo(() => {
-    return escalatedDisputes
-      .filter((d) => {
-        const term = searchTerm.toLowerCase()
-        return (
-          d.dispute_number.toLowerCase().includes(term) ||
-          (d.dispute_category || "").toLowerCase().includes(term)
-        )
-      })
-      .sort((a, b) => {
-        let aVal: unknown = a[sortField as keyof typeof a]
-        let bVal: unknown = b[sortField as keyof typeof b]
-        if (aVal === undefined || aVal === null) return 1
-        if (bVal === undefined || bVal === null) return -1
-        if (typeof aVal === "string") {
-          return sortDirection === "asc"
-            ? aVal.localeCompare(String(bVal))
-            : String(bVal).localeCompare(aVal)
-        }
-        return sortDirection === "asc"
-          ? Number(aVal) - Number(bVal)
-          : Number(bVal) - Number(aVal)
-      })
-  }, [escalatedDisputes, searchTerm, sortField, sortDirection])
+  const toolbarFiltered = useMemo(() => {
+    if (!searchTerm.trim()) return escalatedDisputes
+    const term = searchTerm.toLowerCase()
+    return escalatedDisputes.filter(
+      (d) =>
+        d.dispute_number.toLowerCase().includes(term) ||
+        (d.dispute_category || "").toLowerCase().includes(term)
+    )
+  }, [escalatedDisputes, searchTerm])
 
-  const totalItems = filteredEscalated.length
-  const totalPages = Math.max(1, Math.ceil(totalItems / itemsPerPage))
-  const startIndex = (currentPage - 1) * itemsPerPage
-  const paginatedEscalated = filteredEscalated.slice(startIndex, startIndex + itemsPerPage)
+  const columns = useMemo<ColumnDef<Dispute>[]>(
+    () => [
+      {
+        id: "dispute_number",
+        label: "Dispute number",
+        sortable: true,
+        filter: { type: "text", placeholder: "Dispute number…" },
+      },
+      {
+        id: "dispute_category",
+        label: "Category",
+        sortable: true,
+        filter: { type: "text", placeholder: "Category…" },
+      },
+      {
+        id: "level",
+        label: "Level",
+        sortable: true,
+        align: "center",
+        accessor: () => 1,
+        filter: { type: "number-range" },
+      },
+      {
+        id: "manager_name",
+        label: "Manager",
+        sortable: true,
+        accessor: (row) => row.manager_name ?? "Finance manager",
+        filter: { type: "text", placeholder: "Manager…" },
+      },
+      {
+        id: "sla_status",
+        label: "SLA",
+        sortable: true,
+        align: "center",
+        accessor: (row) => row.sla?.status ?? "Breached",
+        filter: { type: "text", placeholder: "SLA status…" },
+      },
+      {
+        id: "escalated",
+        label: "Escalated",
+        sortable: true,
+        align: "center",
+        defaultSortDirection: "desc",
+        accessor: (row) => row.sla?.paused_at ?? row.created_at,
+        filter: { type: "date-range" },
+      },
+      {
+        id: "actions",
+        label: "Actions",
+        align: "right",
+      },
+    ],
+    []
+  )
 
-  const handleSort = (field: string) => {
-    if (sortField === field) {
-      setSortDirection(sortDirection === "asc" ? "desc" : "asc")
-    } else {
-      setSortField(field)
-      setSortDirection("desc")
-    }
-    setCurrentPage(1)
-  }
+  const table = useClientTable({
+    data: toolbarFiltered,
+    columns,
+    initialSort: INITIAL_SORT,
+    pageSize: TABLE_PAGE_SIZE,
+  })
 
-  const getSortAria = (field: string): "none" | "ascending" | "descending" => {
-    if (sortField !== field) return "none"
-    return sortDirection === "asc" ? "ascending" : "descending"
+  const hasActiveFilters = !!searchTerm || table.hasNonDefaultState
+
+  const clearFilters = () => {
+    setSearchTerm("")
+    table.clearAll()
   }
 
   const handleOpenReassign = (e: React.MouseEvent, id: string, num: string) => {
@@ -166,21 +204,26 @@ export const EscalatedDisputesPage: React.FC = () => {
       />
 
       <Card>
-        <div className="border-b border-border p-3">
+        <div className="space-y-2 border-b border-border p-3">
           <FilterBar
             variant="toolbar"
             size="sm"
             searchValue={searchTerm}
-            onSearchChange={(value) => {
-              setSearchTerm(value)
-              setCurrentPage(1)
-            }}
+            onSearchChange={setSearchTerm}
             searchPlaceholder="Search by dispute number or category…"
-            showClear={!!searchTerm}
-            onClear={() => {
-              setSearchTerm("")
-              setCurrentPage(1)
-            }}
+            showClear={hasActiveFilters}
+            onClear={clearFilters}
+          >
+            <MobileColumnFilters
+              columns={columns}
+              filters={table.filters}
+              onFilterChange={table.setFilter}
+            />
+          </FilterBar>
+
+          <ActiveFilterChips
+            chips={table.activeChips}
+            onRemove={table.clearFilter}
           />
         </div>
         <CardContent className="p-0">
@@ -196,36 +239,37 @@ export const EscalatedDisputesPage: React.FC = () => {
                 </Button>
               }
             />
-          ) : paginatedEscalated.length === 0 ? (
-            <EmptyState
-              title="No escalated disputes"
-              description="No active SLA breaches or escalated disputes at this time."
-            />
           ) : (
+            <TableListEmpty
+              sourceCount={escalatedDisputes.length}
+              filteredCount={table.filteredRows.length}
+              hasActiveFilters={hasActiveFilters}
+              emptyTitle="No escalated disputes"
+              emptyDescription="No active SLA breaches or escalated disputes at this time."
+              emptyIcon={<Inbox className="h-6 w-6" />}
+              noMatchesTitle="No disputes found"
+              noMatchesDescription="No escalated disputes match the current filters."
+              onClearFilters={clearFilters}
+            />
+          )}
+          {!isLoading && !isError && table.filteredRows.length > 0 && (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>
-                    <button
-                      type="button"
-                      onClick={() => handleSort("dispute_number")}
-                      aria-sort={getSortAria("dispute_number")}
-                      className="inline-flex items-center gap-1 hover:text-foreground"
-                    >
-                      Dispute number
-                      <ArrowUpDown className="h-3 w-3" aria-hidden />
-                    </button>
-                  </TableHead>
-                  <TableHead>Category</TableHead>
-                  <TableHead className="text-center">Level</TableHead>
-                  <TableHead>Manager</TableHead>
-                  <TableHead className="text-center">SLA</TableHead>
-                  <TableHead className="text-center">Escalated</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                  {columns.map((column) => (
+                    <SortableHeader
+                      key={column.id}
+                      column={column}
+                      sort={table.sort}
+                      onSort={table.cycleSort}
+                      filterValue={table.filters[column.id]}
+                      onFilterChange={table.setFilter}
+                    />
+                  ))}
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {paginatedEscalated.map((d) => (
+                {table.rows.map((d) => (
                   <TableRow
                     key={d.id}
                     className="cursor-pointer"
@@ -273,13 +317,13 @@ export const EscalatedDisputesPage: React.FC = () => {
         </CardContent>
       </Card>
 
-      {!isLoading && !isError && totalPages > 1 && (
+      {!isLoading && !isError && table.filteredRows.length > 0 && table.totalPages > 1 && (
         <Pagination
-          currentPage={currentPage}
-          totalPages={totalPages}
-          onPageChange={setCurrentPage}
-          totalItems={totalItems}
-          pageSize={itemsPerPage}
+          currentPage={table.page}
+          totalPages={table.totalPages}
+          onPageChange={table.setPage}
+          totalItems={table.total}
+          pageSize={table.pageSize}
         />
       )}
 

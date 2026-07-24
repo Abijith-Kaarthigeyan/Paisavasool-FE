@@ -90,7 +90,7 @@ const pick = (invoice: Record<string, unknown>, keys: string[]) => {
   return null
 }
 
-const lineItemKey = (description: string, index: number): string => {
+export const lineItemKey = (description: string, index: number): string => {
   const normalized = description.toLowerCase().trim()
   return normalized || `__row_${index}`
 }

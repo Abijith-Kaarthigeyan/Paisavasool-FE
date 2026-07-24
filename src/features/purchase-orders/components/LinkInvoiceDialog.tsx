@@ -57,7 +57,8 @@ export function LinkInvoiceDialog({
     [debouncedSearch]
   )
 
-  const { data: invoices = [], isLoading } = useInvoices(listParams)
+  const { data: invoicePage, isLoading } = useInvoices(listParams)
+  const invoices = invoicePage?.items ?? []
   const linkMutation = useLinkInvoiceToPurchaseOrder(purchaseOrder.id)
 
   const selectableInvoices = useMemo(() => {

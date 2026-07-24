@@ -1,4 +1,4 @@
-import React, { useState } from "react"
+import React, { useMemo, useState } from "react"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -9,6 +9,32 @@ import { userService } from "@/features/users/services/userService"
 import { authService } from "@/features/auth/services/authService"
 import { logout } from "@/features/auth/slices/authSlice"
 import { UserResponse } from "@/types"
+import { FilterBar } from "@/components/ui/filter-bar"
+import { ActiveFilterChips } from "@/components/ui/active-filter-chips"
+import { MobileColumnFilters } from "@/components/ui/mobile-column-filters"
+import { SortableHeader } from "@/components/ui/sortable-header"
+import { Pagination } from "@/components/ui/pagination"
+import { TableListEmpty } from "@/components/ui/table-list-empty"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
+import { TABLE_PAGE_SIZE, useClientTable, type ColumnDef } from "@/lib/table"
+import { Inbox } from "lucide-react"
+
+const ROLE_OPTIONS = [
+  { value: "ADMIN", label: "Admin" },
+  { value: "FINANCE_MANAGER", label: "Finance manager" },
+  { value: "FINANCE_ASSOCIATE", label: "Finance associate" },
+]
+
+const STATUS_OPTIONS = [
+  { value: "active", label: "Active" },
+  { value: "inactive", label: "Inactive" },
+]
 
 // Zod schemas for validation
 const createUserSchema = z.object({
@@ -31,6 +57,7 @@ export const AdminPage: React.FC = () => {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState("");
 
   // Get user list from server
   const { data: users = [], isLoading, error: fetchError } = useQuery<UserResponse[]>({
@@ -161,6 +188,67 @@ export const AdminPage: React.FC = () => {
   // Find active managers for manager selection dropdown
   const managers = users.filter((u) => u.role.role_name === "FINANCE_MANAGER" && u.is_active);
 
+  const toolbarFiltered = useMemo(() => {
+    if (!searchTerm.trim()) return users;
+    const term = searchTerm.toLowerCase();
+    return users.filter(
+      (u) =>
+        `${u.first_name} ${u.last_name}`.toLowerCase().includes(term) ||
+        u.email.toLowerCase().includes(term) ||
+        u.role.role_name.toLowerCase().includes(term)
+    );
+  }, [users, searchTerm]);
+
+  const columns = useMemo<ColumnDef<UserResponse>[]>(
+    () => [
+      {
+        id: "name",
+        label: "Name",
+        sortable: true,
+        accessor: (row) => `${row.first_name} ${row.last_name}`.trim(),
+        filter: { type: "text", placeholder: "Name…" },
+      },
+      {
+        id: "email",
+        label: "Email",
+        sortable: true,
+        filter: { type: "text", placeholder: "Email…" },
+      },
+      {
+        id: "role",
+        label: "Role",
+        sortable: true,
+        accessor: (row) => row.role.role_name,
+        filter: { type: "select", options: ROLE_OPTIONS },
+      },
+      {
+        id: "status",
+        label: "Status",
+        sortable: true,
+        accessor: (row) => (row.is_active ? "active" : "inactive"),
+        filter: { type: "select", options: STATUS_OPTIONS },
+      },
+      {
+        id: "actions",
+        label: "Actions",
+      },
+    ],
+    []
+  );
+
+  const table = useClientTable({
+    data: toolbarFiltered,
+    columns,
+    pageSize: TABLE_PAGE_SIZE,
+  });
+
+  const hasActiveFilters = !!searchTerm || table.hasNonDefaultState;
+
+  const clearFilters = () => {
+    setSearchTerm("");
+    table.clearAll();
+  };
+
   return (
     <div className="min-h-screen bg-background p-6 font-sans">
       <div className="mx-auto max-w-7xl space-y-6">
@@ -203,47 +291,89 @@ export const AdminPage: React.FC = () => {
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* User List Panel */}
-          <div className="lg:col-span-2 rounded-xl border border-border bg-card p-6 shadow-sm">
-            <h2 className="text-lg font-bold text-foreground mb-4">User List</h2>
+          <div className="lg:col-span-2 rounded-xl border border-border bg-card shadow-sm overflow-hidden">
+            <div className="border-b border-border p-4 pb-0">
+              <h2 className="text-lg font-bold text-foreground mb-4">User List</h2>
+            </div>
+            <div className="space-y-2 border-b border-border px-4 pb-3">
+              <FilterBar
+                variant="toolbar"
+                size="sm"
+                searchValue={searchTerm}
+                onSearchChange={setSearchTerm}
+                searchPlaceholder="Search by name, email, or role…"
+                showClear={hasActiveFilters}
+                onClear={clearFilters}
+              >
+                <MobileColumnFilters
+                  columns={columns}
+                  filters={table.filters}
+                  onFilterChange={table.setFilter}
+                />
+              </FilterBar>
+
+              <ActiveFilterChips
+                chips={table.activeChips}
+                onRemove={table.clearFilter}
+              />
+            </div>
             {isLoading ? (
-              <div className="flex h-40 items-center justify-center">
+              <div className="flex h-40 items-center justify-center p-6">
                 <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
               </div>
             ) : fetchError ? (
-              <div className="py-8 text-center text-destructive">
+              <div className="py-8 text-center text-destructive px-6">
                 Failed to retrieve users list. Verify the auth microservice is running.
               </div>
             ) : (
+              <TableListEmpty
+                sourceCount={users.length}
+                filteredCount={table.filteredRows.length}
+                hasActiveFilters={hasActiveFilters}
+                emptyTitle="No users yet"
+                emptyDescription="No users have been created in the auth service."
+                emptyIcon={<Inbox className="h-6 w-6" />}
+                noMatchesTitle="No users found"
+                noMatchesDescription="No users match the current filters."
+                onClearFilters={clearFilters}
+              />
+            )}
+            {!isLoading && !fetchError && table.filteredRows.length > 0 && (
               <div className="overflow-x-auto">
-                <table className="w-full text-left text-sm">
-                  <thead>
-                    <tr className="border-b border-border text-muted-foreground uppercase text-xs font-semibold">
-                      <th className="py-3 px-2">Name</th>
-                      <th className="py-3 px-2">Email</th>
-                      <th className="py-3 px-2">Role</th>
-                      <th className="py-3 px-2">Status</th>
-                      <th className="py-3 px-2">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border">
-                    {users.map((userItem) => (
-                      <tr
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      {columns.map((column) => (
+                        <SortableHeader
+                          key={column.id}
+                          column={column}
+                          sort={table.sort}
+                          onSort={table.cycleSort}
+                          filterValue={table.filters[column.id]}
+                          onFilterChange={table.setFilter}
+                        />
+                      ))}
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {table.rows.map((userItem) => (
+                      <TableRow
                         key={userItem.id}
                         onClick={() => setSelectedUser(userItem)}
-                        className={`cursor-pointer transition-colors hover:bg-muted ${
+                        className={`cursor-pointer ${
                           selectedUser?.id === userItem.id ? "bg-primary/5" : ""
                         }`}
                       >
-                        <td className="py-3 px-2 font-medium text-foreground">
+                        <TableCell className="font-medium text-foreground">
                           {userItem.first_name} {userItem.last_name}
-                        </td>
-                        <td className="py-3 px-2 text-muted-foreground">{userItem.email}</td>
-                        <td className="py-3 px-2">
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">{userItem.email}</TableCell>
+                        <TableCell>
                           <span className="rounded bg-primary/10 px-2 py-0.5 text-xs font-semibold text-primary">
                             {userItem.role.role_name}
                           </span>
-                        </td>
-                        <td className="py-3 px-2">
+                        </TableCell>
+                        <TableCell>
                           <span
                             className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
                               userItem.is_active
@@ -253,27 +383,40 @@ export const AdminPage: React.FC = () => {
                           >
                             {userItem.is_active ? "Active" : "Inactive"}
                           </span>
-                        </td>
-                        <td className="py-3 px-2 flex gap-2" onClick={(e) => e.stopPropagation()}>
-                          <button
-                            onClick={() => handleOpenEdit(userItem)}
-                            className="text-xs font-semibold text-primary hover:underline"
-                          >
-                            Edit
-                          </button>
-                          <button
-                            onClick={() => toggleUserStatus(userItem)}
-                            className={`text-xs font-semibold hover:underline ${
-                              userItem.is_active ? "text-destructive" : "text-success"
-                            }`}
-                          >
-                            {userItem.is_active ? "Deactivate" : "Activate"}
-                          </button>
-                        </td>
-                      </tr>
+                        </TableCell>
+                        <TableCell onClick={(e) => e.stopPropagation()}>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => handleOpenEdit(userItem)}
+                              className="text-xs font-semibold text-primary hover:underline"
+                            >
+                              Edit
+                            </button>
+                            <button
+                              onClick={() => toggleUserStatus(userItem)}
+                              className={`text-xs font-semibold hover:underline ${
+                                userItem.is_active ? "text-destructive" : "text-success"
+                              }`}
+                            >
+                              {userItem.is_active ? "Deactivate" : "Activate"}
+                            </button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
                     ))}
-                  </tbody>
-                </table>
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+            {!isLoading && !fetchError && table.filteredRows.length > 0 && table.totalPages > 1 && (
+              <div className="border-t border-border p-4">
+                <Pagination
+                  currentPage={table.page}
+                  totalPages={table.totalPages}
+                  onPageChange={table.setPage}
+                  totalItems={table.total}
+                  pageSize={table.pageSize}
+                />
               </div>
             )}
           </div>

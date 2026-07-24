@@ -1,14 +1,17 @@
-import React, { useEffect, useMemo, useState } from "react"
+import React, { useLayoutEffect, useMemo, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { useInvoices } from "../hooks/useInvoices"
-import { useCustomers } from "@/features/customers/hooks/useCustomers"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { TableSkeleton } from "@/components/ui/skeleton"
 import { Pagination } from "@/components/ui/pagination"
 import { PageHeader } from "@/components/ui/page-header"
 import { PageBreadcrumb } from "@/components/ui/page-breadcrumb"
-import { FilterBar, FilterSelect } from "@/components/ui/filter-bar"
+import { FilterBar } from "@/components/ui/filter-bar"
+import { ActiveFilterChips } from "@/components/ui/active-filter-chips"
+import { MobileColumnFilters } from "@/components/ui/mobile-column-filters"
+import { SortableHeader } from "@/components/ui/sortable-header"
+import { TableListEmpty } from "@/components/ui/table-list-empty"
 import { getDashboardPath } from "@/lib/navigation"
 import { EmptyState } from "@/components/ui/empty-state"
 import { Button } from "@/components/ui/button"
@@ -16,13 +19,23 @@ import {
   Table,
   TableBody,
   TableCell,
-  TableHead,
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
 import { INVOICE_STATUS_VARIANT, getStatusVariant } from "@/lib/design-tokens"
 import { formatCurrency } from "@/lib/formatCurrency"
 import { useDebouncedValue } from "@/lib/useDebouncedValue"
+import {
+  TABLE_PAGE_SIZE,
+  shouldShowTableLoading,
+  useClientTable,
+  useSyncTableQueryBridge,
+  useTableQueryBridge,
+  useTableUrlState,
+  type ColumnDef,
+  type DateRangeFilterValue,
+  type NumberRangeFilterValue,
+} from "@/lib/table"
 import { RefreshCw, HelpCircle, Inbox } from "lucide-react"
 import {
   InvoicePoLinkBadge,
@@ -30,8 +43,6 @@ import {
 } from "@/features/purchase-orders/components/InvoicePoLinkBadge"
 import { BillingsListToggle } from "../components/BillingsListToggle"
 import type { Invoice } from "../types"
-
-type PoLinkFilter = "" | "linked" | "awaiting_match" | "none"
 
 const getDisplayStatus = (invoice: Invoice): string => {
   if (invoice.status !== "OVERDUE") {
@@ -42,65 +53,242 @@ const getDisplayStatus = (invoice: Invoice): string => {
     : "PARTIALLY_PAID"
 }
 
+const STATUS_OPTIONS = [
+  { value: "PENDING", label: "Pending" },
+  { value: "PARTIALLY_PAID", label: "Partially paid" },
+  { value: "PAID", label: "Paid" },
+  { value: "DISPUTED", label: "Disputed" },
+]
+
+const PO_LINK_OPTIONS = [
+  { value: "linked", label: "Linked" },
+  { value: "awaiting_match", label: "Unlinked with PO #" },
+  { value: "none", label: "No PO #" },
+]
+
+const URL_EXTRA_KEYS = ["q"] as const
+
 export const InvoiceListPage: React.FC = () => {
   const navigate = useNavigate()
   const [searchTerm, setSearchTerm] = useState("")
-  const [statusFilter, setStatusFilter] = useState("")
-  const [customerFilter, setCustomerFilter] = useState("")
-  const [poLinkFilter, setPoLinkFilter] = useState<PoLinkFilter>("")
-  const [currentPage, setCurrentPage] = useState(1)
-  const itemsPerPage = 10
+  const [page, setPage] = useState(1)
   const debouncedSearch = useDebouncedValue(searchTerm)
+  const bridge = useTableQueryBridge({ page })
+
+  // Mirror date/amount column filters to API params (optimization).
+  const [invoiceDateRange, setInvoiceDateRange] = useState<DateRangeFilterValue>()
+  const [dueDateRange, setDueDateRange] = useState<DateRangeFilterValue>()
+  const [totalAmountRange, setTotalAmountRange] = useState<NumberRangeFilterValue>()
+  const [outstandingAmountRange, setOutstandingAmountRange] =
+    useState<NumberRangeFilterValue>()
 
   const listParams = useMemo(
     () => ({
-      limit: 500,
-      offset: 0,
+      limit: bridge.limit,
+      offset: bridge.offset,
       ...(debouncedSearch.trim() ? { search: debouncedSearch.trim() } : {}),
-      ...(statusFilter ? { status: statusFilter } : {}),
-      ...(customerFilter ? { customer_id: customerFilter } : {}),
+      ...(invoiceDateRange?.from ? { invoice_date_from: invoiceDateRange.from } : {}),
+      ...(invoiceDateRange?.to ? { invoice_date_to: invoiceDateRange.to } : {}),
+      ...(dueDateRange?.from ? { due_date_from: dueDateRange.from } : {}),
+      ...(dueDateRange?.to ? { due_date_to: dueDateRange.to } : {}),
+      ...(totalAmountRange?.min != null
+        ? { total_amount_min: totalAmountRange.min }
+        : {}),
+      ...(totalAmountRange?.max != null
+        ? { total_amount_max: totalAmountRange.max }
+        : {}),
+      ...(outstandingAmountRange?.min != null
+        ? { outstanding_amount_min: outstandingAmountRange.min }
+        : {}),
+      ...(outstandingAmountRange?.max != null
+        ? { outstanding_amount_max: outstandingAmountRange.max }
+        : {}),
+      ...(bridge.sortOverride
+        ? {
+            sort_by: bridge.sortOverride.id,
+            sort_order: bridge.sortOverride.direction,
+          }
+        : {}),
     }),
-    [debouncedSearch, statusFilter, customerFilter]
+    [
+      bridge.limit,
+      bridge.offset,
+      bridge.sortOverride,
+      debouncedSearch,
+      invoiceDateRange,
+      dueDateRange,
+      totalAmountRange,
+      outstandingAmountRange,
+    ]
   )
 
   const {
-    data: invoices = [],
+    data: invoicePage,
     isLoading,
+    isFetching,
+    isPlaceholderData,
     isError,
     refetch,
   } = useInvoices(listParams)
 
-  const { data: customers = [] } = useCustomers({ limit: 500 })
+  const invoices = invoicePage?.items ?? []
+  const serverTotal = invoicePage?.total ?? 0
 
   const handleRowClick = (invoiceId: string) => {
     navigate(`/invoices/${invoiceId}`)
   }
 
-  const filteredInvoices = useMemo(() => {
-    if (!poLinkFilter) return invoices
-    return invoices.filter((inv) => getPoLinkState(inv) === poLinkFilter)
-  }, [invoices, poLinkFilter])
+  const columns = useMemo<ColumnDef<Invoice>[]>(
+    () => [
+      {
+        id: "invoice_number",
+        label: "Invoice number",
+        sortable: true,
+        filter: { type: "text", placeholder: "Invoice number…" },
+      },
+      {
+        id: "customer",
+        label: "Customer",
+        sortable: true,
+        accessor: (row) => row.customer?.customer_name ?? "",
+        filter: { type: "text", placeholder: "Customer name…" },
+      },
+      {
+        id: "invoice_date",
+        label: "Invoice date",
+        sortable: true,
+        defaultSortDirection: "desc",
+        filter: { type: "date-range" },
+      },
+      {
+        id: "due_date",
+        label: "Due date",
+        sortable: true,
+        defaultSortDirection: "desc",
+        filter: { type: "date-range" },
+      },
+      {
+        id: "total_amount",
+        label: "Total amount",
+        sortable: true,
+        align: "center",
+        defaultSortDirection: "desc",
+        filter: { type: "number-range" },
+      },
+      {
+        id: "outstanding_amount",
+        label: "Outstanding",
+        sortable: true,
+        align: "center",
+        defaultSortDirection: "desc",
+        filter: { type: "number-range" },
+      },
+      {
+        id: "status",
+        label: "Status",
+        sortable: true,
+        align: "center",
+        accessor: getDisplayStatus,
+        filter: { type: "select", options: STATUS_OPTIONS },
+      },
+      {
+        id: "current_version",
+        label: "Version",
+        sortable: true,
+        align: "center",
+        accessor: (row) => row.current_version ?? 1,
+        filter: { type: "number-range" },
+      },
+      {
+        id: "po_link",
+        label: "Purchase order",
+        sortable: true,
+        align: "center",
+        accessor: (row) => getPoLinkState(row),
+        filter: { type: "select", options: PO_LINK_OPTIONS },
+      },
+    ],
+    []
+  )
 
-  useEffect(() => {
-    setCurrentPage(1)
-  }, [debouncedSearch, statusFilter, customerFilter, poLinkFilter])
+  const table = useClientTable({
+    data: invoices,
+    columns,
+    pageSize: TABLE_PAGE_SIZE,
+    paginationMode: bridge.paginationMode,
+    serverTotal,
+    page,
+    onPageChange: setPage,
+  })
 
-  const totalItems = filteredInvoices.length
-  const totalPages = Math.max(1, Math.ceil(totalItems / itemsPerPage))
-  const startIndex = (currentPage - 1) * itemsPerPage
-  const paginatedInvoices = filteredInvoices.slice(startIndex, startIndex + itemsPerPage)
+  useSyncTableQueryBridge(bridge, table)
 
-  const totalOpenBalance = filteredInvoices.reduce((sum, i) => sum + i.outstanding_amount, 0)
+  useLayoutEffect(() => {
+    const nextInvoice = table.filters["invoice_date"] as DateRangeFilterValue | undefined
+    const nextDue = table.filters["due_date"] as DateRangeFilterValue | undefined
+    const nextTotal = table.filters["total_amount"] as NumberRangeFilterValue | undefined
+    const nextOutstanding = table.filters["outstanding_amount"] as
+      | NumberRangeFilterValue
+      | undefined
+    setInvoiceDateRange((prev) =>
+      JSON.stringify(prev ?? null) === JSON.stringify(nextInvoice ?? null) ? prev : nextInvoice
+    )
+    setDueDateRange((prev) =>
+      JSON.stringify(prev ?? null) === JSON.stringify(nextDue ?? null) ? prev : nextDue
+    )
+    setTotalAmountRange((prev) =>
+      JSON.stringify(prev ?? null) === JSON.stringify(nextTotal ?? null) ? prev : nextTotal
+    )
+    setOutstandingAmountRange((prev) =>
+      JSON.stringify(prev ?? null) === JSON.stringify(nextOutstanding ?? null)
+        ? prev
+        : nextOutstanding
+    )
+  }, [table.filters])
 
-  const hasActiveFilters =
-    !!searchTerm || !!statusFilter || !!customerFilter || !!poLinkFilter
+  const urlExtras = useMemo(
+    () => ({
+      q: searchTerm || undefined,
+    }),
+    [searchTerm]
+  )
+
+  useTableUrlState({
+    columns,
+    sort: table.sort,
+    filters: table.filters,
+    page: table.page,
+    setSort: table.setSort,
+    setFilter: table.setFilter,
+    setPage: table.setPage,
+    replaceFilters: table.replaceFilters,
+    extras: urlExtras,
+    extraKeys: [...URL_EXTRA_KEYS],
+    onExtrasChange: (extras) => {
+      if (extras.q != null) setSearchTerm(extras.q)
+    },
+  })
+
+  const totalOpenBalance = table.filteredRows.reduce(
+    (sum, i) => sum + i.outstanding_amount,
+    0
+  )
+
+  const hasToolbarFilters = !!searchTerm
+  const hasActiveFilters = hasToolbarFilters || table.hasNonDefaultState
+  const showTableLoading = shouldShowTableLoading({
+    isLoading,
+    isFetching,
+    isPlaceholderData,
+    clientOnlyPaging: bridge.clientOnlyPaging,
+    hasActiveFilters,
+    cachedItemCount: invoices.length,
+    pageSize: TABLE_PAGE_SIZE,
+  })
 
   const clearFilters = () => {
     setSearchTerm("")
-    setStatusFilter("")
-    setCustomerFilter("")
-    setPoLinkFilter("")
-    setCurrentPage(1)
+    table.clearAll()
   }
 
   return (
@@ -127,7 +315,7 @@ export const InvoiceListPage: React.FC = () => {
       </div>
 
       <Card>
-        <div className="border-b border-border p-3">
+        <div className="space-y-2 border-b border-border p-3">
           <FilterBar
             variant="toolbar"
             size="sm"
@@ -145,46 +333,20 @@ export const InvoiceListPage: React.FC = () => {
               </>
             }
           >
-            <FilterSelect
-              id="status-filter"
-              aria-label="Status"
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-            >
-              <option value="">All statuses</option>
-              <option value="PENDING">Pending</option>
-              <option value="PARTIALLY_PAID">Partially paid</option>
-              <option value="PAID">Paid</option>
-              <option value="DISPUTED">Disputed</option>
-            </FilterSelect>
-            <FilterSelect
-              id="customer-filter"
-              aria-label="Customer"
-              value={customerFilter}
-              onChange={(e) => setCustomerFilter(e.target.value)}
-            >
-              <option value="">All customers</option>
-              {customers.map((cust) => (
-                <option key={cust.id} value={cust.id}>
-                  {cust.customer_name}
-                </option>
-              ))}
-            </FilterSelect>
-            <FilterSelect
-              id="po-link-filter"
-              aria-label="PO link status"
-              value={poLinkFilter}
-              onChange={(e) => setPoLinkFilter(e.target.value as PoLinkFilter)}
-            >
-              <option value="">All PO link statuses</option>
-              <option value="linked">Linked</option>
-              <option value="awaiting_match">Unlinked with PO #</option>
-              <option value="none">No PO #</option>
-            </FilterSelect>
+            <MobileColumnFilters
+              columns={columns}
+              filters={table.filters}
+              onFilterChange={table.setFilter}
+            />
           </FilterBar>
+
+          <ActiveFilterChips
+            chips={table.activeChips}
+            onRemove={table.clearFilter}
+          />
         </div>
         <CardContent className="p-0">
-          {isLoading ? (
+          {showTableLoading ? (
             <div className="p-4">
               <TableSkeleton rows={8} columns={9} />
             </div>
@@ -200,29 +362,36 @@ export const InvoiceListPage: React.FC = () => {
                 </Button>
               }
             />
-          ) : filteredInvoices.length === 0 ? (
-            <EmptyState
-              icon={<Inbox className="h-6 w-6" />}
-              title="No invoices found"
-              description="No invoices match the current filters."
+          ) : table.filteredRows.length === 0 ? (
+            <TableListEmpty
+              sourceCount={serverTotal}
+              filteredCount={table.filteredRows.length}
+              hasActiveFilters={hasActiveFilters}
+              emptyTitle="No invoices yet"
+              emptyDescription="No billing invoices have been registered yet."
+              emptyIcon={<Inbox className="h-6 w-6" />}
+              noMatchesTitle="No invoices found"
+              noMatchesDescription="No invoices match the current filters."
+              onClearFilters={clearFilters}
             />
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Invoice number</TableHead>
-                  <TableHead>Customer</TableHead>
-                  <TableHead>Invoice date</TableHead>
-                  <TableHead>Due date</TableHead>
-                  <TableHead className="text-center">Total amount</TableHead>
-                  <TableHead className="text-center">Outstanding</TableHead>
-                  <TableHead className="text-center">Status</TableHead>
-                  <TableHead className="text-center">Version</TableHead>
-                  <TableHead className="text-center">Purchase order</TableHead>
+                  {columns.map((column) => (
+                    <SortableHeader
+                      key={column.id}
+                      column={column}
+                      sort={table.sort}
+                      onSort={table.cycleSort}
+                      filterValue={table.filters[column.id]}
+                      onFilterChange={table.setFilter}
+                    />
+                  ))}
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {paginatedInvoices.map((inv) => {
+                {table.rows.map((inv) => {
                   const displayStatus = getDisplayStatus(inv)
                   return (
                     <TableRow
@@ -280,13 +449,13 @@ export const InvoiceListPage: React.FC = () => {
         </CardContent>
       </Card>
 
-      {!isLoading && !isError && totalPages > 1 && (
+      {!showTableLoading && !isError && table.totalPages > 1 && (
         <Pagination
-          currentPage={currentPage}
-          totalPages={totalPages}
-          onPageChange={setCurrentPage}
-          totalItems={totalItems}
-          pageSize={itemsPerPage}
+          currentPage={table.page}
+          totalPages={table.totalPages}
+          onPageChange={table.setPage}
+          totalItems={table.total}
+          pageSize={table.pageSize}
         />
       )}
     </div>

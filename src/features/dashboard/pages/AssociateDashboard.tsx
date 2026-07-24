@@ -9,6 +9,7 @@ import { useDisputes } from "@/features/disputes/hooks/useDisputes"
 import { needsAssociateInput } from "@/features/disputes/utils/disputeFormatters"
 import { useCustomers } from "@/features/customers/hooks/useCustomers"
 import { usePaymentReviews } from "@/features/matching/hooks/useReviews"
+import { asListItems } from "@/lib/table"
 import { Skeleton } from "@/components/ui/skeleton"
 import { ClickableWidget } from "../components/ClickableWidget"
 import { DashboardGreeting, getGreetingName } from "../components/DashboardGreeting"
@@ -21,16 +22,24 @@ import { WidgetNavLink } from "../components/WidgetNavLink"
 export const AssociateDashboard: React.FC = () => {
   const { user } = useSelector((state: RootState) => state.auth)
 
-  const { data: invoices = [], isLoading: isInvoicesLoading } = useQuery({
-    queryKey: ["invoices"],
-    queryFn: () => invoiceService.getInvoices(),
+  const { data: invoicesPage, isLoading: isInvoicesLoading } = useQuery({
+    queryKey: ["invoices", { limit: 500 }],
+    queryFn: () => invoiceService.getInvoices({ limit: 500 }),
   })
+  const invoices = asListItems(invoicesPage)
 
   const { data: aging, isLoading: isAgingLoading } = useAgingAnalytics()
-  const { data: disputes = [], isLoading: isDisputesLoading } = useDisputes()
-  const { data: customers = [], isLoading: isCustomersLoading } = useCustomers()
-  const { data: reviews = [], isLoading: isReviewsLoading } = usePaymentReviews()
-
+  const { data: disputes = [], isLoading: isDisputesLoading } = useDisputes({
+    limit: 500,
+  })
+  const { data: customersPage, isLoading: isCustomersLoading } = useCustomers({
+    limit: 500,
+  })
+  const customers = asListItems(customersPage)
+  const { data: reviewsPage, isLoading: isReviewsLoading } = usePaymentReviews({
+    limit: 500,
+  })
+  const reviews = asListItems(reviewsPage)
   const outstandingAmount = useMemo(
     () => invoices.reduce((sum, inv) => sum + inv.outstanding_amount, 0),
     [invoices]

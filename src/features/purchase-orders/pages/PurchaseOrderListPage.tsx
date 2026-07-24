@@ -1,13 +1,16 @@
-import React, { useEffect, useMemo, useState } from "react"
+import React, { useLayoutEffect, useMemo, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { usePurchaseOrders } from "../hooks/usePurchaseOrders"
-import { useCustomers } from "@/features/customers/hooks/useCustomers"
 import { Card, CardContent } from "@/components/ui/card"
 import { TableSkeleton } from "@/components/ui/skeleton"
 import { Pagination } from "@/components/ui/pagination"
 import { PageHeader } from "@/components/ui/page-header"
 import { PageBreadcrumb } from "@/components/ui/page-breadcrumb"
-import { FilterBar, FilterSelect } from "@/components/ui/filter-bar"
+import { FilterBar } from "@/components/ui/filter-bar"
+import { ActiveFilterChips } from "@/components/ui/active-filter-chips"
+import { MobileColumnFilters } from "@/components/ui/mobile-column-filters"
+import { SortableHeader } from "@/components/ui/sortable-header"
+import { TableListEmpty } from "@/components/ui/table-list-empty"
 import { getDashboardPath } from "@/lib/navigation"
 import { EmptyState } from "@/components/ui/empty-state"
 import { Button } from "@/components/ui/button"
@@ -15,64 +18,216 @@ import {
   Table,
   TableBody,
   TableCell,
-  TableHead,
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
 import { formatCurrency } from "@/lib/formatCurrency"
 import { useDebouncedValue } from "@/lib/useDebouncedValue"
+import {
+  TABLE_PAGE_SIZE,
+  shouldShowTableLoading,
+  useClientTable,
+  useSyncTableQueryBridge,
+  useTableQueryBridge,
+  useTableUrlState,
+  type ColumnDef,
+  type DateRangeFilterValue,
+  type NumberRangeFilterValue,
+} from "@/lib/table"
 import { RefreshCw, HelpCircle, ClipboardList } from "lucide-react"
 import { PurchaseOrderStatusBadge } from "../components/PurchaseOrderStatusBadge"
 import { PoGrnLinkBadge } from "../components/PoGrnLinkBadge"
 import { BillingsListToggle } from "@/features/invoices/components/BillingsListToggle"
+import type { PurchaseOrder } from "../types"
+
+const STATUS_OPTIONS = [
+  { value: "OPEN", label: "Open" },
+  { value: "PARTIALLY_INVOICED", label: "Partially invoiced" },
+  { value: "FULLY_INVOICED", label: "Fully invoiced" },
+]
+
+const URL_EXTRA_KEYS = ["q"] as const
 
 export const PurchaseOrderListPage: React.FC = () => {
   const navigate = useNavigate()
   const [searchTerm, setSearchTerm] = useState("")
-  const [statusFilter, setStatusFilter] = useState("")
-  const [customerFilter, setCustomerFilter] = useState("")
-  const [currentPage, setCurrentPage] = useState(1)
-  const itemsPerPage = 10
+  const [page, setPage] = useState(1)
   const debouncedSearch = useDebouncedValue(searchTerm)
+  const bridge = useTableQueryBridge({ page })
+
+  // Mirror date/amount column filters to API params (optimization).
+  const [poDateRange, setPoDateRange] = useState<DateRangeFilterValue>()
+  const [totalAmountRange, setTotalAmountRange] = useState<NumberRangeFilterValue>()
 
   const listParams = useMemo(
     () => ({
-      limit: 500,
-      offset: 0,
+      limit: bridge.limit,
+      offset: bridge.offset,
       ...(debouncedSearch.trim() ? { search: debouncedSearch.trim() } : {}),
-      ...(statusFilter ? { status: statusFilter } : {}),
-      ...(customerFilter ? { customer_id: customerFilter } : {}),
+      ...(poDateRange?.from ? { po_date_from: poDateRange.from } : {}),
+      ...(poDateRange?.to ? { po_date_to: poDateRange.to } : {}),
+      ...(totalAmountRange?.min != null
+        ? { total_amount_min: totalAmountRange.min }
+        : {}),
+      ...(totalAmountRange?.max != null
+        ? { total_amount_max: totalAmountRange.max }
+        : {}),
+      ...(bridge.sortOverride
+        ? {
+            sort_by: bridge.sortOverride.id,
+            sort_order: bridge.sortOverride.direction,
+          }
+        : {}),
     }),
-    [debouncedSearch, statusFilter, customerFilter]
+    [
+      bridge.limit,
+      bridge.offset,
+      bridge.sortOverride,
+      debouncedSearch,
+      poDateRange,
+      totalAmountRange,
+    ]
   )
 
   const {
-    data: purchaseOrders = [],
+    data: poPage,
     isLoading,
+    isFetching,
+    isPlaceholderData,
     isError,
     refetch,
   } = usePurchaseOrders(listParams)
 
-  const { data: customers = [] } = useCustomers({ limit: 500 })
+  const purchaseOrders = poPage?.items ?? []
+  const serverTotal = poPage?.total ?? 0
 
-  useEffect(() => {
-    setCurrentPage(1)
-  }, [debouncedSearch, statusFilter, customerFilter])
+  const columns = useMemo<ColumnDef<PurchaseOrder>[]>(
+    () => [
+      {
+        id: "po_number",
+        label: "PO number",
+        sortable: true,
+        filter: { type: "text", placeholder: "PO number…" },
+      },
+      {
+        id: "customer",
+        label: "Customer",
+        sortable: true,
+        accessor: (row) => row.customer?.customer_name ?? "",
+        filter: { type: "text", placeholder: "Customer name…" },
+      },
+      {
+        id: "po_date",
+        label: "PO date",
+        sortable: true,
+        defaultSortDirection: "desc",
+        filter: { type: "date-range" },
+      },
+      {
+        id: "requested_delivery_date",
+        label: "Requested delivery",
+        sortable: true,
+        defaultSortDirection: "desc",
+        filter: { type: "date-range" },
+      },
+      {
+        id: "total_amount",
+        label: "Total amount",
+        sortable: true,
+        align: "center",
+        defaultSortDirection: "desc",
+        filter: { type: "number-range" },
+      },
+      {
+        id: "status",
+        label: "Status",
+        sortable: true,
+        align: "center",
+        filter: { type: "select", options: STATUS_OPTIONS },
+      },
+      {
+        id: "linked_invoice_count",
+        label: "Linked invoices",
+        sortable: true,
+        align: "center",
+        defaultSortDirection: "desc",
+        filter: { type: "number-range" },
+      },
+      {
+        id: "linked_grn_count",
+        label: "GRN",
+        sortable: true,
+        align: "center",
+        defaultSortDirection: "desc",
+        filter: { type: "number-range" },
+      },
+    ],
+    []
+  )
 
-  const totalItems = purchaseOrders.length
-  const totalPages = Math.max(1, Math.ceil(totalItems / itemsPerPage))
-  const startIndex = (currentPage - 1) * itemsPerPage
-  const paginatedOrders = purchaseOrders.slice(startIndex, startIndex + itemsPerPage)
+  const table = useClientTable({
+    data: purchaseOrders,
+    columns,
+    pageSize: TABLE_PAGE_SIZE,
+    paginationMode: bridge.paginationMode,
+    serverTotal,
+    page,
+    onPageChange: setPage,
+  })
 
-  const totalPoValue = purchaseOrders.reduce((sum, po) => sum + po.total_amount, 0)
+  useSyncTableQueryBridge(bridge, table)
 
-  const hasActiveFilters = !!searchTerm || !!statusFilter || !!customerFilter
+  useLayoutEffect(() => {
+    const nextPoDate = table.filters["po_date"] as DateRangeFilterValue | undefined
+    const nextTotal = table.filters["total_amount"] as NumberRangeFilterValue | undefined
+    setPoDateRange((prev) =>
+      JSON.stringify(prev ?? null) === JSON.stringify(nextPoDate ?? null) ? prev : nextPoDate
+    )
+    setTotalAmountRange((prev) =>
+      JSON.stringify(prev ?? null) === JSON.stringify(nextTotal ?? null) ? prev : nextTotal
+    )
+  }, [table.filters])
+
+  const urlExtras = useMemo(
+    () => ({
+      q: searchTerm || undefined,
+    }),
+    [searchTerm]
+  )
+
+  useTableUrlState({
+    columns,
+    sort: table.sort,
+    filters: table.filters,
+    page: table.page,
+    setSort: table.setSort,
+    setFilter: table.setFilter,
+    setPage: table.setPage,
+    replaceFilters: table.replaceFilters,
+    extras: urlExtras,
+    extraKeys: [...URL_EXTRA_KEYS],
+    onExtrasChange: (extras) => {
+      if (extras.q != null) setSearchTerm(extras.q)
+    },
+  })
+
+  const totalPoValue = table.filteredRows.reduce((sum, po) => sum + po.total_amount, 0)
+
+  const hasToolbarFilters = !!searchTerm
+  const hasActiveFilters = hasToolbarFilters || table.hasNonDefaultState
+  const showTableLoading = shouldShowTableLoading({
+    isLoading,
+    isFetching,
+    isPlaceholderData,
+    clientOnlyPaging: bridge.clientOnlyPaging,
+    hasActiveFilters,
+    cachedItemCount: purchaseOrders.length,
+    pageSize: TABLE_PAGE_SIZE,
+  })
 
   const clearFilters = () => {
     setSearchTerm("")
-    setStatusFilter("")
-    setCustomerFilter("")
-    setCurrentPage(1)
+    table.clearAll()
   }
 
   return (
@@ -100,7 +255,7 @@ export const PurchaseOrderListPage: React.FC = () => {
       </div>
 
       <Card>
-        <div className="border-b border-border p-3">
+        <div className="space-y-2 border-b border-border p-3">
           <FilterBar
             variant="toolbar"
             size="sm"
@@ -118,36 +273,22 @@ export const PurchaseOrderListPage: React.FC = () => {
               </>
             }
           >
-            <FilterSelect
-              id="po-status-filter"
-              aria-label="Status"
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-            >
-              <option value="">All statuses</option>
-              <option value="OPEN">Open</option>
-              <option value="PARTIALLY_INVOICED">Partially invoiced</option>
-              <option value="FULLY_INVOICED">Fully invoiced</option>
-            </FilterSelect>
-            <FilterSelect
-              id="po-customer-filter"
-              aria-label="Customer"
-              value={customerFilter}
-              onChange={(e) => setCustomerFilter(e.target.value)}
-            >
-              <option value="">All customers</option>
-              {customers.map((cust) => (
-                <option key={cust.id} value={cust.id}>
-                  {cust.customer_name}
-                </option>
-              ))}
-            </FilterSelect>
+            <MobileColumnFilters
+              columns={columns}
+              filters={table.filters}
+              onFilterChange={table.setFilter}
+            />
           </FilterBar>
+
+          <ActiveFilterChips
+            chips={table.activeChips}
+            onRemove={table.clearFilter}
+          />
         </div>
         <CardContent className="p-0">
-          {isLoading ? (
+          {showTableLoading ? (
             <div className="p-4">
-              <TableSkeleton rows={8} columns={6} />
+              <TableSkeleton rows={8} columns={8} />
             </div>
           ) : isError ? (
             <EmptyState
@@ -161,28 +302,37 @@ export const PurchaseOrderListPage: React.FC = () => {
                 </Button>
               }
             />
-          ) : purchaseOrders.length === 0 ? (
-            <EmptyState
-              icon={<ClipboardList className="h-6 w-6" />}
-              title="No purchase orders found"
-              description="No purchase orders match the current filters."
-            />
           ) : (
+            <TableListEmpty
+              sourceCount={serverTotal}
+              filteredCount={table.filteredRows.length}
+              hasActiveFilters={hasActiveFilters}
+              emptyTitle="No purchase orders yet"
+              emptyDescription="No purchase orders have been registered yet."
+              emptyIcon={<ClipboardList className="h-6 w-6" />}
+              noMatchesTitle="No purchase orders found"
+              noMatchesDescription="No purchase orders match the current filters."
+              onClearFilters={clearFilters}
+            />
+          )}
+          {!showTableLoading && !isError && table.filteredRows.length > 0 && (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>PO number</TableHead>
-                  <TableHead>Customer</TableHead>
-                  <TableHead>PO date</TableHead>
-                  <TableHead>Requested delivery</TableHead>
-                  <TableHead className="text-center">Total amount</TableHead>
-                  <TableHead className="text-center">Status</TableHead>
-                  <TableHead className="text-center">Linked invoices</TableHead>
-                  <TableHead className="text-center">GRN</TableHead>
+                  {columns.map((column) => (
+                    <SortableHeader
+                      key={column.id}
+                      column={column}
+                      sort={table.sort}
+                      onSort={table.cycleSort}
+                      filterValue={table.filters[column.id]}
+                      onFilterChange={table.setFilter}
+                    />
+                  ))}
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {paginatedOrders.map((po) => (
+                {table.rows.map((po) => (
                   <TableRow
                     key={po.id}
                     className="cursor-pointer"
@@ -224,13 +374,13 @@ export const PurchaseOrderListPage: React.FC = () => {
         </CardContent>
       </Card>
 
-      {!isLoading && !isError && totalPages > 1 && (
+      {!showTableLoading && !isError && table.totalPages > 1 && (
         <Pagination
-          currentPage={currentPage}
-          totalPages={totalPages}
-          onPageChange={setCurrentPage}
-          totalItems={totalItems}
-          pageSize={itemsPerPage}
+          currentPage={table.page}
+          totalPages={table.totalPages}
+          onPageChange={table.setPage}
+          totalItems={table.total}
+          pageSize={table.pageSize}
         />
       )}
     </div>

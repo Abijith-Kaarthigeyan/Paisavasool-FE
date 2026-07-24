@@ -18,8 +18,8 @@ export const ManagerEscalationsMenu: React.FC = () => {
   const [open, setOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
 
-  const { data: escalatedCases = [] } = useEscalatedCases()
-  const { data: disputes = [] } = useDisputes()
+  const { data: escalatedCases = [] } = useEscalatedCases({ limit: 500 })
+  const { data: disputes = [] } = useDisputes({ limit: 500 })
 
   const escalatedDisputeCount = useMemo(
     () => disputes.filter(isEscalatedDispute).length,

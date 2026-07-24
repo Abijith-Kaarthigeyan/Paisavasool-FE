@@ -5,11 +5,12 @@ import { Badge } from "@/components/ui/badge"
 import { QuickUploadMenu } from "./QuickUploadMenu"
 import { EmailPollButton } from "./EmailPollButton"
 import { useEmailManualReview } from "@/features/email-intake/hooks/useEmailReviews"
+import { asListItems } from "@/lib/table"
 
 export const AssociateHeaderActions: React.FC = () => {
   const navigate = useNavigate()
-  const { data: emails = [] } = useEmailManualReview()
-
+  const { data: emailsPage } = useEmailManualReview()
+  const emails = asListItems(emailsPage)
   const pendingCount = emails.length
 
   return (

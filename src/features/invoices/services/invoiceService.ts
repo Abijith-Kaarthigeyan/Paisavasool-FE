@@ -1,4 +1,5 @@
 import { arApi } from "@/lib/axios"
+import { readTotalCount, toPaginatedList, type PaginatedList } from "@/lib/table"
 import {
   InvoiceUploadBatch,
   Invoice,
@@ -66,11 +67,26 @@ export const invoiceService = {
     customer_id?: string;
     status?: string;
     search?: string;
+    invoice_date_from?: string;
+    invoice_date_to?: string;
+    due_date_from?: string;
+    due_date_to?: string;
+    total_amount_min?: number;
+    total_amount_max?: number;
+    outstanding_amount_min?: number;
+    outstanding_amount_max?: number;
+    sort_by?: string;
+    sort_order?: "asc" | "desc";
     limit?: number;
     offset?: number;
-  }): Promise<Invoice[]> => {
+  }): Promise<PaginatedList<Invoice>> => {
     const response = await arApi.get("/invoices", { params });
-    return response.data.invoices;
+    const items: Invoice[] = response.data.invoices ?? [];
+    const total = readTotalCount(response, {
+      bodyTotal: response.data.total,
+      itemsLength: items.length,
+    });
+    return toPaginatedList(items, total);
   },
 
   getInvoiceDetails: async (id: string): Promise<Invoice> => {

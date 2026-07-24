@@ -1,33 +1,51 @@
-import React, { useMemo } from "react"
+import React, { useMemo, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { buildDisputeDetailPath } from "../utils/disputeBreadcrumbs"
 import { useDisputes } from "../hooks/useDisputes"
 import { isWaitingInternalTeamDispute } from "../utils/disputeFormatters"
+import type { Dispute } from "../types"
 import { Card, CardContent } from "@/components/ui/card"
 import { TableSkeleton } from "@/components/ui/skeleton"
+import { Pagination } from "@/components/ui/pagination"
 import { PageHeader } from "@/components/ui/page-header"
 import { PageBreadcrumb } from "@/components/ui/page-breadcrumb"
+import { FilterBar } from "@/components/ui/filter-bar"
+import { ActiveFilterChips } from "@/components/ui/active-filter-chips"
+import { MobileColumnFilters } from "@/components/ui/mobile-column-filters"
+import { SortableHeader } from "@/components/ui/sortable-header"
+import { TableListEmpty } from "@/components/ui/table-list-empty"
 import { EmptyState } from "@/components/ui/empty-state"
 import { Button } from "@/components/ui/button"
 import {
   Table,
   TableBody,
   TableCell,
-  TableHead,
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { RefreshCw, FolderOpen, ArrowRight, Home } from "lucide-react"
+import { useClientTable, TABLE_PAGE_SIZE, CLIENT_FETCH_CAP, type ColumnDef } from "@/lib/table"
+import { RefreshCw, FolderOpen, ArrowRight, Home, Inbox } from "lucide-react"
+
+type WaitingInternalRow = Dispute & {
+  daysWaiting: number
+  department: string
+  action: string
+}
+
+const INITIAL_SORT = { id: "daysWaiting", direction: "desc" as const }
 
 export const WaitingInternalTeamPage: React.FC = () => {
   const navigate = useNavigate()
-  const { data: disputes = [], isLoading, isError, refetch } = useDisputes()
+  const { data: disputes = [], isLoading, isError, refetch } = useDisputes({
+    limit: CLIENT_FETCH_CAP,
+  })
+  const [searchTerm, setSearchTerm] = useState("")
 
   const waitingDisputes = useMemo(() => {
     return disputes.filter(isWaitingInternalTeamDispute)
   }, [disputes])
 
-  const disputesEnriched = useMemo(() => {
+  const disputesEnriched = useMemo<WaitingInternalRow[]>(() => {
     return waitingDisputes.map((d) => {
       const updatedDate = new Date(d.updated_at).getTime()
       const now = Date.now()
@@ -52,6 +70,83 @@ export const WaitingInternalTeamPage: React.FC = () => {
     })
   }, [waitingDisputes])
 
+  const toolbarFiltered = useMemo(() => {
+    if (!searchTerm.trim()) return disputesEnriched
+    const term = searchTerm.toLowerCase()
+    return disputesEnriched.filter(
+      (d) =>
+        d.dispute_number.toLowerCase().includes(term) ||
+        d.invoice_number.toLowerCase().includes(term) ||
+        d.department.toLowerCase().includes(term) ||
+        (d.assigned_user_name || "").toLowerCase().includes(term) ||
+        d.action.toLowerCase().includes(term)
+    )
+  }, [disputesEnriched, searchTerm])
+
+  const columns = useMemo<ColumnDef<WaitingInternalRow>[]>(
+    () => [
+      {
+        id: "dispute_number",
+        label: "Dispute",
+        sortable: true,
+        filter: { type: "text", placeholder: "Dispute number…" },
+      },
+      {
+        id: "invoice_number",
+        label: "Invoice",
+        sortable: true,
+        filter: { type: "text", placeholder: "Invoice…" },
+      },
+      {
+        id: "department",
+        label: "Department",
+        sortable: true,
+        filter: { type: "text", placeholder: "Department…" },
+      },
+      {
+        id: "assigned_user_name",
+        label: "Associate",
+        sortable: true,
+        accessor: (row) => row.assigned_user_name ?? "Unassigned",
+        filter: { type: "text", placeholder: "Associate…" },
+      },
+      {
+        id: "daysWaiting",
+        label: "Days waiting",
+        sortable: true,
+        align: "center",
+        defaultSortDirection: "desc",
+        filter: { type: "number-range" },
+      },
+      {
+        id: "action",
+        label: "Pending action",
+        sortable: true,
+        filter: { type: "text", placeholder: "Action…" },
+      },
+      {
+        id: "view",
+        label: " ",
+        align: "right",
+      },
+    ],
+    []
+  )
+
+  const table = useClientTable({
+    data: toolbarFiltered,
+    columns,
+    initialSort: INITIAL_SORT,
+    pageSize: TABLE_PAGE_SIZE,
+  })
+
+  const hasActiveFilters = !!searchTerm || table.hasNonDefaultState
+
+  const clearFilters = () => {
+    setSearchTerm("")
+    table.clearAll()
+  }
+
   return (
     <div className="space-y-6 animate-in fade-in duration-150">
       <PageBreadcrumb
@@ -72,6 +167,28 @@ export const WaitingInternalTeamPage: React.FC = () => {
       />
 
       <Card>
+        <div className="space-y-2 border-b border-border p-3">
+          <FilterBar
+            variant="toolbar"
+            size="sm"
+            searchValue={searchTerm}
+            onSearchChange={setSearchTerm}
+            searchPlaceholder="Search by dispute, department, or associate…"
+            showClear={hasActiveFilters}
+            onClear={clearFilters}
+          >
+            <MobileColumnFilters
+              columns={columns}
+              filters={table.filters}
+              onFilterChange={table.setFilter}
+            />
+          </FilterBar>
+
+          <ActiveFilterChips
+            chips={table.activeChips}
+            onRemove={table.clearFilter}
+          />
+        </div>
         <CardContent className="p-0">
           {isLoading ? (
             <TableSkeleton rows={6} columns={7} />
@@ -85,26 +202,37 @@ export const WaitingInternalTeamPage: React.FC = () => {
                 </Button>
               }
             />
-          ) : disputesEnriched.length === 0 ? (
-            <EmptyState
-              title="No pending internal reviews"
-              description="No disputes are currently waiting on internal team responses."
-            />
           ) : (
+            <TableListEmpty
+              sourceCount={disputesEnriched.length}
+              filteredCount={table.filteredRows.length}
+              hasActiveFilters={hasActiveFilters}
+              emptyTitle="No pending internal reviews"
+              emptyDescription="No disputes are currently waiting on internal team responses."
+              emptyIcon={<Inbox className="h-6 w-6" />}
+              noMatchesTitle="No disputes found"
+              noMatchesDescription="No waiting-internal disputes match the current filters."
+              onClearFilters={clearFilters}
+            />
+          )}
+          {!isLoading && !isError && table.filteredRows.length > 0 && (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Dispute</TableHead>
-                  <TableHead>Invoice</TableHead>
-                  <TableHead>Department</TableHead>
-                  <TableHead>Associate</TableHead>
-                  <TableHead className="text-center">Days waiting</TableHead>
-                  <TableHead>Pending action</TableHead>
-                  <TableHead className="text-right"> </TableHead>
+                  {columns.map((column) => (
+                    <SortableHeader
+                      key={column.id}
+                      column={column}
+                      sort={table.sort}
+                      onSort={table.cycleSort}
+                      filterValue={table.filters[column.id]}
+                      onFilterChange={table.setFilter}
+                    />
+                  ))}
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {disputesEnriched.map((d) => (
+                {table.rows.map((d) => (
                   <TableRow
                     key={d.id}
                     className="cursor-pointer"
@@ -146,6 +274,16 @@ export const WaitingInternalTeamPage: React.FC = () => {
           )}
         </CardContent>
       </Card>
+
+      {!isLoading && !isError && table.filteredRows.length > 0 && table.totalPages > 1 && (
+        <Pagination
+          currentPage={table.page}
+          totalPages={table.totalPages}
+          onPageChange={table.setPage}
+          totalItems={table.total}
+          pageSize={table.pageSize}
+        />
+      )}
     </div>
   )
 }

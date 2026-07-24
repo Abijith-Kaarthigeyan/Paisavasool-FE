@@ -1,13 +1,16 @@
-import React, { useEffect, useMemo, useState } from "react"
+import React, { useMemo, useState } from "react"
 import { useNavigate } from "react-router-dom"
-import { usePaymentUploads, usePaymentUploadFilterOptions } from "../hooks/usePayments"
+import { usePaymentUploads } from "../hooks/usePayments"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { TableSkeleton } from "@/components/ui/skeleton"
 import { Pagination } from "@/components/ui/pagination"
 import { PageHeader } from "@/components/ui/page-header"
 import { PageBreadcrumb } from "@/components/ui/page-breadcrumb"
-import { FilterBar, FilterSelect } from "@/components/ui/filter-bar"
+import { FilterBar } from "@/components/ui/filter-bar"
+import { ActiveFilterChips } from "@/components/ui/active-filter-chips"
+import { MobileColumnFilters } from "@/components/ui/mobile-column-filters"
+import { SortableHeader } from "@/components/ui/sortable-header"
 import { getDashboardPath } from "@/lib/navigation"
 import { EmptyState } from "@/components/ui/empty-state"
 import { Button } from "@/components/ui/button"
@@ -15,34 +18,39 @@ import {
   Table,
   TableBody,
   TableCell,
-  TableHead,
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
 import { PAYMENT_STATUS_VARIANT, getStatusVariant } from "@/lib/design-tokens"
 import { useDebouncedValue } from "@/lib/useDebouncedValue"
+import { CLIENT_FETCH_CAP, TABLE_PAGE_SIZE, useClientTable, type ColumnDef } from "@/lib/table"
+import { TableListEmpty } from "@/components/ui/table-list-empty"
 import { RefreshCw, HelpCircle, Inbox } from "lucide-react"
 import { PaymentUploadResponse } from "../types"
+
+const STATUS_OPTIONS = [
+  { value: "UPLOADED", label: "Uploaded" },
+  { value: "PROCESSING", label: "Processing" },
+  { value: "MATCHED", label: "Matched" },
+  { value: "REVIEW_REQUIRED", label: "Review required" },
+  { value: "FAILED", label: "Failed" },
+]
+
+const INITIAL_SORT = { id: "uploaded_at", direction: "desc" as const }
 
 export const PaymentUploadHistoryPage: React.FC = () => {
   const navigate = useNavigate()
 
   const [searchTerm, setSearchTerm] = useState("")
-  const [statusFilter, setStatusFilter] = useState("")
-  const [uploaderFilter, setUploaderFilter] = useState("")
-  const [currentPage, setCurrentPage] = useState(1)
-  const itemsPerPage = 10
   const debouncedSearch = useDebouncedValue(searchTerm)
 
   const listParams = useMemo(
     () => ({
-      limit: 500,
+      limit: CLIENT_FETCH_CAP,
       offset: 0,
       ...(debouncedSearch.trim() ? { search: debouncedSearch.trim() } : {}),
-      ...(statusFilter ? { status: statusFilter } : {}),
-      ...(uploaderFilter ? { uploaded_by: uploaderFilter } : {}),
     }),
-    [debouncedSearch, statusFilter, uploaderFilter]
+    [debouncedSearch]
   )
 
   const {
@@ -53,31 +61,58 @@ export const PaymentUploadHistoryPage: React.FC = () => {
   } = usePaymentUploads(listParams, {
     refetchInterval: 10000,
   })
-  const { data: filterOptions } = usePaymentUploadFilterOptions()
 
   const uploads = (uploadsData || []) as PaymentUploadResponse[]
-  const uploaders = filterOptions?.uploaders ?? []
 
   const handleRowClick = (uploadId: string) => {
     navigate(`/payment-upload/${uploadId}`)
   }
 
-  useEffect(() => {
-    setCurrentPage(1)
-  }, [debouncedSearch, statusFilter, uploaderFilter])
+  const columns = useMemo<ColumnDef<PaymentUploadResponse>[]>(
+    () => [
+      {
+        id: "file_name",
+        label: "File name",
+        sortable: true,
+        filter: { type: "text", placeholder: "File name…" },
+      },
+      {
+        id: "uploaded_at",
+        label: "Uploaded at",
+        sortable: true,
+        defaultSortDirection: "desc",
+        filter: { type: "date-range" },
+      },
+      {
+        id: "uploaded_by",
+        label: "Uploaded by",
+        sortable: true,
+        filter: { type: "text", placeholder: "Uploader…" },
+      },
+      {
+        id: "status",
+        label: "Ingestion status",
+        sortable: true,
+        align: "right",
+        filter: { type: "select", options: STATUS_OPTIONS },
+      },
+    ],
+    []
+  )
 
-  const totalItems = uploads.length
-  const totalPages = Math.max(1, Math.ceil(totalItems / itemsPerPage))
-  const startIndex = (currentPage - 1) * itemsPerPage
-  const paginatedUploads = uploads.slice(startIndex, startIndex + itemsPerPage)
+  const table = useClientTable({
+    data: uploads,
+    columns,
+    initialSort: INITIAL_SORT,
+    pageSize: TABLE_PAGE_SIZE,
+  })
 
-  const hasActiveFilters = !!searchTerm || !!statusFilter || !!uploaderFilter
+  const hasToolbarFilters = !!searchTerm
+  const hasActiveFilters = hasToolbarFilters || table.hasNonDefaultState
 
   const clearFilters = () => {
     setSearchTerm("")
-    setStatusFilter("")
-    setUploaderFilter("")
-    setCurrentPage(1)
+    table.clearAll()
   }
 
   return (
@@ -101,7 +136,7 @@ export const PaymentUploadHistoryPage: React.FC = () => {
       />
 
       <Card>
-        <div className="border-b border-border p-3">
+        <div className="space-y-2 border-b border-border p-3">
           <FilterBar
             variant="toolbar"
             size="sm"
@@ -111,33 +146,17 @@ export const PaymentUploadHistoryPage: React.FC = () => {
             showClear={hasActiveFilters}
             onClear={clearFilters}
           >
-            <FilterSelect
-              id="filter-status"
-              aria-label="Ingestion status"
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-            >
-              <option value="">All statuses</option>
-              <option value="UPLOADED">Uploaded</option>
-              <option value="PROCESSING">Processing</option>
-              <option value="MATCHED">Matched</option>
-              <option value="REVIEW_REQUIRED">Review required</option>
-              <option value="FAILED">Failed</option>
-            </FilterSelect>
-            <FilterSelect
-              id="filter-uploader"
-              aria-label="Uploaded by"
-              value={uploaderFilter}
-              onChange={(e) => setUploaderFilter(e.target.value)}
-            >
-              <option value="">All uploaders</option>
-              {uploaders.map((uploader) => (
-                <option key={uploader} value={uploader}>
-                  {uploader}
-                </option>
-              ))}
-            </FilterSelect>
+            <MobileColumnFilters
+              columns={columns}
+              filters={table.filters}
+              onFilterChange={table.setFilter}
+            />
           </FilterBar>
+
+          <ActiveFilterChips
+            chips={table.activeChips}
+            onRemove={table.clearFilter}
+          />
         </div>
         <CardContent className="p-0">
           {isLoading ? (
@@ -156,29 +175,37 @@ export const PaymentUploadHistoryPage: React.FC = () => {
                 </Button>
               }
             />
-          ) : !hasActiveFilters && uploads.length === 0 ? (
-            <EmptyState
-              icon={<Inbox className="h-6 w-6" />}
-              title="No payment uploads yet"
-              description="No payment documents have been uploaded yet."
-            />
-          ) : uploads.length === 0 ? (
-            <EmptyState
-              title="No uploads found"
-              description="No payment uploads match the current filters."
-            />
           ) : (
+            <TableListEmpty
+              sourceCount={uploads.length}
+              filteredCount={table.filteredRows.length}
+              hasActiveFilters={hasActiveFilters}
+              emptyTitle="No payment uploads yet"
+              emptyDescription="No payment documents have been uploaded yet."
+              emptyIcon={<Inbox className="h-6 w-6" />}
+              noMatchesTitle="No uploads found"
+              noMatchesDescription="No payment uploads match the current filters."
+              onClearFilters={clearFilters}
+            />
+          )}
+          {!isLoading && !isError && table.filteredRows.length > 0 && (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>File name</TableHead>
-                  <TableHead>Uploaded at</TableHead>
-                  <TableHead>Uploaded by</TableHead>
-                  <TableHead className="text-right">Ingestion status</TableHead>
+                  {columns.map((column) => (
+                    <SortableHeader
+                      key={column.id}
+                      column={column}
+                      sort={table.sort}
+                      onSort={table.cycleSort}
+                      filterValue={table.filters[column.id]}
+                      onFilterChange={table.setFilter}
+                    />
+                  ))}
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {paginatedUploads.map((pay) => (
+                {table.rows.map((pay) => (
                   <TableRow
                     key={pay.id}
                     className="cursor-pointer"
@@ -210,13 +237,13 @@ export const PaymentUploadHistoryPage: React.FC = () => {
         </CardContent>
       </Card>
 
-      {!isLoading && !isError && totalPages > 1 && (
+      {!isLoading && !isError && table.filteredRows.length > 0 && table.totalPages > 1 && (
         <Pagination
-          currentPage={currentPage}
-          totalPages={totalPages}
-          onPageChange={setCurrentPage}
-          totalItems={totalItems}
-          pageSize={itemsPerPage}
+          currentPage={table.page}
+          totalPages={table.totalPages}
+          onPageChange={table.setPage}
+          totalItems={table.total}
+          pageSize={table.pageSize}
         />
       )}
     </div>

@@ -37,11 +37,17 @@ import {
 } from "lucide-react"
 import { KpiWidgetWithLink } from "@/features/dashboard/components/KpiWidgetWithLink"
 import { getDisputeCategoryDrillDownPath } from "@/features/dashboard/utils/chartDrillDown"
+import { CLIENT_FETCH_CAP } from "@/lib/table"
 
 export const DisputeDashboardPage: React.FC = () => {
   const navigate = useNavigate()
-  const { data: disputes = [], isLoading, refetch } = useDisputes();
-  const { data: disputeCases = [], isLoading: isCasesLoading } = useCases();
+  const { data: disputes = [], isLoading, isSlaLoading, refetch } = useDisputes({
+    limit: CLIENT_FETCH_CAP,
+  })
+  const { data: casesPage, isLoading: isCasesLoading } = useCases({
+    limit: CLIENT_FETCH_CAP,
+  })
+  const disputeCases = casesPage?.items ?? []
 
   const metrics = useMemo(() => {
     return {
@@ -95,6 +101,7 @@ export const DisputeDashboardPage: React.FC = () => {
   }, [disputes]);
 
   const isPageLoading = isLoading || isCasesLoading;
+  const isSlaSectionLoading = isPageLoading || !!isSlaLoading;
 
   return (
     <div className="-mx-page-side -my-3 flex h-[calc(100dvh-3.5rem)] min-h-0 flex-col gap-3 overflow-hidden px-page-side py-3">
@@ -158,7 +165,7 @@ export const DisputeDashboardPage: React.FC = () => {
         <KpiCard
           label="SLA breached"
           value={metrics.slaBreached}
-          loading={isPageLoading}
+          loading={isSlaSectionLoading}
           icon={<AlertTriangle className="h-5 w-5" />}
           iconTone="destructive"
         />
@@ -242,7 +249,7 @@ export const DisputeDashboardPage: React.FC = () => {
         <ChartCard
           title="SLA health status"
           description="SLA threshold warnings of active disputes."
-          loading={isPageLoading}
+          loading={isSlaSectionLoading}
           empty={
             slaChartData.length === 0
               ? { title: "No active SLA records", description: "No active dispute SLA records found." }

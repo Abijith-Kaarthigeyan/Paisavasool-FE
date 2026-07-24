@@ -1,5 +1,6 @@
 import { disputeApi } from "@/lib/axios"
 import { isAxiosError } from "axios"
+import { readTotalCount, toPaginatedList, type PaginatedList } from "@/lib/table"
 import {
   Dispute,
   DisputeCase,
@@ -27,14 +28,33 @@ export type DisputeListParams = {
   sla_status?: string
   has_assignee?: boolean
   exclude_statuses?: string
+  created_at_from?: string
+  created_at_to?: string
+  opened_at_from?: string
+  opened_at_to?: string
+  sort_by?: string
+  sort_order?: "asc" | "desc"
+  limit?: number
+  offset?: number
+}
+
+export type CaseListParams = {
+  status?: string
+  search?: string
+  created_at_from?: string
+  created_at_to?: string
+  sort_by?: string
+  sort_order?: "asc" | "desc"
   limit?: number
   offset?: number
 }
 
 export const disputeService = {
-  getDisputes: async (params?: DisputeListParams): Promise<Dispute[]> => {
+  getDisputes: async (params?: DisputeListParams): Promise<PaginatedList<Dispute>> => {
     const response = await disputeApi.get<Dispute[]>("/disputes", { params });
-    return response.data;
+    const items = response.data ?? [];
+    const total = readTotalCount(response, { itemsLength: items.length });
+    return toPaginatedList(items, total);
   },
 
   getMyDisputes: async (): Promise<Dispute[]> => {
@@ -47,9 +67,11 @@ export const disputeService = {
     return response.data;
   },
 
-  getCases: async (): Promise<DisputeCase[]> => {
-    const response = await disputeApi.get<DisputeCase[]>("/cases");
-    return response.data;
+  getCases: async (params?: CaseListParams): Promise<PaginatedList<DisputeCase>> => {
+    const response = await disputeApi.get<DisputeCase[]>("/cases", { params });
+    const items = response.data ?? [];
+    const total = readTotalCount(response, { itemsLength: items.length });
+    return toPaginatedList(items, total);
   },
 
   getCase: async (id: string): Promise<DisputeCase> => {

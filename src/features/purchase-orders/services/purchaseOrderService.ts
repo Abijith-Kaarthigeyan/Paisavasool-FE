@@ -1,4 +1,5 @@
 import { arApi } from "@/lib/axios"
+import { readTotalCount, toPaginatedList, type PaginatedList } from "@/lib/table"
 import type { GoodsReceiptNote } from "@/features/grn/types"
 import type { Invoice } from "@/features/invoices/types"
 import type {
@@ -13,11 +14,22 @@ export const purchaseOrderService = {
     customer_id?: string
     status?: string
     search?: string
+    po_date_from?: string
+    po_date_to?: string
+    total_amount_min?: number
+    total_amount_max?: number
+    sort_by?: string
+    sort_order?: "asc" | "desc"
     limit?: number
     offset?: number
-  }): Promise<PurchaseOrder[]> => {
+  }): Promise<PaginatedList<PurchaseOrder>> => {
     const response = await arApi.get("/purchase-orders", { params })
-    return response.data.purchase_orders
+    const items: PurchaseOrder[] = response.data.purchase_orders ?? []
+    const total = readTotalCount(response, {
+      bodyTotal: response.data.total,
+      itemsLength: items.length,
+    })
+    return toPaginatedList(items, total)
   },
 
   getPurchaseOrder: async (id: string): Promise<PurchaseOrder> => {

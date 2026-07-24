@@ -1,4 +1,5 @@
 import { arApi } from "@/lib/axios"
+import { readTotalCount, toPaginatedList, type PaginatedList } from "@/lib/table"
 import {
   CollectionCase,
   CollectionActivity,
@@ -7,30 +8,70 @@ import {
   CollectionStatus,
 } from "../types"
 
+export interface CollectionCaseListParams {
+  status?: string;
+  priority?: string;
+  aging_bucket?: string;
+  customer_id?: string;
+  assigned_to?: string;
+  search?: string;
+  outstanding_amount_min?: number;
+  outstanding_amount_max?: number;
+  opened_at_from?: string;
+  opened_at_to?: string;
+  created_at_from?: string;
+  created_at_to?: string;
+  sort_by?: string;
+  sort_order?: "asc" | "desc";
+  limit?: number;
+  offset?: number;
+}
+
 export const collectionService = {
-  getCollections: async (): Promise<CollectionCase[]> => {
-    const response = await arApi.get<CollectionCase[]>("/collections");
-    return response.data;
+  getCollections: async (
+    params?: CollectionCaseListParams
+  ): Promise<PaginatedList<CollectionCase>> => {
+    const response = await arApi.get<CollectionCase[]>("/collections", { params });
+    const items = response.data ?? [];
+    return toPaginatedList(items, readTotalCount(response, { itemsLength: items.length }));
   },
 
-  getOpenCollections: async (): Promise<CollectionCase[]> => {
-    const response = await arApi.get<CollectionCase[]>("/collections/open");
-    return response.data;
+  getOpenCollections: async (
+    params?: CollectionCaseListParams
+  ): Promise<PaginatedList<CollectionCase>> => {
+    const response = await arApi.get<CollectionCase[]>("/collections/open", { params });
+    const items = response.data ?? [];
+    return toPaginatedList(items, readTotalCount(response, { itemsLength: items.length }));
   },
 
-  getEscalatedCollections: async (): Promise<CollectionCase[]> => {
-    const response = await arApi.get<CollectionCase[]>("/collections/escalated");
-    return response.data;
+  getEscalatedCollections: async (
+    params?: CollectionCaseListParams
+  ): Promise<PaginatedList<CollectionCase>> => {
+    const response = await arApi.get<CollectionCase[]>("/collections/escalated", {
+      params,
+    });
+    const items = response.data ?? [];
+    return toPaginatedList(items, readTotalCount(response, { itemsLength: items.length }));
   },
 
-  getMyCollections: async (): Promise<CollectionCase[]> => {
-    const response = await arApi.get<CollectionCase[]>("/collections/assigned/me");
-    return response.data;
+  getMyCollections: async (
+    params?: CollectionCaseListParams
+  ): Promise<PaginatedList<CollectionCase>> => {
+    const response = await arApi.get<CollectionCase[]>("/collections/assigned/me", {
+      params,
+    });
+    const items = response.data ?? [];
+    return toPaginatedList(items, readTotalCount(response, { itemsLength: items.length }));
   },
 
-  getBrokenPromises: async (): Promise<CollectionCase[]> => {
-    const response = await arApi.get<CollectionCase[]>("/collections/broken-promises");
-    return response.data;
+  getBrokenPromises: async (
+    params?: CollectionCaseListParams
+  ): Promise<PaginatedList<CollectionCase>> => {
+    const response = await arApi.get<CollectionCase[]>("/collections/broken-promises", {
+      params,
+    });
+    const items = response.data ?? [];
+    return toPaginatedList(items, readTotalCount(response, { itemsLength: items.length }));
   },
 
   getCollectionById: async (id: string): Promise<CollectionCase> => {

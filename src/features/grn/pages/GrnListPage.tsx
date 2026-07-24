@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react"
+import React, { useLayoutEffect, useMemo, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { useGrns } from "../hooks/useGrns"
 import { Card, CardContent } from "@/components/ui/card"
@@ -6,7 +6,11 @@ import { TableSkeleton } from "@/components/ui/skeleton"
 import { Pagination } from "@/components/ui/pagination"
 import { PageHeader } from "@/components/ui/page-header"
 import { PageBreadcrumb } from "@/components/ui/page-breadcrumb"
-import { FilterBar, FilterSelect } from "@/components/ui/filter-bar"
+import { FilterBar } from "@/components/ui/filter-bar"
+import { ActiveFilterChips } from "@/components/ui/active-filter-chips"
+import { MobileColumnFilters } from "@/components/ui/mobile-column-filters"
+import { SortableHeader } from "@/components/ui/sortable-header"
+import { TableListEmpty } from "@/components/ui/table-list-empty"
 import { getDashboardPath } from "@/lib/navigation"
 import { EmptyState } from "@/components/ui/empty-state"
 import { Button } from "@/components/ui/button"
@@ -15,14 +19,23 @@ import {
   Table,
   TableBody,
   TableCell,
-  TableHead,
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
 import { useDebouncedValue } from "@/lib/useDebouncedValue"
+import {
+  TABLE_PAGE_SIZE,
+  shouldShowTableLoading,
+  useClientTable,
+  useSyncTableQueryBridge,
+  useTableQueryBridge,
+  useTableUrlState,
+  type ColumnDef,
+  type DateRangeFilterValue,
+} from "@/lib/table"
 import { RefreshCw, HelpCircle, PackageCheck } from "lucide-react"
 import { BillingsListToggle } from "@/features/invoices/components/BillingsListToggle"
-import type { GrnStatus } from "../types"
+import type { GoodsReceiptNote, GrnStatus } from "../types"
 
 function grnStatusVariant(status: GrnStatus): "success" | "warning" | "destructive" | "outline" {
   if (status === "LINKED") return "success"
@@ -38,46 +51,157 @@ function truncateNotes(notes: string | null, maxLength = 60): string {
   return `${trimmed.slice(0, maxLength).trimEnd()}…`
 }
 
+const STATUS_OPTIONS = [
+  { value: "LINKED", label: "Linked" },
+  { value: "UNLINKED", label: "Unlinked" },
+  { value: "FAILED", label: "Failed" },
+]
+
+const URL_EXTRA_KEYS = ["q"] as const
+
 export const GrnListPage: React.FC = () => {
   const navigate = useNavigate()
   const [searchTerm, setSearchTerm] = useState("")
-  const [statusFilter, setStatusFilter] = useState("")
-  const [currentPage, setCurrentPage] = useState(1)
-  const itemsPerPage = 10
+  const [page, setPage] = useState(1)
   const debouncedSearch = useDebouncedValue(searchTerm)
+  const bridge = useTableQueryBridge({ page })
+
+  // Mirror grn_date column filter to API date params (optimization); bridge still
+  // switches to client paging when any column filter is active.
+  const [grnDateRange, setGrnDateRange] = useState<DateRangeFilterValue>()
 
   const listParams = useMemo(
     () => ({
-      limit: 500,
-      offset: 0,
+      limit: bridge.limit,
+      offset: bridge.offset,
       ...(debouncedSearch.trim() ? { search: debouncedSearch.trim() } : {}),
-      ...(statusFilter ? { status: statusFilter } : {}),
+      ...(grnDateRange?.from ? { grn_date_from: grnDateRange.from } : {}),
+      ...(grnDateRange?.to ? { grn_date_to: grnDateRange.to } : {}),
+      ...(bridge.sortOverride
+        ? {
+            sort_by: bridge.sortOverride.id,
+            sort_order: bridge.sortOverride.direction,
+          }
+        : {}),
     }),
-    [debouncedSearch, statusFilter]
+    [
+      bridge.limit,
+      bridge.offset,
+      bridge.sortOverride,
+      debouncedSearch,
+      grnDateRange,
+    ]
   )
 
   const {
-    data: grns = [],
+    data: grnPage,
     isLoading,
+    isFetching,
+    isPlaceholderData,
     isError,
     refetch,
   } = useGrns(listParams)
 
-  useEffect(() => {
-    setCurrentPage(1)
-  }, [debouncedSearch, statusFilter])
+  const grns = grnPage?.items ?? []
+  const serverTotal = grnPage?.total ?? 0
 
-  const totalItems = grns.length
-  const totalPages = Math.max(1, Math.ceil(totalItems / itemsPerPage))
-  const startIndex = (currentPage - 1) * itemsPerPage
-  const paginatedGrns = grns.slice(startIndex, startIndex + itemsPerPage)
+  const columns = useMemo<ColumnDef<GoodsReceiptNote>[]>(
+    () => [
+      {
+        id: "grn_number",
+        label: "GRN number",
+        sortable: true,
+        filter: { type: "text", placeholder: "GRN number…" },
+      },
+      {
+        id: "grn_date",
+        label: "GRN date",
+        sortable: true,
+        defaultSortDirection: "desc",
+        filter: { type: "date-range" },
+      },
+      {
+        id: "po_number",
+        label: "PO number",
+        sortable: true,
+        accessor: (row) => row.po_number ?? "",
+        filter: { type: "text", placeholder: "PO number…" },
+      },
+      {
+        id: "status",
+        label: "Status",
+        sortable: true,
+        align: "center",
+        filter: { type: "select", options: STATUS_OPTIONS },
+      },
+      {
+        id: "notes",
+        label: "Notes",
+        sortable: true,
+        accessor: (row) => row.notes ?? "",
+        filter: { type: "text", placeholder: "Notes…" },
+      },
+    ],
+    []
+  )
 
-  const hasActiveFilters = !!searchTerm || !!statusFilter
+  const table = useClientTable({
+    data: grns,
+    columns,
+    pageSize: TABLE_PAGE_SIZE,
+    paginationMode: bridge.paginationMode,
+    serverTotal,
+    page,
+    onPageChange: setPage,
+  })
+
+  useSyncTableQueryBridge(bridge, table)
+
+  useLayoutEffect(() => {
+    const nextGrnDate = table.filters["grn_date"] as DateRangeFilterValue | undefined
+    setGrnDateRange((prev) =>
+      JSON.stringify(prev ?? null) === JSON.stringify(nextGrnDate ?? null) ? prev : nextGrnDate
+    )
+  }, [table.filters])
+
+  const urlExtras = useMemo(
+    () => ({
+      q: searchTerm || undefined,
+    }),
+    [searchTerm]
+  )
+
+  useTableUrlState({
+    columns,
+    sort: table.sort,
+    filters: table.filters,
+    page: table.page,
+    setSort: table.setSort,
+    setFilter: table.setFilter,
+    setPage: table.setPage,
+    replaceFilters: table.replaceFilters,
+    extras: urlExtras,
+    extraKeys: [...URL_EXTRA_KEYS],
+    onExtrasChange: (extras) => {
+      if (extras.q != null) setSearchTerm(extras.q)
+    },
+  })
+
+  const hasToolbarFilters = !!searchTerm
+  const hasActiveFilters = hasToolbarFilters || table.hasNonDefaultState
+  const showTableLoading = shouldShowTableLoading({
+    isLoading,
+    isFetching,
+    isPlaceholderData,
+    clientOnlyPaging: bridge.clientOnlyPaging,
+    hasActiveFilters,
+    cachedItemCount: grns.length,
+    pageSize: TABLE_PAGE_SIZE,
+  })
 
   const clearFilters = () => {
     setSearchTerm("")
-    setStatusFilter("")
-    setCurrentPage(1)
+    table.clearAll()
   }
 
   return (
@@ -105,7 +229,7 @@ export const GrnListPage: React.FC = () => {
       </div>
 
       <Card>
-        <div className="border-b border-border p-3">
+        <div className="space-y-2 border-b border-border p-3">
           <FilterBar
             variant="toolbar"
             size="sm"
@@ -115,21 +239,21 @@ export const GrnListPage: React.FC = () => {
             showClear={hasActiveFilters}
             onClear={clearFilters}
           >
-            <FilterSelect
-              id="grn-status-filter"
-              aria-label="Status"
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-            >
-              <option value="">All statuses</option>
-              <option value="LINKED">Linked</option>
-              <option value="UNLINKED">Unlinked</option>
-            </FilterSelect>
+            <MobileColumnFilters
+              columns={columns}
+              filters={table.filters}
+              onFilterChange={table.setFilter}
+            />
           </FilterBar>
+
+          <ActiveFilterChips
+            chips={table.activeChips}
+            onRemove={table.clearFilter}
+          />
         </div>
 
         <CardContent className="p-0">
-          {isLoading ? (
+          {showTableLoading ? (
             <div className="p-4">
               <TableSkeleton rows={8} columns={5} />
             </div>
@@ -145,25 +269,37 @@ export const GrnListPage: React.FC = () => {
                 </Button>
               }
             />
-          ) : grns.length === 0 ? (
-            <EmptyState
-              icon={<PackageCheck className="h-6 w-6" />}
-              title="No goods receipt notes found"
-              description="No goods receipt notes match the current filters."
-            />
           ) : (
+            <TableListEmpty
+              sourceCount={serverTotal}
+              filteredCount={table.filteredRows.length}
+              hasActiveFilters={hasActiveFilters}
+              emptyTitle="No goods receipt notes yet"
+              emptyDescription="No goods receipt notes have been registered yet."
+              emptyIcon={<PackageCheck className="h-6 w-6" />}
+              noMatchesTitle="No goods receipt notes found"
+              noMatchesDescription="No goods receipt notes match the current filters."
+              onClearFilters={clearFilters}
+            />
+          )}
+          {!showTableLoading && !isError && table.filteredRows.length > 0 && (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>GRN number</TableHead>
-                  <TableHead>GRN date</TableHead>
-                  <TableHead>PO number</TableHead>
-                  <TableHead className="text-center">Status</TableHead>
-                  <TableHead>Notes</TableHead>
+                  {columns.map((column) => (
+                    <SortableHeader
+                      key={column.id}
+                      column={column}
+                      sort={table.sort}
+                      onSort={table.cycleSort}
+                      filterValue={table.filters[column.id]}
+                      onFilterChange={table.setFilter}
+                    />
+                  ))}
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {paginatedGrns.map((grn) => (
+                {table.rows.map((grn) => (
                   <TableRow
                     key={grn.id}
                     className="cursor-pointer"
@@ -194,13 +330,13 @@ export const GrnListPage: React.FC = () => {
         </CardContent>
       </Card>
 
-      {!isLoading && !isError && totalPages > 1 && (
+      {!showTableLoading && !isError && table.totalPages > 1 && (
         <Pagination
-          currentPage={currentPage}
-          totalPages={totalPages}
-          onPageChange={setCurrentPage}
-          totalItems={totalItems}
-          pageSize={itemsPerPage}
+          currentPage={table.page}
+          totalPages={table.totalPages}
+          onPageChange={table.setPage}
+          totalItems={table.total}
+          pageSize={table.pageSize}
         />
       )}
     </div>

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react"
+import React, { useEffect, useMemo, useState } from "react"
 import {
   useEmailManualReview,
   useConfirmEmailAction,
@@ -7,10 +7,16 @@ import type { EmailIntakeItem, EmailManualAction } from "../types"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { TableSkeleton } from "@/components/ui/skeleton"
+import { Pagination } from "@/components/ui/pagination"
 import { PageHeader } from "@/components/ui/page-header"
 import { PageBreadcrumb } from "@/components/ui/page-breadcrumb"
+import { FilterBar } from "@/components/ui/filter-bar"
+import { ActiveFilterChips } from "@/components/ui/active-filter-chips"
+import { MobileColumnFilters } from "@/components/ui/mobile-column-filters"
+import { SortableHeader } from "@/components/ui/sortable-header"
 import { getDashboardPath } from "@/lib/navigation"
 import { EmptyState } from "@/components/ui/empty-state"
+import { TableListEmpty } from "@/components/ui/table-list-empty"
 import { Button } from "@/components/ui/button"
 import { ConfidenceMeter } from "@/components/ui/confidence-meter"
 import { Input } from "@/components/ui/input"
@@ -35,12 +41,20 @@ import {
   Table,
   TableBody,
   TableCell,
-  TableHead,
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
 import { useToast } from "@/components/ui/toast"
 import { getConfidenceBadgeVariant, getStatusVariant } from "@/lib/design-tokens"
+import {
+  TABLE_PAGE_SIZE,
+  shouldShowTableLoading,
+  useClientTable,
+  useSyncTableQueryBridge,
+  useTableQueryBridge,
+  useTableUrlState,
+  type ColumnDef,
+} from "@/lib/table"
 import { cn } from "@/lib/utils"
 import { CheckCircle, HelpCircle, Mail, RefreshCw } from "lucide-react"
 
@@ -56,6 +70,16 @@ const EMAIL_CLASSIFICATION_VARIANT: Record<
   PROMISE: "info",
   OTHER: "neutral",
 }
+
+const CLASSIFICATION_OPTIONS = [
+  { value: "PAYMENT", label: "Payment" },
+  { value: "DISPUTE", label: "Dispute" },
+  { value: "PROMISE", label: "Promise" },
+  { value: "OTHER", label: "Other" },
+]
+
+const INITIAL_SORT = { id: "created_at", direction: "desc" as const }
+const URL_EXTRA_KEYS = ["q"] as const
 
 type ConfirmAction = EmailManualAction
 
@@ -86,9 +110,38 @@ export const EmailReviewPage: React.FC = () => {
   const [promiseInvoice, setPromiseInvoice] = useState("")
   const [promiseDate, setPromiseDate] = useState("")
   const [promiseAmount, setPromiseAmount] = useState("")
+  const [searchTerm, setSearchTerm] = useState("")
+  const [page, setPage] = useState(1)
+  const bridge = useTableQueryBridge({
+    page,
+    initialSort: INITIAL_SORT,
+    forceClientOnly: !!searchTerm.trim(),
+  })
 
-  const { data: emails = [], isLoading, isError, refetch, isFetching } =
-    useEmailManualReview()
+  const listParams = useMemo(
+    () => ({
+      limit: bridge.limit,
+      offset: bridge.offset,
+      ...(bridge.sortOverride
+        ? {
+            sort_by: bridge.sortOverride.id,
+            sort_order: bridge.sortOverride.direction,
+          }
+        : {}),
+    }),
+    [bridge.limit, bridge.offset, bridge.sortOverride]
+  )
+
+  const {
+    data: emailsPage,
+    isLoading,
+    isError,
+    refetch,
+    isFetching,
+    isPlaceholderData,
+  } = useEmailManualReview(listParams)
+  const emails = emailsPage?.items ?? []
+  const serverTotal = emailsPage?.total ?? 0
   const confirmMutation = useConfirmEmailAction()
 
   useEffect(() => {
@@ -100,6 +153,111 @@ export const EmailReviewPage: React.FC = () => {
       extraction?.promised_amount != null ? String(extraction.promised_amount) : ""
     )
   }, [selectedEmail])
+
+  const toolbarFiltered = useMemo(() => {
+    if (!searchTerm.trim()) return emails
+    const term = searchTerm.toLowerCase()
+    return emails.filter(
+      (email) =>
+        email.customer_email.toLowerCase().includes(term) ||
+        (email.email_subject || "").toLowerCase().includes(term) ||
+        (email.classification || "").toLowerCase().includes(term)
+    )
+  }, [emails, searchTerm])
+
+  const columns = useMemo<ColumnDef<EmailIntakeItem>[]>(
+    () => [
+      {
+        id: "customer_email",
+        label: "Sender",
+        sortable: true,
+        filter: { type: "text", placeholder: "Sender…" },
+      },
+      {
+        id: "email_subject",
+        label: "Subject",
+        sortable: true,
+        accessor: (row) => row.email_subject ?? "",
+        filter: { type: "text", placeholder: "Subject…" },
+      },
+      {
+        id: "classification",
+        label: "Classification",
+        sortable: true,
+        accessor: (row) => row.classification ?? "Unknown",
+        filter: { type: "select", options: CLASSIFICATION_OPTIONS },
+      },
+      {
+        id: "confidence",
+        label: "Confidence",
+        sortable: true,
+        accessor: (row) => row.confidence ?? 0,
+        defaultSortDirection: "desc",
+        filter: { type: "number-range" },
+      },
+      {
+        id: "created_at",
+        label: "Received",
+        sortable: true,
+        defaultSortDirection: "desc",
+        filter: { type: "date-range" },
+      },
+    ],
+    []
+  )
+
+  const table = useClientTable({
+    data: toolbarFiltered,
+    columns,
+    initialSort: INITIAL_SORT,
+    pageSize: TABLE_PAGE_SIZE,
+    paginationMode: bridge.paginationMode,
+    serverTotal,
+    page,
+    onPageChange: setPage,
+  })
+
+  useSyncTableQueryBridge(bridge, table)
+
+  const urlExtras = useMemo(
+    () => ({
+      q: searchTerm || undefined,
+    }),
+    [searchTerm]
+  )
+
+  useTableUrlState({
+    columns,
+    sort: table.sort,
+    filters: table.filters,
+    page: table.page,
+    setSort: table.setSort,
+    setFilter: table.setFilter,
+    setPage: table.setPage,
+    replaceFilters: table.replaceFilters,
+    extras: urlExtras,
+    extraKeys: [...URL_EXTRA_KEYS],
+    onExtrasChange: (extras) => {
+      if (extras.q != null) setSearchTerm(extras.q)
+    },
+    defaultSort: INITIAL_SORT,
+  })
+
+  const hasActiveFilters = !!searchTerm || table.hasNonDefaultState
+  const showTableLoading = shouldShowTableLoading({
+    isLoading,
+    isFetching,
+    isPlaceholderData,
+    clientOnlyPaging: bridge.clientOnlyPaging,
+    hasActiveFilters,
+    cachedItemCount: emails.length,
+    pageSize: TABLE_PAGE_SIZE,
+  })
+
+  const clearFilters = () => {
+    setSearchTerm("")
+    table.clearAll()
+  }
 
   const handleRowClick = (email: EmailIntakeItem) => {
     setSelectedEmail(email)
@@ -212,8 +370,30 @@ export const EmailReviewPage: React.FC = () => {
       />
 
       <Card>
+        <div className="space-y-2 border-b border-border p-3">
+          <FilterBar
+            variant="toolbar"
+            size="sm"
+            searchValue={searchTerm}
+            onSearchChange={setSearchTerm}
+            searchPlaceholder="Search by sender, subject, or classification…"
+            showClear={hasActiveFilters}
+            onClear={clearFilters}
+          >
+            <MobileColumnFilters
+              columns={columns}
+              filters={table.filters}
+              onFilterChange={table.setFilter}
+            />
+          </FilterBar>
+
+          <ActiveFilterChips
+            chips={table.activeChips}
+            onRemove={table.clearFilter}
+          />
+        </div>
         <CardContent className="p-0">
-          {isLoading ? (
+          {showTableLoading ? (
             <div className="p-4">
               <TableSkeleton rows={6} columns={5} />
             </div>
@@ -228,25 +408,37 @@ export const EmailReviewPage: React.FC = () => {
                 </Button>
               }
             />
-          ) : emails.length === 0 ? (
-            <EmptyState
-              icon={<CheckCircle className="h-6 w-6 text-success" />}
-              title="No emails need review"
-              description="All incoming emails have been routed automatically."
-            />
           ) : (
+            <TableListEmpty
+              sourceCount={serverTotal}
+              filteredCount={table.filteredRows.length}
+              hasActiveFilters={hasActiveFilters}
+              emptyTitle="No emails need review"
+              emptyDescription="All incoming emails have been routed automatically."
+              emptyIcon={<CheckCircle className="h-6 w-6 text-success" />}
+              noMatchesTitle="No emails found"
+              noMatchesDescription="No emails match the current filters."
+              onClearFilters={clearFilters}
+            />
+          )}
+          {!showTableLoading && !isError && table.filteredRows.length > 0 && (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Sender</TableHead>
-                  <TableHead>Subject</TableHead>
-                  <TableHead>Classification</TableHead>
-                  <TableHead>Confidence</TableHead>
-                  <TableHead>Received</TableHead>
+                  {columns.map((column) => (
+                    <SortableHeader
+                      key={column.id}
+                      column={column}
+                      sort={table.sort}
+                      onSort={table.cycleSort}
+                      filterValue={table.filters[column.id]}
+                      onFilterChange={table.setFilter}
+                    />
+                  ))}
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {emails.map((email) => (
+                {table.rows.map((email) => (
                   <TableRow
                     key={email.id}
                     className={cn(
@@ -293,6 +485,16 @@ export const EmailReviewPage: React.FC = () => {
           )}
         </CardContent>
       </Card>
+
+      {!showTableLoading && !isError && table.totalPages > 1 && (
+        <Pagination
+          currentPage={table.page}
+          totalPages={table.totalPages}
+          onPageChange={table.setPage}
+          totalItems={table.total}
+          pageSize={table.pageSize}
+        />
+      )}
 
       <Sheet open={isDrawerOpen} onOpenChange={setIsDrawerOpen}>
         <SheetContent className="flex h-full flex-col overflow-hidden pb-0">

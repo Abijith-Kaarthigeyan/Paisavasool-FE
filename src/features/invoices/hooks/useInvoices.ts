@@ -1,16 +1,28 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
+import { listQueryOptions } from "@/lib/listQueryOptions"
 import { invoiceService } from "../services/invoiceService"
 
 export const useInvoices = (params?: {
   customer_id?: string;
   status?: string;
   search?: string;
+  invoice_date_from?: string;
+  invoice_date_to?: string;
+  due_date_from?: string;
+  due_date_to?: string;
+  total_amount_min?: number;
+  total_amount_max?: number;
+  outstanding_amount_min?: number;
+  outstanding_amount_max?: number;
+  sort_by?: string;
+  sort_order?: "asc" | "desc";
   limit?: number;
   offset?: number;
 }) => {
   return useQuery({
     queryKey: ["invoices", params],
     queryFn: () => invoiceService.getInvoices(params),
+    ...listQueryOptions,
   });
 };
 

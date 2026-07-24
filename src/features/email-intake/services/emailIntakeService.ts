@@ -1,5 +1,17 @@
 import { arApi } from "@/lib/axios"
+import { readTotalCount, toPaginatedList, type PaginatedList } from "@/lib/table"
 import type { EmailIntakeItem, EmailManualActionRequest, EmailPollResponse } from "../types"
+
+export interface ListManualReviewParams {
+  search?: string
+  classification?: string
+  created_at_from?: string
+  created_at_to?: string
+  sort_by?: string
+  sort_order?: "asc" | "desc"
+  limit?: number
+  offset?: number
+}
 
 export const emailIntakeService = {
   pollInbox: async (): Promise<EmailPollResponse> => {
@@ -7,14 +19,14 @@ export const emailIntakeService = {
     return response.data
   },
 
-  listManualReview: async (params?: {
-    limit?: number
-    offset?: number
-  }): Promise<EmailIntakeItem[]> => {
+  listManualReview: async (
+    params?: ListManualReviewParams
+  ): Promise<PaginatedList<EmailIntakeItem>> => {
     const response = await arApi.get<EmailIntakeItem[]>("/emails/manual-review", {
       params,
     })
-    return response.data
+    const items = response.data ?? []
+    return toPaginatedList(items, readTotalCount(response, { itemsLength: items.length }))
   },
 
   confirmAction: async (
