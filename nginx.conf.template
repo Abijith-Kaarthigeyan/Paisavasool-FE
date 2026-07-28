@@ -1,0 +1,62 @@
+server {
+    listen 80;
+    server_name _;
+
+    client_max_body_size 50m;
+
+    location /auth/ {
+        proxy_pass ${AUTH_UPSTREAM}/auth/;
+        proxy_http_version 1.1;
+        proxy_set_header Host ${AUTH_HOST};
+        proxy_set_header Cookie $http_cookie;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_ssl_server_name on;
+        proxy_pass_header Set-Cookie;
+    }
+
+    # Exact /users (create/list) and /users/:id — no trailing slash required
+    location /users {
+        proxy_pass ${AUTH_UPSTREAM};
+        proxy_http_version 1.1;
+        proxy_set_header Host ${AUTH_HOST};
+        proxy_set_header Cookie $http_cookie;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_ssl_server_name on;
+        proxy_pass_header Set-Cookie;
+    }
+
+    location /ar/ {
+        proxy_pass ${AR_UPSTREAM}/;
+        proxy_http_version 1.1;
+        proxy_set_header Host ${AR_HOST};
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_ssl_server_name on;
+    }
+
+    location /dispute/ {
+        proxy_pass ${DISPUTE_UPSTREAM}/;
+        proxy_http_version 1.1;
+        proxy_set_header Host ${DISPUTE_HOST};
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_ssl_server_name on;
+    }
+
+    location / {
+        root /usr/share/nginx/html;
+        index index.html index.htm;
+        try_files $uri $uri/ /index.html;
+    }
+
+    error_page 500 502 503 504 /50x.html;
+    location = /50x.html {
+        root /usr/share/nginx/html;
+    }
+}

@@ -1,195 +1,465 @@
-import React, { useState } from "react"
+import React, { useLayoutEffect, useMemo, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { useInvoices } from "../hooks/useInvoices"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Skeleton } from "@/components/ui/skeleton"
+import { TableSkeleton } from "@/components/ui/skeleton"
 import { Pagination } from "@/components/ui/pagination"
-import { 
-  Search, 
-  RefreshCw, 
-  HelpCircle,
-  Inbox
-} from "lucide-react"
+import { PageHeader } from "@/components/ui/page-header"
+import { PageBreadcrumb } from "@/components/ui/page-breadcrumb"
+import { FilterBar } from "@/components/ui/filter-bar"
+import { ActiveFilterChips } from "@/components/ui/active-filter-chips"
+import { MobileColumnFilters } from "@/components/ui/mobile-column-filters"
+import { SortableHeader } from "@/components/ui/sortable-header"
+import { TableListEmpty } from "@/components/ui/table-list-empty"
+import { getDashboardPath } from "@/lib/navigation"
+import { EmptyState } from "@/components/ui/empty-state"
+import { Button } from "@/components/ui/button"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
+import { INVOICE_STATUS_VARIANT, getStatusVariant } from "@/lib/design-tokens"
+import { formatCurrency } from "@/lib/formatCurrency"
+import { useDebouncedValue } from "@/lib/useDebouncedValue"
+import {
+  TABLE_PAGE_SIZE,
+  shouldShowTableLoading,
+  useClientTable,
+  useSyncTableQueryBridge,
+  useTableQueryBridge,
+  useTableUrlState,
+  type ColumnDef,
+  type DateRangeFilterValue,
+  type NumberRangeFilterValue,
+} from "@/lib/table"
+import { RefreshCw, HelpCircle, Inbox } from "lucide-react"
+import {
+  InvoicePoLinkBadge,
+  getPoLinkState,
+} from "@/features/purchase-orders/components/InvoicePoLinkBadge"
+import { BillingsListToggle } from "../components/BillingsListToggle"
+import type { Invoice } from "../types"
+
+const getDisplayStatus = (invoice: Invoice): string => {
+  if (invoice.status !== "OVERDUE") {
+    return invoice.status
+  }
+  return invoice.outstanding_amount >= invoice.total_amount
+    ? "PENDING"
+    : "PARTIALLY_PAID"
+}
+
+const STATUS_OPTIONS = [
+  { value: "PENDING", label: "Pending" },
+  { value: "PARTIALLY_PAID", label: "Partially paid" },
+  { value: "PAID", label: "Paid" },
+  { value: "DISPUTED", label: "Disputed" },
+]
+
+const PO_LINK_OPTIONS = [
+  { value: "linked", label: "Linked" },
+  { value: "awaiting_match", label: "Unlinked with PO #" },
+  { value: "none", label: "No PO #" },
+]
+
+const URL_EXTRA_KEYS = ["q"] as const
 
 export const InvoiceListPage: React.FC = () => {
-  const navigate = useNavigate();
-  const [statusFilter, setStatusFilter] = useState<string>("");
-  const [currentPage, setCurrentPage] = useState<number>(1);
-  const itemsPerPage = 10;
+  const navigate = useNavigate()
+  const [searchTerm, setSearchTerm] = useState("")
+  const [page, setPage] = useState(1)
+  const debouncedSearch = useDebouncedValue(searchTerm)
+  const bridge = useTableQueryBridge({ page })
 
-  // Fetch invoices with offset/limit & filters
-  const { 
-    data: invoices = [], 
-    isLoading, 
-    isError, 
-    refetch 
-  } = useInvoices();
+  // Mirror date/amount column filters to API params (optimization).
+  const [invoiceDateRange, setInvoiceDateRange] = useState<DateRangeFilterValue>()
+  const [dueDateRange, setDueDateRange] = useState<DateRangeFilterValue>()
+  const [totalAmountRange, setTotalAmountRange] = useState<NumberRangeFilterValue>()
+  const [outstandingAmountRange, setOutstandingAmountRange] =
+    useState<NumberRangeFilterValue>()
 
-  const getStatusBadgeVariant = (status: string) => {
-    switch (status) {
-      case "PAID": return "success";
-      case "PARTIALLY_PAID": return "info";
-      case "PENDING": return "default";
-      case "OVERDUE": return "destructive";
-      case "DISPUTED": return "warning";
-      default: return "outline";
-    }
-  };
+  const listParams = useMemo(
+    () => ({
+      limit: bridge.limit,
+      offset: bridge.offset,
+      ...(debouncedSearch.trim() ? { search: debouncedSearch.trim() } : {}),
+      ...(invoiceDateRange?.from ? { invoice_date_from: invoiceDateRange.from } : {}),
+      ...(invoiceDateRange?.to ? { invoice_date_to: invoiceDateRange.to } : {}),
+      ...(dueDateRange?.from ? { due_date_from: dueDateRange.from } : {}),
+      ...(dueDateRange?.to ? { due_date_to: dueDateRange.to } : {}),
+      ...(totalAmountRange?.min != null
+        ? { total_amount_min: totalAmountRange.min }
+        : {}),
+      ...(totalAmountRange?.max != null
+        ? { total_amount_max: totalAmountRange.max }
+        : {}),
+      ...(outstandingAmountRange?.min != null
+        ? { outstanding_amount_min: outstandingAmountRange.min }
+        : {}),
+      ...(outstandingAmountRange?.max != null
+        ? { outstanding_amount_max: outstandingAmountRange.max }
+        : {}),
+      ...(bridge.sortOverride
+        ? {
+            sort_by: bridge.sortOverride.id,
+            sort_order: bridge.sortOverride.direction,
+          }
+        : {}),
+    }),
+    [
+      bridge.limit,
+      bridge.offset,
+      bridge.sortOverride,
+      debouncedSearch,
+      invoiceDateRange,
+      dueDateRange,
+      totalAmountRange,
+      outstandingAmountRange,
+    ]
+  )
+
+  const {
+    data: invoicePage,
+    isLoading,
+    isFetching,
+    isPlaceholderData,
+    isError,
+    refetch,
+  } = useInvoices(listParams)
+
+  const invoices = invoicePage?.items ?? []
+  const serverTotal = invoicePage?.total ?? 0
 
   const handleRowClick = (invoiceId: string) => {
-    navigate(`/invoices/${invoiceId}`);
-  };
+    navigate(`/invoices/${invoiceId}`)
+  }
 
-  // Filter local calculations
-  const filteredInvoices = invoices.filter(inv => {
-    if (statusFilter === "") return true;
-    return inv.status === statusFilter;
-  });
+  const columns = useMemo<ColumnDef<Invoice>[]>(
+    () => [
+      {
+        id: "invoice_number",
+        label: "Invoice number",
+        sortable: true,
+        filter: { type: "text", placeholder: "Invoice number…" },
+      },
+      {
+        id: "customer",
+        label: "Customer",
+        sortable: true,
+        accessor: (row) => row.customer?.customer_name ?? "",
+        filter: { type: "text", placeholder: "Customer name…" },
+      },
+      {
+        id: "invoice_date",
+        label: "Invoice date",
+        sortable: true,
+        defaultSortDirection: "desc",
+        filter: { type: "date-range" },
+      },
+      {
+        id: "due_date",
+        label: "Due date",
+        sortable: true,
+        defaultSortDirection: "desc",
+        filter: { type: "date-range" },
+      },
+      {
+        id: "total_amount",
+        label: "Total amount",
+        sortable: true,
+        align: "center",
+        defaultSortDirection: "desc",
+        filter: { type: "number-range" },
+      },
+      {
+        id: "outstanding_amount",
+        label: "Outstanding",
+        sortable: true,
+        align: "center",
+        defaultSortDirection: "desc",
+        filter: { type: "number-range" },
+      },
+      {
+        id: "status",
+        label: "Status",
+        sortable: true,
+        align: "center",
+        accessor: getDisplayStatus,
+        filter: { type: "select", options: STATUS_OPTIONS },
+      },
+      {
+        id: "current_version",
+        label: "Version",
+        sortable: true,
+        align: "center",
+        accessor: (row) => row.current_version ?? 1,
+        filter: { type: "number-range" },
+      },
+      {
+        id: "po_link",
+        label: "Purchase order",
+        sortable: true,
+        align: "center",
+        accessor: (row) => getPoLinkState(row),
+        filter: { type: "select", options: PO_LINK_OPTIONS },
+      },
+    ],
+    []
+  )
 
-  const totalItems = filteredInvoices.length;
-  const totalPages = Math.max(1, Math.ceil(totalItems / itemsPerPage));
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const paginatedInvoices = filteredInvoices.slice(startIndex, startIndex + itemsPerPage);
+  const table = useClientTable({
+    data: invoices,
+    columns,
+    pageSize: TABLE_PAGE_SIZE,
+    paginationMode: bridge.paginationMode,
+    serverTotal,
+    page,
+    onPageChange: setPage,
+  })
 
-  const currencySymbol = invoices[0]?.currency || "INR";
+  useSyncTableQueryBridge(bridge, table)
+
+  useLayoutEffect(() => {
+    const nextInvoice = table.filters["invoice_date"] as DateRangeFilterValue | undefined
+    const nextDue = table.filters["due_date"] as DateRangeFilterValue | undefined
+    const nextTotal = table.filters["total_amount"] as NumberRangeFilterValue | undefined
+    const nextOutstanding = table.filters["outstanding_amount"] as
+      | NumberRangeFilterValue
+      | undefined
+    setInvoiceDateRange((prev) =>
+      JSON.stringify(prev ?? null) === JSON.stringify(nextInvoice ?? null) ? prev : nextInvoice
+    )
+    setDueDateRange((prev) =>
+      JSON.stringify(prev ?? null) === JSON.stringify(nextDue ?? null) ? prev : nextDue
+    )
+    setTotalAmountRange((prev) =>
+      JSON.stringify(prev ?? null) === JSON.stringify(nextTotal ?? null) ? prev : nextTotal
+    )
+    setOutstandingAmountRange((prev) =>
+      JSON.stringify(prev ?? null) === JSON.stringify(nextOutstanding ?? null)
+        ? prev
+        : nextOutstanding
+    )
+  }, [table.filters])
+
+  const urlExtras = useMemo(
+    () => ({
+      q: searchTerm || undefined,
+    }),
+    [searchTerm]
+  )
+
+  useTableUrlState({
+    columns,
+    sort: table.sort,
+    filters: table.filters,
+    page: table.page,
+    setSort: table.setSort,
+    setFilter: table.setFilter,
+    setPage: table.setPage,
+    replaceFilters: table.replaceFilters,
+    extras: urlExtras,
+    extraKeys: [...URL_EXTRA_KEYS],
+    onExtrasChange: (extras) => {
+      if (extras.q != null) setSearchTerm(extras.q)
+    },
+  })
+
+  const totalOpenBalance = table.filteredRows.reduce(
+    (sum, i) => sum + i.outstanding_amount,
+    0
+  )
+
+  const hasToolbarFilters = !!searchTerm
+  const hasActiveFilters = hasToolbarFilters || table.hasNonDefaultState
+  const showTableLoading = shouldShowTableLoading({
+    isLoading,
+    isFetching,
+    isPlaceholderData,
+    clientOnlyPaging: bridge.clientOnlyPaging,
+    hasActiveFilters,
+    cachedItemCount: invoices.length,
+    pageSize: TABLE_PAGE_SIZE,
+  })
+
+  const clearFilters = () => {
+    setSearchTerm("")
+    table.clearAll()
+  }
 
   return (
-    <div className="space-y-6">
-      {/* Page Header */}
-      <header className="flex flex-col sm:flex-row sm:items-center sm:justify-between border-b border-border pb-5 gap-4">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground m-0">
-            Billing Register
-          </h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Browse corporate invoices, track outstanding balances, and check dispute indicators.
-          </p>
+    <div className="space-y-8">
+      <PageBreadcrumb
+        items={[
+          { label: "Dashboard", to: getDashboardPath() },
+          { label: "Receivables" },
+        ]}
+      />
+
+      <div className="space-y-3">
+        <PageHeader
+          title="Receivables"
+          actions={
+            <Button variant="secondary" size="sm" onClick={() => refetch()}>
+              <RefreshCw className="h-3.5 w-3.5" aria-hidden />
+              Refresh list
+            </Button>
+          }
+        />
+
+        <BillingsListToggle active="invoices" />
+      </div>
+
+      <Card>
+        <div className="space-y-2 border-b border-border p-3">
+          <FilterBar
+            variant="toolbar"
+            size="sm"
+            searchValue={searchTerm}
+            onSearchChange={setSearchTerm}
+            searchPlaceholder="Search by invoice number or customer…"
+            showClear={hasActiveFilters}
+            onClear={clearFilters}
+            footer={
+              <>
+                Total open balance:{" "}
+                <span className="font-semibold tabular-nums text-foreground">
+                  {formatCurrency(totalOpenBalance)}
+                </span>
+              </>
+            }
+          >
+            <MobileColumnFilters
+              columns={columns}
+              filters={table.filters}
+              onFilterChange={table.setFilter}
+            />
+          </FilterBar>
+
+          <ActiveFilterChips
+            chips={table.activeChips}
+            onRemove={table.clearFilter}
+          />
         </div>
-        <button
-          onClick={() => refetch()}
-          className="flex items-center gap-1.5 self-start sm:self-center rounded-lg border border-border bg-card px-3.5 py-2 text-xs font-bold text-foreground hover:bg-muted transition-colors"
-        >
-          <RefreshCw className="h-3.5 w-3.5" /> Refresh List
-        </button>
-      </header>
-
-      {/* Filter and Content Controls */}
-      <Card className="border-border shadow-xs">
-        <CardContent className="p-4 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="flex flex-1 items-center space-x-2 w-full">
-            <Search className="h-4 w-4 text-muted-foreground" />
-            <select
-              value={statusFilter}
-              onChange={(e) => {
-                setStatusFilter(e.target.value);
-                setCurrentPage(1);
-              }}
-              className="rounded-lg border border-input bg-background p-1.5 text-xs font-semibold focus:ring-1 focus:ring-primary focus:outline-hidden text-foreground w-full max-w-xs"
-            >
-              <option value="">All Invoices</option>
-              <option value="PENDING">PENDING</option>
-              <option value="PARTIALLY_PAID">PARTIALLY PAID</option>
-              <option value="PAID">PAID</option>
-              <option value="OVERDUE">OVERDUE</option>
-              <option value="DISPUTED">DISPUTED</option>
-            </select>
-          </div>
-          <div className="text-xs text-muted-foreground self-end sm:self-center font-semibold">
-            Total Open Balance: {currencySymbol} {filteredInvoices.reduce((sum, i) => sum + i.outstanding_amount, 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Invoices List Table */}
-      <Card className="border-border shadow-xs">
         <CardContent className="p-0">
-          {isLoading ? (
-            <div className="p-6 space-y-4">
-              <Skeleton className="h-10 w-full" />
-              <Skeleton className="h-24 w-full" />
-              <Skeleton className="h-24 w-full" />
+          {showTableLoading ? (
+            <div className="p-4">
+              <TableSkeleton rows={8} columns={9} />
             </div>
           ) : isError ? (
-            <div className="p-12 text-center space-y-4">
-              <HelpCircle className="h-12 w-12 text-destructive mx-auto" />
-              <h3 className="text-base font-bold text-foreground">Failed to Load Billing Invoices</h3>
-              <p className="text-xs text-muted-foreground max-w-sm mx-auto">
-                Verify the Accounts Receivable database backend service is active and responsive.
-              </p>
-              <button
-                onClick={() => refetch()}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-xs font-bold text-primary-foreground hover:bg-primary/95 transition-colors"
-              >
-                <RefreshCw className="h-3.5 w-3.5" /> Retry Fetch
-              </button>
-            </div>
-          ) : filteredInvoices.length === 0 ? (
-            <div className="p-12 text-center space-y-3">
-              <Inbox className="h-10 w-10 text-slate-300 mx-auto" />
-              <p className="text-sm text-muted-foreground font-semibold">No invoices match the selected status.</p>
-            </div>
+            <EmptyState
+              icon={<HelpCircle className="h-6 w-6 text-destructive" />}
+              title="Failed to load billing invoices"
+              description="Verify the Accounts Receivable database backend service is active and responsive."
+              action={
+                <Button variant="primary" size="sm" onClick={() => refetch()}>
+                  <RefreshCw className="h-3.5 w-3.5" aria-hidden />
+                  Retry fetch
+                </Button>
+              }
+            />
+          ) : table.filteredRows.length === 0 ? (
+            <TableListEmpty
+              sourceCount={serverTotal}
+              filteredCount={table.filteredRows.length}
+              hasActiveFilters={hasActiveFilters}
+              emptyTitle="No invoices yet"
+              emptyDescription="No billing invoices have been registered yet."
+              emptyIcon={<Inbox className="h-6 w-6" />}
+              noMatchesTitle="No invoices found"
+              noMatchesDescription="No invoices match the current filters."
+              onClearFilters={clearFilters}
+            />
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm">
-                <thead>
-                  <tr className="border-b border-border text-muted-foreground uppercase text-xs font-semibold bg-slate-50/50 dark:bg-zinc-900/10">
-                    <th className="py-3 px-4">Invoice Number</th>
-                    <th className="py-3 px-4">Customer</th>
-                    <th className="py-3 px-4">Invoice Date</th>
-                    <th className="py-3 px-4">Due Date</th>
-                    <th className="py-3 px-4 text-right">Total Amount</th>
-                    <th className="py-3 px-4 text-right">Outstanding</th>
-                    <th className="py-3 px-4 text-right">Status</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
-                  {paginatedInvoices.map((inv) => (
-                    <tr
-                      key={inv.id}
-                      onClick={() => handleRowClick(inv.id)}
-                      className="hover:bg-slate-50/50 dark:hover:bg-zinc-900/40 cursor-pointer transition-colors"
-                    >
-                      <td className="py-3.5 px-4 font-semibold text-foreground">{inv.invoice_number}</td>
-                      <td className="py-3.5 px-4 text-muted-foreground font-semibold">
-                        {inv.customer?.customer_name || "Active Account"}
-                      </td>
-                      <td className="py-3.5 px-4 text-muted-foreground">
-                        {new Date(inv.invoice_date).toLocaleDateString()}
-                      </td>
-                      <td className="py-3.5 px-4 text-muted-foreground">
-                        {new Date(inv.due_date).toLocaleDateString()}
-                      </td>
-                      <td className="py-3.5 px-4 text-right font-mono font-semibold text-foreground">
-                        {inv.currency} {inv.total_amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                      </td>
-                      <td className="py-3.5 px-4 text-right font-mono text-muted-foreground">
-                        {inv.currency} {inv.outstanding_amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                      </td>
-                      <td className="py-3.5 px-4 text-right">
-                        <Badge variant={getStatusBadgeVariant(inv.status)} className="text-[10px] py-0.5 px-2 uppercase font-bold tracking-wider">
-                          {inv.status}
-                        </Badge>
-                      </td>
-                    </tr>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  {columns.map((column) => (
+                    <SortableHeader
+                      key={column.id}
+                      column={column}
+                      sort={table.sort}
+                      onSort={table.cycleSort}
+                      filterValue={table.filters[column.id]}
+                      onFilterChange={table.setFilter}
+                    />
                   ))}
-                </tbody>
-              </table>
-            </div>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {table.rows.map((inv) => {
+                  const displayStatus = getDisplayStatus(inv)
+                  return (
+                    <TableRow
+                      key={inv.id}
+                      className="cursor-pointer"
+                      onClick={() => handleRowClick(inv.id)}
+                    >
+                      <TableCell className="font-medium text-foreground">
+                        {inv.invoice_number}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {inv.customer?.customer_name || "Active account"}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {new Date(inv.invoice_date).toLocaleDateString()}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {new Date(inv.due_date).toLocaleDateString()}
+                      </TableCell>
+                      <TableCell className="text-center font-medium tabular-nums text-foreground">
+                        {formatCurrency(inv.total_amount)}
+                      </TableCell>
+                      <TableCell className="text-center tabular-nums text-muted-foreground">
+                        {formatCurrency(inv.outstanding_amount)}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <Badge
+                          variant={getStatusVariant(INVOICE_STATUS_VARIANT, displayStatus)}
+                          shape="pill"
+                        >
+                          {displayStatus.replace(/_/g, " ")}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-center tabular-nums text-muted-foreground">
+                        {inv.current_version ?? 1}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <span className="inline-flex justify-center">
+                          <InvoicePoLinkBadge
+                            poId={inv.po_id}
+                            poNumber={inv.po_number}
+                            compact
+                          />
+                          {!inv.po_id && !inv.po_number && (
+                            <span className="text-muted-foreground">—</span>
+                          )}
+                        </span>
+                      </TableCell>
+                    </TableRow>
+                  )
+                })}
+              </TableBody>
+            </Table>
           )}
         </CardContent>
       </Card>
 
-      {/* Pagination controls */}
-      {!isLoading && !isError && totalPages > 1 && (
+      {!showTableLoading && !isError && table.totalPages > 1 && (
         <Pagination
-          currentPage={currentPage}
-          totalPages={totalPages}
-          onPageChange={setCurrentPage}
+          currentPage={table.page}
+          totalPages={table.totalPages}
+          onPageChange={table.setPage}
+          totalItems={table.total}
+          pageSize={table.pageSize}
         />
       )}
     </div>
-  );
-};
+  )
+}
 
-export default InvoiceListPage;
+export default InvoiceListPage

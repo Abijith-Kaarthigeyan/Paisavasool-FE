@@ -17,4 +17,9 @@ export const authService = {
     const response = await api.get<UserResponse>("/auth/me");
     return response.data;
   },
+
+  refresh: async (): Promise<TokenResponse> => {
+    const response = await api.post<TokenResponse>("/auth/refresh");
+    return response.data;
+  },
 }

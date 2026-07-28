@@ -1,7 +1,9 @@
-import React from "react"
+import React, { useEffect, useId, useRef } from "react"
 import ReactDOM from "react-dom"
 import { X } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { useFocusTrap } from "@/lib/use-focus-trap"
+import { useOverlay } from "@/lib/use-overlay"
 
 interface SheetProps {
   open: boolean;
@@ -10,6 +12,8 @@ interface SheetProps {
 }
 
 export const Sheet: React.FC<SheetProps> = ({ open, onOpenChange, children }) => {
+  useOverlay(open, onOpenChange)
+
   if (!open) return null;
 
   return (
@@ -18,7 +22,7 @@ export const Sheet: React.FC<SheetProps> = ({ open, onOpenChange, children }) =>
       <div className="fixed inset-0 z-50 flex justify-end">
         {React.Children.map(children, (child) => {
           if (React.isValidElement(child)) {
-            return React.cloneElement(child as React.ReactElement<any>, { onOpenChange });
+            return React.cloneElement(child as React.ReactElement<{ onOpenChange?: (open: boolean) => void }>, { onOpenChange });
           }
           return child;
         })}
@@ -35,7 +39,7 @@ export const SheetPortal: React.FC<{ children: React.ReactNode }> = ({ children 
 export const SheetOverlay: React.FC<React.HTMLAttributes<HTMLDivElement>> = ({ className, ...props }) => (
   <div
     className={cn(
-      "fixed inset-0 z-50 bg-black/45 backdrop-blur-xs transition-opacity duration-300 animate-in fade-in",
+      "fixed inset-0 z-50 bg-black/40 transition-opacity duration-200 animate-in fade-in",
       className
     )}
     {...props}
@@ -49,12 +53,29 @@ interface SheetContentProps extends React.HTMLAttributes<HTMLDivElement> {
 
 export const SheetContent = React.forwardRef<HTMLDivElement, SheetContentProps>(
   ({ className, children, onOpenChange, side = "right", ...props }, ref) => {
+    const contentRef = useRef<HTMLDivElement>(null)
+    const titleId = useId()
+    useFocusTrap(contentRef, true)
+
+    useEffect(() => {
+      const title = contentRef.current?.querySelector("h2")
+      if (title && !title.id) title.id = titleId
+    }, [titleId, children])
+
     return (
       <div
-        ref={ref}
+        ref={(node) => {
+          contentRef.current = node
+          if (typeof ref === "function") ref(node)
+          else if (ref) ref.current = node
+        }}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
         className={cn(
-          "relative z-50 h-full w-full max-w-2xl border-l border-border bg-card p-6 shadow-2xl transition-transform duration-300 animate-in slide-in-from-right",
-          side === "left" && "left-0 border-r animate-in slide-in-from-left",
+          "relative z-50 h-full w-full max-w-3xl border-border bg-card p-6 shadow-popover transition-transform duration-200 animate-in",
+          side === "right" && "border-l slide-in-from-right",
+          side === "left" && "border-r slide-in-from-left",
           className
         )}
         {...props}
@@ -62,11 +83,12 @@ export const SheetContent = React.forwardRef<HTMLDivElement, SheetContentProps>(
         {children}
         {onOpenChange && (
           <button
+            type="button"
             onClick={() => onOpenChange(false)}
-            className="absolute right-4 top-4 rounded-xs opacity-70 transition-opacity hover:opacity-100 focus:outline-hidden focus:ring-2 focus:ring-ring"
+            aria-label="Close panel"
+            className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring/30 focus-visible:ring-offset-2"
           >
-            <X className="h-5 w-5 text-muted-foreground" />
-            <span className="sr-only">Close</span>
+            <X className="h-5 w-5 text-muted-foreground" aria-hidden />
           </button>
         )}
       </div>
@@ -76,12 +98,12 @@ export const SheetContent = React.forwardRef<HTMLDivElement, SheetContentProps>(
 SheetContent.displayName = "SheetContent";
 
 export const SheetHeader: React.FC<React.HTMLAttributes<HTMLDivElement>> = ({ className, ...props }) => (
-  <div className={cn("flex flex-col space-y-1.5 text-left border-b border-border pb-4 mb-4", className)} {...props} />
+  <div className={cn("mb-4 flex flex-col space-y-1.5 border-b border-border pb-4 text-left", className)} {...props} />
 );
 SheetHeader.displayName = "SheetHeader";
 
 export const SheetFooter: React.FC<React.HTMLAttributes<HTMLDivElement>> = ({ className, ...props }) => (
-  <div className={cn("flex flex-col sm:flex-row sm:justify-end sm:space-x-2 border-t border-border pt-4 mt-6", className)} {...props} />
+  <div className={cn("mt-6 flex flex-col border-t border-border pt-4 sm:flex-row sm:justify-end sm:space-x-2", className)} {...props} />
 );
 SheetFooter.displayName = "SheetFooter";
 
@@ -100,7 +122,7 @@ export const SheetDescription = React.forwardRef<HTMLParagraphElement, React.HTM
   ({ className, ...props }, ref) => (
     <p
       ref={ref}
-      className={cn("text-sm text-muted-foreground mt-1", className)}
+      className={cn("mt-1 text-sm text-muted-foreground", className)}
       {...props}
     />
   )

@@ -1,226 +1,597 @@
-import React from "react"
-import { useParams, Link } from "react-router-dom"
-import { useInvoiceDetails, useInvoiceItems } from "../hooks/useInvoices"
+import React, { useMemo, useState } from "react"
+import { useParams, useNavigate } from "react-router-dom"
+import {
+  useInvoiceDetails,
+  useInvoiceItems,
+  useInvoiceVersions,
+  useInvoiceVersion,
+} from "../hooks/useInvoices"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
-import { 
-  ArrowLeft, 
-  Calendar, 
-  User, 
+import { PageHeader } from "@/components/ui/page-header"
+import { PageBreadcrumb } from "@/components/ui/page-breadcrumb"
+import { EmptyState } from "@/components/ui/empty-state"
+import { Button } from "@/components/ui/button"
+import { Label } from "@/components/ui/label"
+import { Select } from "@/components/ui/select"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
+import { INVOICE_STATUS_VARIANT, getStatusVariant } from "@/lib/design-tokens"
+import { formatCurrency } from "@/lib/formatCurrency"
+import { getDashboardPath } from "@/lib/navigation"
+import { cn } from "@/lib/utils"
+import {
+  ChevronDown,
+  ChevronUp,
+  Calendar,
+  User,
   HelpCircle,
-  FileSpreadsheet
+  FileSpreadsheet,
+  History,
+  ClipboardList,
 } from "lucide-react"
+import { PurchaseOrderSummaryCard } from "@/features/purchase-orders/components/PurchaseOrderSummaryCard"
+import {
+  computeInvoiceDiff,
+  lineItemKey,
+  normalizeInvoiceFromDispute,
+  normalizeInvoiceFromRecord,
+  type NormalizedInvoice,
+} from "../utils/computeInvoiceDiff"
+
+const CHANGED_VALUE_CLASS = "underline decoration-2 underline-offset-2"
+
+type LineItemCellChanges = {
+  removed: boolean
+  description: boolean
+  quantity: boolean
+  unit_price: boolean
+  amount: boolean
+}
 
 export const InvoiceDetailPage: React.FC = () => {
-  const { id } = useParams<{ id: string }>();
+  const { id } = useParams<{ id: string }>()
+  const navigate = useNavigate()
+  const [selectedVersion, setSelectedVersion] = useState<number | "current">("current")
+  const [isHistoryExpanded, setIsHistoryExpanded] = useState(false)
 
-  // Fetch invoice details
-  const { data: invoice, isLoading: isDetailsLoading, error: detailsError } = useInvoiceDetails(id);
+  const { data: invoice, isLoading: isDetailsLoading, error: detailsError } = useInvoiceDetails(id)
+  const { data: liveItems = [], isLoading: isItemsLoading } = useInvoiceItems(id)
+  const { data: versions = [] } = useInvoiceVersions(id)
 
-  // Fetch invoice items
-  const { data: items = [], isLoading: isItemsLoading } = useInvoiceItems(id);
+  const viewingHistorical =
+    selectedVersion !== "current" && selectedVersion !== invoice?.current_version
 
-  const getStatusBadgeVariant = (status: string | undefined) => {
-    if (!status) return "outline";
-    switch (status) {
-      case "PAID": return "success";
-      case "PARTIALLY_PAID": return "info";
-      case "PENDING": return "default";
-      case "OVERDUE": return "destructive";
-      case "DISPUTED": return "warning";
-      default: return "outline";
+  const { data: historicalVersion, isLoading: isHistoricalLoading } = useInvoiceVersion(
+    id,
+    viewingHistorical ? (selectedVersion as number) : null
+  )
+
+  const displaySnapshot = useMemo(() => {
+    if (!viewingHistorical || !historicalVersion) return null
+    return historicalVersion.invoice_snapshot
+  }, [viewingHistorical, historicalVersion])
+
+  const displayItems = useMemo(() => {
+    if (viewingHistorical && historicalVersion) {
+      return historicalVersion.items_snapshot.map((item, index) => ({
+        id: `hist-${index}`,
+        invoice_id: id || "",
+        description: String(item.description ?? ""),
+        quantity: Number(item.quantity ?? 0),
+        unit_price: Number(item.unit_price ?? 0),
+        amount: Number(item.amount ?? 0),
+        created_at: historicalVersion.created_at || "",
+      }))
     }
-  };
+    return liveItems
+  }, [viewingHistorical, historicalVersion, liveItems, id])
+
+  const versionDiff = useMemo(() => {
+    if (!viewingHistorical || !historicalVersion || !invoice || isHistoricalLoading) {
+      return null
+    }
+
+    const historical = normalizeInvoiceFromRecord({
+      ...historicalVersion.invoice_snapshot,
+      items: historicalVersion.items_snapshot,
+    })
+    const live = normalizeInvoiceFromDispute(invoice, liveItems)
+    return computeInvoiceDiff(historical, live)
+  }, [
+    viewingHistorical,
+    historicalVersion,
+    invoice,
+    liveItems,
+    isHistoricalLoading,
+  ])
+
+  const changedFields = useMemo(() => {
+    const fields = new Set<keyof NormalizedInvoice>()
+    if (!versionDiff) return fields
+    for (const fieldDiff of versionDiff.fieldDiffs) {
+      if (fieldDiff.changed) fields.add(fieldDiff.field)
+    }
+    return fields
+  }, [versionDiff])
+
+  const outstandingChanged = useMemo(() => {
+    if (!viewingHistorical || !historicalVersion || !invoice) return false
+    return (
+      Number(historicalVersion.invoice_snapshot.outstanding_amount ?? 0) !==
+      Number(invoice.outstanding_amount ?? 0)
+    )
+  }, [viewingHistorical, historicalVersion, invoice])
+
+  const lineItemChangesByKey = useMemo(() => {
+    const map = new Map<string, LineItemCellChanges>()
+    if (!versionDiff) return map
+
+    for (const itemDiff of versionDiff.lineItemDiffs) {
+      if (itemDiff.status === "unchanged" || itemDiff.status === "added") continue
+      const historicalItem = itemDiff.current
+      if (!historicalItem) continue
+
+      if (itemDiff.status === "removed") {
+        map.set(historicalItem.key, {
+          removed: true,
+          description: true,
+          quantity: true,
+          unit_price: true,
+          amount: true,
+        })
+        continue
+      }
+
+      const liveItem = itemDiff.proposed
+      map.set(historicalItem.key, {
+        removed: false,
+        description: historicalItem.description !== (liveItem?.description ?? ""),
+        quantity: historicalItem.quantity !== (liveItem?.quantity ?? 0),
+        unit_price: historicalItem.unit_price !== (liveItem?.unit_price ?? 0),
+        amount: historicalItem.amount !== (liveItem?.amount ?? 0),
+      })
+    }
+
+    return map
+  }, [versionDiff])
+
+  const headerInvoiceNumber = viewingHistorical
+    ? String(displaySnapshot?.invoice_number ?? invoice?.invoice_number)
+    : invoice?.invoice_number
+
+  const subtotal = viewingHistorical
+    ? Number(displaySnapshot?.subtotal_amount ?? 0)
+    : invoice?.subtotal_amount ?? 0
+
+  const tax = viewingHistorical
+    ? Number(displaySnapshot?.tax_amount ?? 0)
+    : invoice?.tax_amount ?? 0
+
+  const total = viewingHistorical
+    ? Number(displaySnapshot?.total_amount ?? 0)
+    : invoice?.total_amount ?? 0
+
+  const outstanding = viewingHistorical
+    ? Number(displaySnapshot?.outstanding_amount ?? 0)
+    : invoice?.outstanding_amount ?? 0
+
+  const invoiceDate = viewingHistorical
+    ? String(displaySnapshot?.invoice_date ?? "")
+    : invoice?.invoice_date ?? ""
+
+  const dueDate = viewingHistorical
+    ? String(displaySnapshot?.due_date ?? "")
+    : invoice?.due_date ?? ""
 
   if (isDetailsLoading) {
     return (
-      <div className="space-y-6 max-w-4xl mx-auto animate-pulse">
-        <Skeleton className="h-8 w-40" />
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="space-y-8">
+        <Skeleton className="h-10 w-64" />
+        <Skeleton className="h-12 w-full max-w-xl" />
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
+          <Skeleton className="h-48 w-full" />
           <Skeleton className="h-48 w-full" />
           <Skeleton className="h-48 w-full" />
         </div>
         <Skeleton className="h-64 w-full" />
       </div>
-    );
+    )
   }
 
   if (detailsError || !invoice) {
     return (
-      <div className="max-w-md mx-auto text-center py-16 space-y-4">
-        <HelpCircle className="h-12 w-12 text-destructive mx-auto" />
-        <h3 className="text-lg font-bold text-foreground">Invoice Not Found</h3>
-        <p className="text-sm text-muted-foreground">The requested invoice details could not be loaded.</p>
-        <Link to="/invoices" className="inline-flex items-center gap-1.5 text-xs font-bold text-primary hover:underline">
-          <ArrowLeft className="h-4 w-4" /> Back to Invoices
-        </Link>
+      <div className="space-y-8">
+        <PageBreadcrumb
+          items={[
+            { label: "Dashboard", to: getDashboardPath() },
+            { label: "Receivables", to: "/invoices" },
+            { label: "Invoice" },
+          ]}
+        />
+        <EmptyState
+          icon={<HelpCircle className="h-6 w-6 text-destructive" />}
+          title="Invoice not found"
+          description="The requested invoice details could not be loaded."
+          action={
+            <Button variant="ghost" size="sm" onClick={() => navigate("/invoices")}>
+              Back to receivables
+            </Button>
+          }
+        />
       </div>
-    );
+    )
   }
 
-  return (
-    <div className="space-y-6 max-w-4xl mx-auto">
-      {/* Header */}
-      <header className="flex flex-col sm:flex-row sm:items-center sm:justify-between border-b border-border pb-5 gap-4">
-        <div className="space-y-1">
-          <div className="flex items-center gap-2">
-            <Link to="/invoices" className="text-muted-foreground hover:text-foreground">
-              <ArrowLeft className="h-5 w-5" />
-            </Link>
-            <h1 className="text-2xl font-bold tracking-tight text-foreground m-0">
-              Invoice #{invoice.invoice_number}
-            </h1>
-          </div>
-        </div>
-        <div>
-          <Badge variant={getStatusBadgeVariant(invoice.status)} className="text-xs uppercase px-3 py-1 font-bold tracking-wider">
-            {invoice.status}
-          </Badge>
-        </div>
-      </header>
+  const currentVersion = invoice.current_version ?? 1
+  const latestVersionEntry = versions.reduce<typeof versions[number] | undefined>(
+    (latest, version) =>
+      !latest || version.version_number > latest.version_number ? version : latest,
+    undefined
+  )
 
-      {/* Grid of details */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Invoice Info Card */}
-        <Card className="border-border shadow-xs">
-          <CardHeader className="pb-3 border-b border-border mb-4">
-            <CardTitle className="text-sm font-bold uppercase tracking-wider flex items-center gap-2">
-              <Calendar className="h-4 w-4 text-primary" /> Invoice Schedule
+  return (
+    <div className="space-y-8">
+      <PageBreadcrumb
+        items={[
+          { label: "Dashboard", to: getDashboardPath() },
+          { label: "Receivables", to: "/invoices" },
+          { label: `Invoice #${headerInvoiceNumber}` },
+        ]}
+      />
+
+      <PageHeader
+        title={`Invoice #${headerInvoiceNumber}`}
+        meta={
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge variant="outline" shape="pill">
+              Version {viewingHistorical ? selectedVersion : currentVersion}
+            </Badge>
+            {viewingHistorical && (
+              <Badge variant="warning" shape="pill">
+                Historical view
+              </Badge>
+            )}
+          </div>
+        }
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            {versions.length > 0 && (
+              <div className="w-36 space-y-1">
+                <Label htmlFor="version-select" className="sr-only">
+                  Version
+                </Label>
+                <Select
+                  id="version-select"
+                  value={
+                    selectedVersion === "current"
+                      ? String(currentVersion)
+                      : String(selectedVersion)
+                  }
+                  onChange={(e) => {
+                    const val = Number(e.target.value)
+                    setSelectedVersion(val === currentVersion ? "current" : val)
+                  }}
+                >
+                  {versions.map((v) => (
+                    <option key={v.version_number} value={v.version_number}>
+                      v{v.version_number}
+                      {v.is_current ? " (current)" : ""}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+            )}
+            <Badge
+              variant={getStatusVariant(INVOICE_STATUS_VARIANT, invoice.status)}
+              shape="pill"
+            >
+              {invoice.status.replace(/_/g, " ")}
+            </Badge>
+          </div>
+        }
+      />
+
+      {versions.length > 1 && (
+        <Card>
+          <button
+            type="button"
+            onClick={() => setIsHistoryExpanded((open) => !open)}
+            aria-expanded={isHistoryExpanded}
+            className="flex w-full items-center justify-between gap-3 border-b border-border px-6 py-4 text-left transition-colors hover:bg-muted/40"
+          >
+            <div className="min-w-0 space-y-1">
+              <CardTitle className="flex items-center gap-2 text-base font-semibold">
+                <History className="h-4 w-4 shrink-0 text-primary" aria-hidden />
+                Amendment history
+              </CardTitle>
+              {!isHistoryExpanded && (
+                <p className="text-sm text-muted-foreground">
+                  {versions.length} versions
+                  {latestVersionEntry?.created_at && (
+                    <>
+                      {" "}
+                      · Latest change{" "}
+                      {new Date(latestVersionEntry.created_at).toLocaleDateString()}
+                    </>
+                  )}
+                </p>
+              )}
+            </div>
+            <span className="flex shrink-0 items-center gap-1 text-xs font-medium text-primary">
+              {isHistoryExpanded ? (
+                <>
+                  Hide
+                  <ChevronUp className="h-4 w-4" aria-hidden />
+                </>
+              ) : (
+                <>
+                  Show all
+                  <ChevronDown className="h-4 w-4" aria-hidden />
+                </>
+              )}
+            </span>
+          </button>
+          {isHistoryExpanded && (
+            <CardContent className="p-0">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Version</TableHead>
+                    <TableHead>When</TableHead>
+                    <TableHead>Reason</TableHead>
+                    <TableHead>Source</TableHead>
+                    <TableHead>By</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {versions.map((v) => (
+                    <TableRow
+                      key={v.version_number}
+                      className="cursor-pointer"
+                      onClick={() =>
+                        setSelectedVersion(v.is_current ? "current" : v.version_number)
+                      }
+                    >
+                      <TableCell className="font-medium tabular-nums">
+                        v{v.version_number}
+                        {v.is_current ? " *" : ""}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {new Date(v.created_at).toLocaleString()}
+                      </TableCell>
+                      <TableCell>{v.change_reason || "—"}</TableCell>
+                      <TableCell>{v.change_source}</TableCell>
+                      <TableCell>{v.created_by || "—"}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </CardContent>
+          )}
+        </Card>
+      )}
+
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
+        <Card>
+          <CardHeader className="border-b border-border pb-4">
+            <CardTitle className="flex items-center gap-2 text-base font-semibold">
+              <Calendar className="h-4 w-4 text-primary" aria-hidden />
+              Invoice schedule
             </CardTitle>
           </CardHeader>
-          <CardContent className="pt-0 space-y-3 text-sm">
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Invoice Date:</span>
-              <span className="font-semibold text-foreground">{new Date(invoice.invoice_date).toLocaleDateString()}</span>
+          <CardContent className="space-y-3 pt-4 text-sm leading-relaxed">
+            <div className="flex justify-between gap-4">
+              <span className="text-muted-foreground">Invoice date</span>
+              <span
+                className={cn(
+                  "font-medium text-foreground",
+                  changedFields.has("invoice_date") && CHANGED_VALUE_CLASS
+                )}
+              >
+                {invoiceDate ? new Date(invoiceDate).toLocaleDateString() : "—"}
+              </span>
             </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Due Date:</span>
-              <span className="font-semibold text-foreground">{new Date(invoice.due_date).toLocaleDateString()}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Source:</span>
-              <span className="font-semibold text-foreground text-xs">AI Ingested Batch</span>
+            <div className="flex justify-between gap-4">
+              <span className="text-muted-foreground">Due date</span>
+              <span
+                className={cn(
+                  "font-medium text-foreground",
+                  changedFields.has("due_date") && CHANGED_VALUE_CLASS
+                )}
+              >
+                {dueDate ? new Date(dueDate).toLocaleDateString() : "—"}
+              </span>
             </div>
           </CardContent>
         </Card>
 
-        {/* Customer Information Card */}
-        <Card className="border-border shadow-xs">
-          <CardHeader className="pb-3 border-b border-border mb-4">
-            <CardTitle className="text-sm font-bold uppercase tracking-wider flex items-center gap-2">
-              <User className="h-4 w-4 text-primary" /> Customer Account
+        <Card>
+          <CardHeader className="border-b border-border pb-4">
+            <CardTitle className="flex items-center gap-2 text-base font-semibold">
+              <User className="h-4 w-4 text-primary" aria-hidden />
+              Customer account
             </CardTitle>
           </CardHeader>
-          <CardContent className="pt-0 space-y-3 text-sm">
+          <CardContent className="space-y-3 pt-4 text-sm leading-relaxed">
             {invoice.customer ? (
               <>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Name:</span>
-                  <span className="font-semibold text-foreground">{invoice.customer.customer_name}</span>
+                <div className="flex justify-between gap-4">
+                  <span className="text-muted-foreground">Name</span>
+                  <span className="font-medium text-foreground">
+                    {invoice.customer.customer_name}
+                  </span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Customer Code:</span>
-                  <span className="font-semibold text-foreground font-mono text-xs">{invoice.customer.customer_code}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Email:</span>
-                  <span className="font-semibold text-foreground font-mono text-xs">{invoice.customer.email || "N/A"}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Phone:</span>
-                  <span className="font-semibold text-foreground text-xs">{invoice.customer.phone || "N/A"}</span>
-                </div>
-                <div className="flex flex-col border-t border-border pt-2.5 mt-2.5">
-                  <span className="text-xs text-muted-foreground">Billing Address:</span>
-                  <span className="font-medium text-foreground text-[11px] leading-relaxed mt-1">{invoice.customer.billing_address || "N/A"}</span>
+                <div className="flex justify-between gap-4">
+                  <span className="text-muted-foreground">Customer code</span>
+                  <span className="font-mono text-xs font-medium text-foreground">
+                    {invoice.customer.customer_code}
+                  </span>
                 </div>
               </>
             ) : (
-              <>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Account:</span>
-                  <span className="font-bold text-emerald-600 dark:text-emerald-400 text-xs">Active Billing Account</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Billing Currency:</span>
-                  <span className="font-semibold text-foreground">{invoice.currency}</span>
-                </div>
-              </>
+              <div className="flex justify-between gap-4">
+                <span className="text-muted-foreground">Billing currency</span>
+                <span className="font-medium text-foreground">INR (₹)</span>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="md:col-span-2 xl:col-span-1">
+          <CardHeader className="border-b border-border pb-4">
+            <CardTitle className="flex items-center gap-2 text-base font-semibold">
+              <ClipboardList className="h-4 w-4 text-primary" aria-hidden />
+              Purchase order
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-4">
+            {invoice.purchase_order ? (
+              <PurchaseOrderSummaryCard
+                purchaseOrder={invoice.purchase_order}
+                layout="wide"
+              />
+            ) : invoice.po_number ? (
+              <div className="rounded-lg border border-warning/50 bg-warning-muted/10 p-3.5 text-sm leading-relaxed text-warning-foreground">
+                PO #{invoice.po_number} referenced on invoice — not yet matched in system.
+                Upload the PO or link manually once available.
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                No purchase order reference on this invoice
+              </p>
             )}
           </CardContent>
         </Card>
       </div>
 
-      {/* Invoice items table */}
-      <Card className="border-border shadow-xs">
-        <CardHeader className="pb-3 border-b border-border mb-4">
-          <CardTitle className="text-sm font-bold uppercase tracking-wider flex items-center gap-2">
-            <FileSpreadsheet className="h-4 w-4 text-primary" /> Extracted Line Items
+      <Card>
+        <CardHeader className="border-b border-border pb-4">
+          <CardTitle className="flex items-center gap-2 text-base font-semibold">
+            <FileSpreadsheet className="h-4 w-4 text-primary" aria-hidden />
+            Line items
           </CardTitle>
         </CardHeader>
-        <CardContent className="pt-0">
-          {isItemsLoading ? (
-            <div className="space-y-3">
+        <CardContent className="p-0 pt-0">
+          {isItemsLoading || (viewingHistorical && isHistoricalLoading) ? (
+            <div className="space-y-3 p-4">
               <Skeleton className="h-8 w-full" />
               <Skeleton className="h-8 w-full" />
             </div>
-          ) : items.length === 0 ? (
-            <div className="text-center py-10 text-muted-foreground text-xs">No line items extracted.</div>
+          ) : displayItems.length === 0 ? (
+            <EmptyState
+              title="No line items"
+              description="This invoice has no line items to display."
+              className="py-8"
+            />
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm">
-                <thead>
-                  <tr className="border-b border-border text-muted-foreground uppercase text-xs font-semibold">
-                    <th className="py-2.5 px-3">Description</th>
-                    <th className="py-2.5 px-3 text-right">Quantity</th>
-                    <th className="py-2.5 px-3 text-right">Unit Price</th>
-                    <th className="py-2.5 px-3 text-right">Line Total</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
-                  {items.map((item) => (
-                    <tr key={item.id} className="hover:bg-slate-50/20">
-                      <td className="py-3 px-3 font-medium text-foreground">{item.description}</td>
-                      <td className="py-3 px-3 text-right text-muted-foreground font-mono">{item.quantity.toLocaleString()}</td>
-                      <td className="py-3 px-3 text-right text-muted-foreground font-mono">
-                        {invoice.currency} {item.unit_price.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                      </td>
-                      <td className="py-3 px-3 text-right font-bold text-foreground font-mono">
-                        {invoice.currency} {item.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Description</TableHead>
+                  <TableHead className="text-right">Quantity</TableHead>
+                  <TableHead className="text-right">Unit price</TableHead>
+                  <TableHead className="text-right">Line total</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {displayItems.map((item, index) => {
+                  const itemChanges = lineItemChangesByKey.get(
+                    lineItemKey(item.description, index)
+                  )
+                  const underlineAll = itemChanges?.removed === true
+                  return (
+                    <TableRow key={item.id}>
+                      <TableCell
+                        className={cn(
+                          "font-medium text-foreground",
+                          (underlineAll || itemChanges?.description) && CHANGED_VALUE_CLASS
+                        )}
+                      >
+                        {item.description}
+                      </TableCell>
+                      <TableCell
+                        className={cn(
+                          "text-right tabular-nums text-muted-foreground",
+                          (underlineAll || itemChanges?.quantity) && CHANGED_VALUE_CLASS
+                        )}
+                      >
+                        {item.quantity.toLocaleString()}
+                      </TableCell>
+                      <TableCell
+                        className={cn(
+                          "text-right tabular-nums text-muted-foreground",
+                          (underlineAll || itemChanges?.unit_price) && CHANGED_VALUE_CLASS
+                        )}
+                      >
+                        {formatCurrency(item.unit_price)}
+                      </TableCell>
+                      <TableCell
+                        className={cn(
+                          "text-right font-medium tabular-nums text-foreground",
+                          (underlineAll || itemChanges?.amount) && CHANGED_VALUE_CLASS
+                        )}
+                      >
+                        {formatCurrency(item.amount)}
+                      </TableCell>
+                    </TableRow>
+                  )
+                })}
+              </TableBody>
+            </Table>
           )}
 
-          {/* Totals Section */}
-          <div className="border-t border-border mt-6 pt-4 flex justify-end">
-            <div className="w-full max-w-sm space-y-3 text-sm">
+          <div className="border-t border-border px-4 py-4">
+            <div className="ml-auto w-full max-w-sm space-y-3 text-sm">
               <div className="flex justify-between">
-                <span className="text-muted-foreground">Subtotal:</span>
-                <span className="font-semibold text-foreground font-mono">
-                  {invoice.currency} {invoice.subtotal_amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                <span className="text-muted-foreground">Subtotal</span>
+                <span
+                  className={cn(
+                    "font-medium tabular-nums text-foreground",
+                    changedFields.has("subtotal_amount") && CHANGED_VALUE_CLASS
+                  )}
+                >
+                  {formatCurrency(subtotal)}
                 </span>
               </div>
               <div className="flex justify-between">
-                <span className="text-muted-foreground">Taxes:</span>
-                <span className="font-semibold text-foreground font-mono">
-                  {invoice.currency} {invoice.tax_amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                <span className="text-muted-foreground">Taxes</span>
+                <span
+                  className={cn(
+                    "font-medium tabular-nums text-foreground",
+                    changedFields.has("tax_amount") && CHANGED_VALUE_CLASS
+                  )}
+                >
+                  {formatCurrency(tax)}
                 </span>
               </div>
               <div className="flex justify-between border-b border-border pb-3">
-                <span className="font-bold text-foreground">Total Invoice Amount:</span>
-                <span className="font-bold text-foreground font-mono">
-                  {invoice.currency} {invoice.total_amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                <span className="font-semibold text-foreground">Total invoice amount</span>
+                <span
+                  className={cn(
+                    "font-semibold tabular-nums text-foreground",
+                    changedFields.has("total_amount") && CHANGED_VALUE_CLASS
+                  )}
+                >
+                  {formatCurrency(total)}
                 </span>
               </div>
               <div className="flex justify-between pt-1">
-                <span className="font-bold text-rose-500">Remaining Balance (Outstanding):</span>
-                <span className="font-bold text-rose-500 font-mono">
-                  {invoice.currency} {invoice.outstanding_amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                <span className="font-semibold text-destructive">Outstanding</span>
+                <span
+                  className={cn(
+                    "font-semibold tabular-nums text-destructive",
+                    outstandingChanged && CHANGED_VALUE_CLASS
+                  )}
+                >
+                  {formatCurrency(outstanding)}
                 </span>
               </div>
             </div>
@@ -228,7 +599,7 @@ export const InvoiceDetailPage: React.FC = () => {
         </CardContent>
       </Card>
     </div>
-  );
-};
+  )
+}
 
-export default InvoiceDetailPage;
+export default InvoiceDetailPage

@@ -1,0 +1,728 @@
+import React, { useEffect, useMemo, useState } from "react"
+import {
+  useEmailManualReview,
+  useConfirmEmailAction,
+} from "../hooks/useEmailReviews"
+import type { EmailIntakeItem, EmailManualAction } from "../types"
+import { Card, CardContent } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
+import { TableSkeleton } from "@/components/ui/skeleton"
+import { Pagination } from "@/components/ui/pagination"
+import { PageHeader } from "@/components/ui/page-header"
+import { PageBreadcrumb } from "@/components/ui/page-breadcrumb"
+import { FilterBar } from "@/components/ui/filter-bar"
+import { ActiveFilterChips } from "@/components/ui/active-filter-chips"
+import { MobileColumnFilters } from "@/components/ui/mobile-column-filters"
+import { SortableHeader } from "@/components/ui/sortable-header"
+import { getDashboardPath } from "@/lib/navigation"
+import { EmptyState } from "@/components/ui/empty-state"
+import { TableListEmpty } from "@/components/ui/table-list-empty"
+import { Button } from "@/components/ui/button"
+import { ConfidenceMeter } from "@/components/ui/confidence-meter"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
+  SheetFooter,
+} from "@/components/ui/sheet"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
+import { useToast } from "@/components/ui/toast"
+import { getConfidenceBadgeVariant, getStatusVariant } from "@/lib/design-tokens"
+import {
+  TABLE_PAGE_SIZE,
+  shouldShowTableLoading,
+  useClientTable,
+  useSyncTableQueryBridge,
+  useTableQueryBridge,
+  useTableUrlState,
+  type ColumnDef,
+} from "@/lib/table"
+import { cn } from "@/lib/utils"
+import { CheckCircle, HelpCircle, Mail, RefreshCw } from "lucide-react"
+
+const sectionCard = "rounded-lg border border-border bg-card shadow-card"
+const sectionLabel = "text-xs font-semibold uppercase tracking-wide text-muted-foreground"
+
+const EMAIL_CLASSIFICATION_VARIANT: Record<
+  string,
+  "success" | "warning" | "neutral" | "info"
+> = {
+  PAYMENT: "success",
+  DISPUTE: "warning",
+  PROMISE: "info",
+  OTHER: "neutral",
+}
+
+const CLASSIFICATION_OPTIONS = [
+  { value: "PAYMENT", label: "Payment" },
+  { value: "DISPUTE", label: "Dispute" },
+  { value: "PROMISE", label: "Promise" },
+  { value: "OTHER", label: "Other" },
+]
+
+const INITIAL_SORT = { id: "created_at", direction: "desc" as const }
+const URL_EXTRA_KEYS = ["q"] as const
+
+type ConfirmAction = EmailManualAction
+
+const CONFIRM_MESSAGES: Record<ConfirmAction, string> = {
+  ROUTE_PAYMENT: "Route this email to the payment upload pipeline?",
+  ROUTE_DISPUTE: "Create a dispute case from this email?",
+  ROUTE_PROMISE: "Create a payment promise from this email?",
+  DISMISS: "Dismiss this email? It will be removed from the review queue.",
+}
+
+const SUCCESS_MESSAGES: Record<ConfirmAction, string> = {
+  ROUTE_PAYMENT: "Email routed to the payment upload pipeline.",
+  ROUTE_DISPUTE: "Dispute case created from this email.",
+  ROUTE_PROMISE: "Payment promise created from this email.",
+  DISMISS: "Email dismissed and removed from the review queue.",
+}
+
+function todayIsoDate(): string {
+  return new Date().toISOString().slice(0, 10)
+}
+
+export const EmailReviewPage: React.FC = () => {
+  const { toast } = useToast()
+  const [selectedEmail, setSelectedEmail] = useState<EmailIntakeItem | null>(null)
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false)
+  const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(null)
+  const [isConfirmOpen, setIsConfirmOpen] = useState(false)
+  const [promiseInvoice, setPromiseInvoice] = useState("")
+  const [promiseDate, setPromiseDate] = useState("")
+  const [promiseAmount, setPromiseAmount] = useState("")
+  const [searchTerm, setSearchTerm] = useState("")
+  const [page, setPage] = useState(1)
+  const bridge = useTableQueryBridge({
+    page,
+    initialSort: INITIAL_SORT,
+    forceClientOnly: !!searchTerm.trim(),
+  })
+
+  const listParams = useMemo(
+    () => ({
+      limit: bridge.limit,
+      offset: bridge.offset,
+      ...(bridge.sortOverride
+        ? {
+            sort_by: bridge.sortOverride.id,
+            sort_order: bridge.sortOverride.direction,
+          }
+        : {}),
+    }),
+    [bridge.limit, bridge.offset, bridge.sortOverride]
+  )
+
+  const {
+    data: emailsPage,
+    isLoading,
+    isError,
+    refetch,
+    isFetching,
+    isPlaceholderData,
+  } = useEmailManualReview(listParams)
+  const emails = emailsPage?.items ?? []
+  const serverTotal = emailsPage?.total ?? 0
+  const confirmMutation = useConfirmEmailAction()
+
+  useEffect(() => {
+    if (!selectedEmail) return
+    const extraction = selectedEmail.extraction
+    setPromiseInvoice(extraction?.invoice_number ?? "")
+    setPromiseDate(extraction?.promised_date ?? todayIsoDate())
+    setPromiseAmount(
+      extraction?.promised_amount != null ? String(extraction.promised_amount) : ""
+    )
+  }, [selectedEmail])
+
+  const toolbarFiltered = useMemo(() => {
+    if (!searchTerm.trim()) return emails
+    const term = searchTerm.toLowerCase()
+    return emails.filter(
+      (email) =>
+        email.customer_email.toLowerCase().includes(term) ||
+        (email.email_subject || "").toLowerCase().includes(term) ||
+        (email.classification || "").toLowerCase().includes(term)
+    )
+  }, [emails, searchTerm])
+
+  const columns = useMemo<ColumnDef<EmailIntakeItem>[]>(
+    () => [
+      {
+        id: "customer_email",
+        label: "Sender",
+        sortable: true,
+        filter: { type: "text", placeholder: "Sender…" },
+      },
+      {
+        id: "email_subject",
+        label: "Subject",
+        sortable: true,
+        accessor: (row) => row.email_subject ?? "",
+        filter: { type: "text", placeholder: "Subject…" },
+      },
+      {
+        id: "classification",
+        label: "Classification",
+        sortable: true,
+        accessor: (row) => row.classification ?? "Unknown",
+        filter: { type: "select", options: CLASSIFICATION_OPTIONS },
+      },
+      {
+        id: "confidence",
+        label: "Confidence",
+        sortable: true,
+        accessor: (row) => row.confidence ?? 0,
+        defaultSortDirection: "desc",
+        filter: { type: "number-range" },
+      },
+      {
+        id: "created_at",
+        label: "Received",
+        sortable: true,
+        defaultSortDirection: "desc",
+        filter: { type: "date-range" },
+      },
+    ],
+    []
+  )
+
+  const table = useClientTable({
+    data: toolbarFiltered,
+    columns,
+    initialSort: INITIAL_SORT,
+    pageSize: TABLE_PAGE_SIZE,
+    paginationMode: bridge.paginationMode,
+    serverTotal,
+    page,
+    onPageChange: setPage,
+  })
+
+  useSyncTableQueryBridge(bridge, table)
+
+  const urlExtras = useMemo(
+    () => ({
+      q: searchTerm || undefined,
+    }),
+    [searchTerm]
+  )
+
+  useTableUrlState({
+    columns,
+    sort: table.sort,
+    filters: table.filters,
+    page: table.page,
+    setSort: table.setSort,
+    setFilter: table.setFilter,
+    setPage: table.setPage,
+    replaceFilters: table.replaceFilters,
+    extras: urlExtras,
+    extraKeys: [...URL_EXTRA_KEYS],
+    onExtrasChange: (extras) => {
+      if (extras.q != null) setSearchTerm(extras.q)
+    },
+    defaultSort: INITIAL_SORT,
+  })
+
+  const hasActiveFilters = !!searchTerm || table.hasNonDefaultState
+  const showTableLoading = shouldShowTableLoading({
+    isLoading,
+    isFetching,
+    isPlaceholderData,
+    clientOnlyPaging: bridge.clientOnlyPaging,
+    hasActiveFilters,
+    cachedItemCount: emails.length,
+    pageSize: TABLE_PAGE_SIZE,
+  })
+
+  const clearFilters = () => {
+    setSearchTerm("")
+    table.clearAll()
+  }
+
+  const handleRowClick = (email: EmailIntakeItem) => {
+    setSelectedEmail(email)
+    setIsDrawerOpen(true)
+  }
+
+  const handleActionConfirm = () => {
+    if (!selectedEmail || !confirmAction) return
+
+    if (confirmAction === "ROUTE_PROMISE") {
+      if (!promiseInvoice.trim()) {
+        toast({
+          title: "Invoice required",
+          description: "Enter an invoice number to create a promise.",
+          type: "error",
+        })
+        return
+      }
+      if (!promiseDate) {
+        toast({
+          title: "Date required",
+          description: "Enter a promised payment date.",
+          type: "error",
+        })
+        return
+      }
+    }
+
+    setIsConfirmOpen(false)
+
+    const body =
+      confirmAction === "ROUTE_PROMISE"
+        ? {
+            action: confirmAction,
+            invoice_number: promiseInvoice.trim(),
+            promised_date: promiseDate,
+            promised_amount: promiseAmount.trim()
+              ? Number(promiseAmount)
+              : null,
+          }
+        : { action: confirmAction }
+
+    confirmMutation.mutate(
+      { id: selectedEmail.id, body },
+      {
+        onSuccess: (result) => {
+          let description = SUCCESS_MESSAGES[confirmAction]
+          if (confirmAction === "ROUTE_PAYMENT" && result.payment_upload_id) {
+            description += ` View at /payment-upload/${result.payment_upload_id}`
+          } else if (confirmAction === "ROUTE_DISPUTE" && result.dispute_case_id) {
+            description += ` View at /disputes/cases/${result.dispute_case_id}`
+          } else if (confirmAction === "ROUTE_PROMISE" && result.payment_promise_id) {
+            description += ` Promise ID ${result.payment_promise_id}`
+          }
+
+          toast({
+            title: "Action confirmed",
+            description,
+            type: "success",
+          })
+          setIsDrawerOpen(false)
+          setSelectedEmail(null)
+        },
+        onError: (err: unknown) => {
+          const detail = (err as { response?: { data?: { detail?: string } } }).response
+            ?.data?.detail
+          toast({
+            title: "Action failed",
+            description: detail || "Failed to process email review action.",
+            type: "error",
+          })
+        },
+      }
+    )
+  }
+
+  const openConfirm = (action: ConfirmAction) => {
+    setConfirmAction(action)
+    setIsConfirmOpen(true)
+  }
+
+  const extraction = selectedEmail?.extraction
+
+  return (
+    <div className="space-y-8">
+      <PageBreadcrumb
+        items={[
+          { label: "Dashboard", to: getDashboardPath() },
+          { label: "Email review" },
+        ]}
+      />
+
+      <PageHeader
+        title="Email review"
+        description="Review and route emails that need manual attention"
+        actions={
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => refetch()}
+            disabled={isFetching}
+          >
+            <RefreshCw
+              className={cn("h-3.5 w-3.5", isFetching && "animate-spin")}
+              aria-hidden
+            />
+            Refresh
+          </Button>
+        }
+      />
+
+      <Card>
+        <div className="space-y-2 border-b border-border p-3">
+          <FilterBar
+            variant="toolbar"
+            size="sm"
+            searchValue={searchTerm}
+            onSearchChange={setSearchTerm}
+            searchPlaceholder="Search by sender, subject, or classification…"
+            showClear={hasActiveFilters}
+            onClear={clearFilters}
+          >
+            <MobileColumnFilters
+              columns={columns}
+              filters={table.filters}
+              onFilterChange={table.setFilter}
+            />
+          </FilterBar>
+
+          <ActiveFilterChips
+            chips={table.activeChips}
+            onRemove={table.clearFilter}
+          />
+        </div>
+        <CardContent className="p-0">
+          {showTableLoading ? (
+            <div className="p-4">
+              <TableSkeleton rows={6} columns={5} />
+            </div>
+          ) : isError ? (
+            <EmptyState
+              icon={<HelpCircle className="h-6 w-6 text-destructive" />}
+              title="Failed to load email review queue"
+              description="Verify the AR service is active and try again."
+              action={
+                <Button variant="secondary" size="sm" onClick={() => refetch()}>
+                  Retry
+                </Button>
+              }
+            />
+          ) : (
+            <TableListEmpty
+              sourceCount={serverTotal}
+              filteredCount={table.filteredRows.length}
+              hasActiveFilters={hasActiveFilters}
+              emptyTitle="No emails need review"
+              emptyDescription="All incoming emails have been routed automatically."
+              emptyIcon={<CheckCircle className="h-6 w-6 text-success" />}
+              noMatchesTitle="No emails found"
+              noMatchesDescription="No emails match the current filters."
+              onClearFilters={clearFilters}
+            />
+          )}
+          {!showTableLoading && !isError && table.filteredRows.length > 0 && (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  {columns.map((column) => (
+                    <SortableHeader
+                      key={column.id}
+                      column={column}
+                      sort={table.sort}
+                      onSort={table.cycleSort}
+                      filterValue={table.filters[column.id]}
+                      onFilterChange={table.setFilter}
+                    />
+                  ))}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {table.rows.map((email) => (
+                  <TableRow
+                    key={email.id}
+                    className={cn(
+                      "cursor-pointer",
+                      selectedEmail?.id === email.id && "bg-primary/5"
+                    )}
+                    onClick={() => handleRowClick(email)}
+                  >
+                    <TableCell className="max-w-[200px] truncate font-medium">
+                      {email.customer_email}
+                    </TableCell>
+                    <TableCell
+                      className="max-w-[280px] truncate text-muted-foreground"
+                      title={email.email_subject ?? undefined}
+                    >
+                      {email.email_subject || "(No subject)"}
+                    </TableCell>
+                    <TableCell>
+                      <Badge
+                        variant={getStatusVariant(
+                          EMAIL_CLASSIFICATION_VARIANT,
+                          email.classification ?? undefined,
+                          "neutral"
+                        )}
+                        shape="pill"
+                      >
+                        {email.classification || "Unknown"}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="min-w-[140px]">
+                      {email.confidence != null ? (
+                        <ConfidenceMeter value={email.confidence} size="sm" showValue />
+                      ) : (
+                        <span className="text-sm text-muted-foreground">—</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="tabular-nums text-muted-foreground">
+                      {new Date(email.created_at).toLocaleString()}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+
+      {!showTableLoading && !isError && table.totalPages > 1 && (
+        <Pagination
+          currentPage={table.page}
+          totalPages={table.totalPages}
+          onPageChange={table.setPage}
+          totalItems={table.total}
+          pageSize={table.pageSize}
+        />
+      )}
+
+      <Sheet open={isDrawerOpen} onOpenChange={setIsDrawerOpen}>
+        <SheetContent className="flex h-full flex-col overflow-hidden pb-0">
+          <SheetHeader className="shrink-0">
+            <SheetTitle className="flex items-center gap-2">
+              <Mail className="h-5 w-5 text-primary" aria-hidden />
+              Email review
+            </SheetTitle>
+            <SheetDescription>
+              Review the email content and choose how to route it.
+            </SheetDescription>
+          </SheetHeader>
+
+          {selectedEmail && (
+            <div className="min-h-0 flex-1 space-y-5 overflow-hidden py-4 hover-scroll-y">
+              <div className={cn(sectionCard, "space-y-3 p-4")}>
+                <div>
+                  <span className={sectionLabel}>From</span>
+                  <p className="mt-1 text-sm font-medium text-foreground">
+                    {selectedEmail.customer_email}
+                  </p>
+                </div>
+                <div>
+                  <span className={sectionLabel}>Subject</span>
+                  <p className="mt-1 text-sm font-medium text-foreground">
+                    {selectedEmail.email_subject || "(No subject)"}
+                  </p>
+                </div>
+              </div>
+
+              <div>
+                <span className={cn(sectionLabel, "mb-2 block")}>Message body</span>
+                <div className="whitespace-pre-wrap rounded-lg border border-border bg-card p-5 text-sm leading-relaxed text-foreground">
+                  {selectedEmail.email_body ||
+                    selectedEmail.raw_content ||
+                    "(No message body parsed)"}
+                </div>
+              </div>
+
+              <div className={cn(sectionCard, "space-y-3 p-4")}>
+                <span className={sectionLabel}>AI classification</span>
+                <div className="flex flex-wrap items-center gap-3">
+                  <Badge
+                    variant={getStatusVariant(
+                      EMAIL_CLASSIFICATION_VARIANT,
+                      selectedEmail.classification ?? undefined,
+                      "neutral"
+                    )}
+                    shape="pill"
+                  >
+                    {selectedEmail.classification || "Unknown"}
+                  </Badge>
+                  {selectedEmail.confidence != null && (
+                    <Badge
+                      variant={getConfidenceBadgeVariant(selectedEmail.confidence)}
+                      shape="pill"
+                      className="tabular-nums"
+                    >
+                      {selectedEmail.confidence.toFixed(1)}%
+                    </Badge>
+                  )}
+                </div>
+                {selectedEmail.confidence != null && (
+                  <ConfidenceMeter
+                    value={selectedEmail.confidence}
+                    label="Classification confidence"
+                    size="md"
+                  />
+                )}
+              </div>
+
+              {(extraction?.invoice_number ||
+                extraction?.promised_date ||
+                extraction?.promised_amount != null ||
+                selectedEmail.error_message) && (
+                <div className={cn(sectionCard, "space-y-3 p-4")}>
+                  <span className={sectionLabel}>Promise extraction</span>
+                  <div className="grid gap-2 text-sm">
+                    <p>
+                      <span className="text-muted-foreground">Invoice: </span>
+                      {extraction?.invoice_number || "—"}
+                    </p>
+                    <p>
+                      <span className="text-muted-foreground">Promised date: </span>
+                      {extraction?.promised_date || "—"}
+                    </p>
+                    <p>
+                      <span className="text-muted-foreground">Amount: </span>
+                      {extraction?.promised_amount != null
+                        ? extraction.promised_amount
+                        : "Outstanding (default)"}
+                    </p>
+                    {selectedEmail.error_message && (
+                      <p className="text-destructive">{selectedEmail.error_message}</p>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {selectedEmail.reasoning && selectedEmail.reasoning.length > 0 && (
+                <div className={cn(sectionCard, "space-y-3 p-4")}>
+                  <span className={sectionLabel}>Reasoning</span>
+                  <ul className="list-disc space-y-1.5 pl-5 text-sm text-muted-foreground">
+                    {selectedEmail.reasoning.map((point, index) => (
+                      <li key={index}>{point}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )}
+
+          <SheetFooter className="mt-0 shrink-0 border-t border-border bg-card/95 px-0 py-4 backdrop-blur-sm">
+            {selectedEmail && (
+              <div className="flex w-full flex-wrap justify-end gap-2.5">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  className="border-destructive/25 text-destructive hover:border-destructive/40 hover:bg-destructive/5"
+                  onClick={() => openConfirm("DISMISS")}
+                  disabled={confirmMutation.isPending}
+                >
+                  Dismiss
+                </Button>
+                <Button
+                  type="button"
+                  variant="success"
+                  size="sm"
+                  onClick={() => openConfirm("ROUTE_PAYMENT")}
+                  disabled={confirmMutation.isPending}
+                >
+                  Route as Payment
+                </Button>
+                <Button
+                  type="button"
+                  variant="primary"
+                  size="sm"
+                  onClick={() => openConfirm("ROUTE_DISPUTE")}
+                  disabled={confirmMutation.isPending}
+                >
+                  Route as Dispute
+                </Button>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => openConfirm("ROUTE_PROMISE")}
+                  disabled={confirmMutation.isPending}
+                >
+                  Create promise
+                </Button>
+              </div>
+            )}
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
+
+      <Dialog open={isConfirmOpen} onOpenChange={setIsConfirmOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirm action</DialogTitle>
+            <DialogDescription>
+              {confirmAction ? CONFIRM_MESSAGES[confirmAction] : ""}
+            </DialogDescription>
+          </DialogHeader>
+
+          {confirmAction === "ROUTE_PROMISE" && (
+            <div className="space-y-3 py-2">
+              <div className="space-y-1.5">
+                <Label htmlFor="promise-invoice">Invoice number</Label>
+                <Input
+                  id="promise-invoice"
+                  value={promiseInvoice}
+                  onChange={(e) => setPromiseInvoice(e.target.value)}
+                  placeholder="INV-1234"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="promise-date">Promised date</Label>
+                <Input
+                  id="promise-date"
+                  type="date"
+                  min={todayIsoDate()}
+                  value={promiseDate}
+                  onChange={(e) => setPromiseDate(e.target.value)}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="promise-amount">
+                  Amount (optional — defaults to outstanding)
+                </Label>
+                <Input
+                  id="promise-amount"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={promiseAmount}
+                  onChange={(e) => setPromiseAmount(e.target.value)}
+                  placeholder="Leave blank for full outstanding"
+                />
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button variant="secondary" size="sm" onClick={() => setIsConfirmOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant={
+                confirmAction === "DISMISS"
+                  ? "danger"
+                  : confirmAction === "ROUTE_PAYMENT"
+                    ? "success"
+                    : "primary"
+              }
+              size="sm"
+              onClick={handleActionConfirm}
+              disabled={confirmMutation.isPending}
+            >
+              Confirm
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  )
+}
+
+export default EmailReviewPage

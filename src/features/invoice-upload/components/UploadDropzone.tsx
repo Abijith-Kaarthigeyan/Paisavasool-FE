@@ -1,20 +1,22 @@
 import React, { useRef, useState } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
-import { UploadCloud, AlertCircle } from "lucide-react"
+import { UploadCloud, AlertCircle, Loader2 } from "lucide-react"
 import { fileUploadSchema, FileUploadFormValues } from "../schemas/invoiceUploadSchema"
+import { Button } from "@/components/ui/button"
+import { cn } from "@/lib/utils"
 
 interface UploadDropzoneProps {
-  onFileSelect: (file: File) => void;
-  isUploading: boolean;
+  onFileSelect: (file: File) => void
+  isUploading: boolean
 }
 
 export const UploadDropzone: React.FC<UploadDropzoneProps> = ({
   onFileSelect,
   isUploading,
 }) => {
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const [dragActive, setDragActive] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [dragActive, setDragActive] = useState(false)
 
   const {
     formState: { errors },
@@ -22,52 +24,51 @@ export const UploadDropzone: React.FC<UploadDropzoneProps> = ({
     setError,
   } = useForm<FileUploadFormValues>({
     resolver: zodResolver(fileUploadSchema),
-  });
+  })
 
   const handleDrag = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
+    e.preventDefault()
+    e.stopPropagation()
     if (e.type === "dragenter" || e.type === "dragover") {
-      setDragActive(true);
+      setDragActive(true)
     } else if (e.type === "dragleave") {
-      setDragActive(false);
+      setDragActive(false)
     }
-  };
+  }
 
   const validateAndSelect = (file: File | undefined) => {
-    if (!file) return;
-    clearErrors("file");
+    if (!file) return
+    clearErrors("file")
 
-    // Zod validation manually or via form
-    const result = fileUploadSchema.safeParse({ file });
+    const result = fileUploadSchema.safeParse({ file })
     if (!result.success) {
-      const errorMsg = result.error.issues[0]?.message || "Invalid file.";
-      setError("file", { type: "manual", message: errorMsg });
+      const errorMsg = result.error.issues[0]?.message || "Invalid file."
+      setError("file", { type: "manual", message: errorMsg })
     } else {
-      onFileSelect(file);
+      onFileSelect(file)
     }
-  };
+  }
 
   const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setDragActive(false);
-    
-    if (isUploading) return;
-    const file = e.dataTransfer.files?.[0];
-    validateAndSelect(file);
-  };
+    e.preventDefault()
+    e.stopPropagation()
+    setDragActive(false)
+
+    if (isUploading) return
+    const file = e.dataTransfer.files?.[0]
+    validateAndSelect(file)
+  }
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    e.preventDefault();
-    if (isUploading) return;
-    const file = e.target.files?.[0];
-    validateAndSelect(file);
-  };
+    e.preventDefault()
+    if (isUploading) return
+    const file = e.target.files?.[0]
+    validateAndSelect(file)
+  }
 
   const onButtonClick = () => {
-    fileInputRef.current?.click();
-  };
+    fileInputRef.current?.click()
+  }
 
   return (
     <div className="w-full">
@@ -76,12 +77,22 @@ export const UploadDropzone: React.FC<UploadDropzoneProps> = ({
         onDragOver={handleDrag}
         onDragLeave={handleDrag}
         onDrop={handleDrop}
-        className={`relative flex flex-col items-center justify-center rounded-2xl border-2 border-dashed p-8 text-center transition-all duration-200 ${
-          dragActive
-            ? "border-primary bg-primary/5 scale-[1.01]"
-            : "border-border bg-card hover:border-primary/50 hover:bg-zinc-50 dark:hover:bg-zinc-900/30"
-        } ${isUploading ? "opacity-60 cursor-not-allowed" : "cursor-pointer"}`}
+        className={cn(
+          "relative flex flex-col items-center justify-center rounded-lg border border-dashed p-10 text-center transition-colors",
+          dragActive ? "border-primary bg-primary/5" : "border-border bg-card",
+          isUploading ? "cursor-wait opacity-70" : "cursor-pointer hover:border-primary/50"
+        )}
         onClick={!isUploading ? onButtonClick : undefined}
+        role="button"
+        tabIndex={isUploading ? -1 : 0}
+        onKeyDown={(e) => {
+          if (!isUploading && (e.key === "Enter" || e.key === " ")) {
+            e.preventDefault()
+            onButtonClick()
+          }
+        }}
+        aria-disabled={isUploading}
+        aria-busy={isUploading}
       >
         <input
           ref={fileInputRef}
@@ -90,34 +101,42 @@ export const UploadDropzone: React.FC<UploadDropzoneProps> = ({
           onChange={handleFileChange}
           className="hidden"
           disabled={isUploading}
+          aria-hidden
         />
 
-        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary mb-4 animate-bounce">
-          <UploadCloud className="h-6 w-6" />
-        </div>
-
-        <h3 className="text-base font-semibold text-foreground">
-          Drag & drop your file here
-        </h3>
-        <p className="mt-1 text-xs text-muted-foreground">
-          Supports single PDF or bulk ZIP archive (Max 50MB)
-        </p>
-
-        <button
-          type="button"
-          disabled={isUploading}
-          className="mt-4 rounded bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground hover:bg-primary/90 transition-colors cursor-pointer"
-        >
-          Select File
-        </button>
+        {isUploading ? (
+          <>
+            <Loader2 className="h-8 w-8 animate-spin text-primary" aria-hidden />
+            <p className="mt-3 text-sm text-muted-foreground">Uploading…</p>
+          </>
+        ) : (
+          <>
+            <UploadCloud className="h-8 w-8 text-muted-foreground" aria-hidden />
+            <p className="mt-3 text-sm font-medium text-foreground">Drop file here or browse</p>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              className="mt-4"
+              onClick={(e) => {
+                e.stopPropagation()
+                onButtonClick()
+              }}
+            >
+              Choose file
+            </Button>
+          </>
+        )}
       </div>
 
       {errors.file && (
-        <div className="mt-3 flex items-center gap-2 rounded-lg bg-rose-50 dark:bg-rose-950/20 p-3 text-xs text-rose-500 border border-rose-100 dark:border-rose-950/30 animate-pulse">
-          <AlertCircle className="h-4 w-4 shrink-0" />
-          <span>{errors.file.message as string}</span>
-        </div>
+        <p className="mt-2 flex items-center gap-1.5 text-sm text-destructive" role="alert">
+          <AlertCircle className="h-3.5 w-3.5 shrink-0" aria-hidden />
+          {errors.file.message as string}
+        </p>
       )}
     </div>
-  );
-};
+  )
+}
+
+export default UploadDropzone

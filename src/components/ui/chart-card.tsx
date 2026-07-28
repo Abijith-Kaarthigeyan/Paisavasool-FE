@@ -1,0 +1,133 @@
+import React from "react"
+import { AlertCircle, RefreshCw } from "lucide-react"
+import { cn } from "@/lib/utils"
+import { widgetHoverLiftClass } from "@/lib/widget-styles"
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
+import { Skeleton } from "@/components/ui/skeleton"
+import { Button } from "@/components/ui/button"
+import { EmptyState } from "@/components/ui/empty-state"
+
+export interface ChartCardError {
+  title?: string
+  message?: string
+  onRetry?: () => void
+}
+
+export interface ChartCardEmpty {
+  title?: string
+  description?: string
+}
+
+export interface ChartCardProps {
+  title: string
+  description?: string
+  children?: React.ReactNode
+  loading?: boolean
+  error?: ChartCardError | boolean
+  empty?: ChartCardEmpty | boolean
+  height?: string
+  headerAction?: React.ReactNode
+  className?: string
+  compact?: boolean
+  footer?: React.ReactNode
+}
+
+export function ChartCard({
+  title,
+  description,
+  children,
+  loading = false,
+  error,
+  empty,
+  height = "h-44",
+  headerAction,
+  className,
+  compact = false,
+  footer,
+}: ChartCardProps) {
+  const isError = Boolean(error)
+  const isEmpty = Boolean(empty) && !loading && !isError
+
+  const errorConfig: ChartCardError =
+    typeof error === "object" ? error : { title: "Failed to load chart" }
+
+  const emptyConfig: ChartCardEmpty =
+    typeof empty === "object"
+      ? empty
+      : { title: "No data yet", description: "Data will appear here once available." }
+
+  return (
+    <Card className={cn("border-border flex h-full min-h-0 flex-col", widgetHoverLiftClass, className)}>
+      <CardHeader
+        className={cn(
+          "flex shrink-0 flex-row items-start justify-between space-y-0 border-b border-border",
+          compact ? "mb-1 px-3 py-2" : "mb-3 pb-3"
+        )}
+      >
+        <div className={compact ? "space-y-0" : "space-y-1"}>
+          <CardTitle className={compact ? "text-sm" : "text-base"}>{title}</CardTitle>
+          {description && (
+            <CardDescription className={compact ? "text-[11px]" : undefined}>
+              {description}
+            </CardDescription>
+          )}
+        </div>
+        {headerAction}
+      </CardHeader>
+      <CardContent className={cn("min-h-0 flex-1 pt-0", compact && "px-3 pb-2")}>
+        {loading ? (
+          <Skeleton className={cn("w-full", height)} />
+        ) : isError ? (
+          <div
+            className={cn(
+              "flex flex-col items-center justify-center rounded-md border border-destructive/20 bg-destructive/5 px-4 text-center",
+              height
+            )}
+          >
+            <AlertCircle className="mb-2 h-8 w-8 text-destructive" aria-hidden />
+            <p className="text-sm font-medium text-foreground">
+              {errorConfig.title ?? "Failed to load chart"}
+            </p>
+            {errorConfig.message && (
+              <p className="mt-1 max-w-xs text-xs text-muted-foreground">
+                {errorConfig.message}
+              </p>
+            )}
+            {errorConfig.onRetry && (
+              <Button
+                variant="secondary"
+                size="sm"
+                className="mt-3"
+                onClick={errorConfig.onRetry}
+              >
+                <RefreshCw className="h-3.5 w-3.5" aria-hidden />
+                Retry
+              </Button>
+            )}
+          </div>
+        ) : isEmpty ? (
+          <div className={cn("flex items-center justify-center", height)}>
+            <EmptyState
+              title={emptyConfig.title ?? "No data yet"}
+              description={emptyConfig.description}
+              className="py-4"
+            />
+          </div>
+        ) : (
+          <div className={cn("w-full min-h-0", height === "h-full" ? "h-full" : height)}>
+            {children}
+          </div>
+        )}
+      </CardContent>
+      {footer && !loading && !isError && (
+        <div className="shrink-0 px-3 pb-2 pt-1">{footer}</div>
+      )}
+    </Card>
+  )
+}

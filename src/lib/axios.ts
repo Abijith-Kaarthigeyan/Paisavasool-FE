@@ -20,6 +20,12 @@ export const arApi = axios.create({
   ...commonConfig,
 })
 
+// Client targeting the Dispute Service
+export const disputeApi = axios.create({
+  baseURL: ENV.DISPUTE_API_BASE_URL,
+  ...commonConfig,
+})
+
 // Export api as backward-compatible alias to authApi
 export const api = authApi;
 
@@ -51,6 +57,7 @@ const requestInterceptor = (config: InternalAxiosRequestConfig) => {
 
 authApi.interceptors.request.use(requestInterceptor, (error) => Promise.reject(error));
 arApi.interceptors.request.use(requestInterceptor, (error) => Promise.reject(error));
+disputeApi.interceptors.request.use(requestInterceptor, (error) => Promise.reject(error));
 
 // Setup Response Interceptor for handling token refresh & 401 logouts
 const setupResponseInterceptor = (instance: typeof authApi) => {
@@ -87,6 +94,31 @@ const setupResponseInterceptor = (instance: typeof authApi) => {
           // Trigger token refresh via the Auth Service endpoint
           await authApi.post("/auth/refresh");
           
+          // Re-fetch current user profile to update Redux store with new expiration timestamp
+          try {
+            const meResponse = await authApi.get("/auth/me");
+            const freshUser = meResponse.data;
+            const { store } = await import("@/app/store");
+            const { setCredentials } = await import("@/features/auth/slices/authSlice");
+            const { getCookie } = await import("@/lib/cookies");
+
+            const expiresAtStr = getCookie("access_token_expires_at");
+            const exp = expiresAtStr ? parseInt(expiresAtStr, 10) : Math.floor(Date.now() / 1000) + 2700;
+
+            store.dispatch(
+              setCredentials({
+                sub: freshUser.id,
+                email: freshUser.email,
+                first_name: freshUser.first_name,
+                role: freshUser.role.role_name,
+                is_active: freshUser.is_active,
+                exp,
+              })
+            );
+          } catch (meError) {
+            console.error("Failed to update credentials after refresh:", meError);
+          }
+
           processQueue(null);
           isRefreshing = false;
           
@@ -96,8 +128,31 @@ const setupResponseInterceptor = (instance: typeof authApi) => {
           isRefreshing = false;
           
           // Clear credentials and redirect to login page
+          try {
+            const { store } = await import("@/app/store");
+            const { clearCredentials } = await import("@/features/auth/slices/authSlice");
+            store.dispatch(clearCredentials());
+          } catch (clearError) {
+            console.error("Failed to clear credentials on refresh failure:", clearError);
+          }
+
           if (typeof window !== "undefined") {
-            window.location.href = "/login?session_expired=true";
+            const { store } = await import("@/app/store");
+            const { isAuthenticated } = store.getState().auth;
+
+            // Only show "session expired" when the user was actively logged in.
+            // Fresh visits and initial session checks should not trigger this banner.
+            if (!isAuthenticated) {
+              return Promise.reject(refreshError);
+            }
+
+            const loc = window.location;
+            const isAlreadyExpiredLogin =
+              loc.pathname === "/login" &&
+              loc.search.includes("session_expired=true");
+            if (!isAlreadyExpiredLogin) {
+              window.location.href = "/login?session_expired=true";
+            }
           }
           return Promise.reject(refreshError);
         }
@@ -110,3 +165,4 @@ const setupResponseInterceptor = (instance: typeof authApi) => {
 
 setupResponseInterceptor(authApi);
 setupResponseInterceptor(arApi);
+setupResponseInterceptor(disputeApi);

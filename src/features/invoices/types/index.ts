@@ -1,5 +1,5 @@
 export type BatchStatus = "UPLOADED" | "PROCESSING" | "COMPLETED" | "PARTIAL_SUCCESS" | "FAILED";
-export type FileStatus = "UPLOADED" | "EXTRACTED" | "FAILED" | "IMPORTED";
+export type FileStatus = "UPLOADED" | "EXTRACTED" | "FAILED" | "IMPORTED" | "PENDING_REVIEW";
 export type InvoiceStatus = "PENDING" | "PARTIALLY_PAID" | "PAID" | "OVERDUE" | "DISPUTED" | "CANCELLED" | "DRAFT";
 
 export interface InvoiceUploadBatch {
@@ -9,10 +9,12 @@ export interface InvoiceUploadBatch {
   processed_files: number;
   success_count: number;
   failed_count: number;
+  pending_review_count?: number;
   status: BatchStatus;
   uploaded_by: string;
   uploaded_at: string;
   completed_at: string | null;
+  files?: InvoiceUploadFile[];
 }
 
 export interface InvoiceUploadFile {
@@ -23,6 +25,10 @@ export interface InvoiceUploadFile {
   error_message: string | null;
   created_at: string;
 }
+
+import type { PurchaseOrderSummary } from "@/features/purchase-orders/types"
+
+export type { PurchaseOrderSummary }
 
 export interface Customer {
   customer_code: string;
@@ -48,8 +54,36 @@ export interface Invoice {
   outstanding_amount: number;
   status: InvoiceStatus;
   batch_id: string;
+  po_number?: string | null;
+  po_id?: string | null;
+  purchase_order?: PurchaseOrderSummary | null;
+  current_version?: number;
   created_at: string;
   updated_at: string;
+}
+
+export interface InvoiceVersionSummary {
+  version_number: number;
+  change_reason: string | null;
+  change_source: string;
+  dispute_id: string | null;
+  recommendation_id: string | null;
+  created_by: string | null;
+  created_at: string;
+  is_current: boolean;
+}
+
+export interface InvoiceVersionDetail {
+  version_number: number;
+  invoice_snapshot: Record<string, unknown>;
+  items_snapshot: Array<Record<string, unknown>>;
+  change_reason?: string | null;
+  change_source?: string | null;
+  dispute_id?: string | null;
+  recommendation_id?: string | null;
+  created_by?: string | null;
+  created_at?: string | null;
+  is_current: boolean;
 }
 
 export interface InvoiceItem {
@@ -60,4 +94,31 @@ export interface InvoiceItem {
   unit_price: number;
   amount: number;
   created_at: string;
+}
+
+export type ReviewQueueStatus = "PENDING" | "RESOLVED" | "REJECTED";
+
+export interface ReviewQueueItem {
+  id: string;
+  batch_id: string;
+  invoice_id: string | null;
+  batch_file_id: string | null;
+  review_reason: string;
+  status: ReviewQueueStatus;
+  assigned_to: string | null;
+  created_at: string;
+}
+
+export interface DuplicateReviewContext {
+  review_id: string;
+  batch_id: string;
+  batch_file_id: string | null;
+  status: ReviewQueueStatus;
+  review_reason: string;
+  current_version: number;
+  invoice_id: string;
+  invoice_number: string;
+  current_invoice: Record<string, unknown>;
+  proposed_invoice: Record<string, unknown>;
+  has_changes: boolean;
 }

@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react"
 import { useDispatch } from "react-redux"
 import { useNavigate } from "react-router-dom"
 import { authService } from "@/features/auth/services/authService"
-import { clearCredentials } from "@/features/auth/slices/authSlice"
+import { logout } from "@/features/auth/slices/authSlice"
 import { UserResponse } from "@/types"
 
 export const ManagerPage: React.FC = () => {
@@ -31,13 +31,13 @@ export const ManagerPage: React.FC = () => {
     } catch (err) {
       console.error("Logout failed", err);
     } finally {
-      dispatch(clearCredentials());
+      dispatch(logout());
       navigate("/login");
     }
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 p-6 font-sans">
+    <div className="min-h-screen bg-background p-6 font-sans">
       <div className="mx-auto max-w-4xl space-y-6">
         {/* Header */}
         <header className="flex items-center justify-between border-b border-border pb-4">
@@ -79,15 +79,11 @@ export const ManagerPage: React.FC = () => {
                   <span className="text-muted-foreground">Email:</span>
                   <span className="font-semibold text-foreground">{profile.email}</span>
                 </div>
-                <div className="flex justify-between border-b border-border pb-2">
-                  <span className="text-muted-foreground">User ID:</span>
-                  <span className="font-mono text-zinc-500 text-xs">{profile.id}</span>
-                </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Status:</span>
                   <span
                     className={`font-semibold ${
-                      profile.is_active ? "text-emerald-500" : "text-rose-500"
+                      profile.is_active ? "text-success" : "text-destructive"
                     }`}
                   >
                     {profile.is_active ? "Active" : "Inactive"}
@@ -106,13 +102,9 @@ export const ManagerPage: React.FC = () => {
                     {profile.role.role_name}
                   </span>
                 </div>
-                <div className="flex justify-between border-b border-border pb-2">
-                  <span className="text-muted-foreground">Role ID:</span>
-                  <span className="font-mono text-zinc-500 text-xs">{profile.role.id}</span>
-                </div>
                 <div>
                   <span className="text-muted-foreground block mb-2">Role Description:</span>
-                  <p className="rounded bg-zinc-100 dark:bg-zinc-800 p-2 text-xs text-muted-foreground italic">
+                  <p className="rounded bg-muted p-2 text-xs italic text-muted-foreground">
                     {profile.role.description || "No description provided."}
                   </p>
                 </div>
@@ -120,7 +112,7 @@ export const ManagerPage: React.FC = () => {
             </div>
           </div>
         ) : (
-          <div className="rounded bg-rose-50 dark:bg-rose-950/20 p-4 text-rose-500 text-center">
+          <div className="rounded bg-destructive/10 p-4 text-center text-destructive">
             Failed to retrieve user profile credentials. Please ensure the backend is running.
           </div>
         )}

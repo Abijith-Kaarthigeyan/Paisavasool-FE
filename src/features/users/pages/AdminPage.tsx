@@ -1,4 +1,4 @@
-import React, { useState } from "react"
+import React, { useMemo, useState } from "react"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -7,8 +7,34 @@ import { useDispatch } from "react-redux"
 import { useNavigate } from "react-router-dom"
 import { userService } from "@/features/users/services/userService"
 import { authService } from "@/features/auth/services/authService"
-import { clearCredentials } from "@/features/auth/slices/authSlice"
+import { logout } from "@/features/auth/slices/authSlice"
 import { UserResponse } from "@/types"
+import { FilterBar } from "@/components/ui/filter-bar"
+import { ActiveFilterChips } from "@/components/ui/active-filter-chips"
+import { MobileColumnFilters } from "@/components/ui/mobile-column-filters"
+import { SortableHeader } from "@/components/ui/sortable-header"
+import { Pagination } from "@/components/ui/pagination"
+import { TableListEmpty } from "@/components/ui/table-list-empty"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
+import { TABLE_PAGE_SIZE, useClientTable, type ColumnDef } from "@/lib/table"
+import { Inbox } from "lucide-react"
+
+const ROLE_OPTIONS = [
+  { value: "ADMIN", label: "Admin" },
+  { value: "FINANCE_MANAGER", label: "Finance manager" },
+  { value: "FINANCE_ASSOCIATE", label: "Finance associate" },
+]
+
+const STATUS_OPTIONS = [
+  { value: "active", label: "Active" },
+  { value: "inactive", label: "Inactive" },
+]
 
 // Zod schemas for validation
 const createUserSchema = z.object({
@@ -31,6 +57,7 @@ export const AdminPage: React.FC = () => {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState("");
 
   // Get user list from server
   const { data: users = [], isLoading, error: fetchError } = useQuery<UserResponse[]>({
@@ -105,6 +132,7 @@ export const AdminPage: React.FC = () => {
   const selectedRoleEdit = watchEdit("role");
 
   const handleOpenEdit = (user: UserResponse) => {
+    setSelectedUser(user);
     resetEdit({
       first_name: user.first_name,
       last_name: user.last_name,
@@ -122,7 +150,7 @@ export const AdminPage: React.FC = () => {
     } catch (err) {
       console.error("Logout failed", err);
     } finally {
-      dispatch(clearCredentials());
+      dispatch(logout());
       navigate("/login");
     }
   };
@@ -160,8 +188,69 @@ export const AdminPage: React.FC = () => {
   // Find active managers for manager selection dropdown
   const managers = users.filter((u) => u.role.role_name === "FINANCE_MANAGER" && u.is_active);
 
+  const toolbarFiltered = useMemo(() => {
+    if (!searchTerm.trim()) return users;
+    const term = searchTerm.toLowerCase();
+    return users.filter(
+      (u) =>
+        `${u.first_name} ${u.last_name}`.toLowerCase().includes(term) ||
+        u.email.toLowerCase().includes(term) ||
+        u.role.role_name.toLowerCase().includes(term)
+    );
+  }, [users, searchTerm]);
+
+  const columns = useMemo<ColumnDef<UserResponse>[]>(
+    () => [
+      {
+        id: "name",
+        label: "Name",
+        sortable: true,
+        accessor: (row) => `${row.first_name} ${row.last_name}`.trim(),
+        filter: { type: "text", placeholder: "Name…" },
+      },
+      {
+        id: "email",
+        label: "Email",
+        sortable: true,
+        filter: { type: "text", placeholder: "Email…" },
+      },
+      {
+        id: "role",
+        label: "Role",
+        sortable: true,
+        accessor: (row) => row.role.role_name,
+        filter: { type: "select", options: ROLE_OPTIONS },
+      },
+      {
+        id: "status",
+        label: "Status",
+        sortable: true,
+        accessor: (row) => (row.is_active ? "active" : "inactive"),
+        filter: { type: "select", options: STATUS_OPTIONS },
+      },
+      {
+        id: "actions",
+        label: "Actions",
+      },
+    ],
+    []
+  );
+
+  const table = useClientTable({
+    data: toolbarFiltered,
+    columns,
+    pageSize: TABLE_PAGE_SIZE,
+  });
+
+  const hasActiveFilters = !!searchTerm || table.hasNonDefaultState;
+
+  const clearFilters = () => {
+    setSearchTerm("");
+    table.clearAll();
+  };
+
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 p-6 font-sans">
+    <div className="min-h-screen bg-background p-6 font-sans">
       <div className="mx-auto max-w-7xl space-y-6">
         {/* Header */}
         <header className="flex items-center justify-between border-b border-border pb-4">
@@ -194,7 +283,7 @@ export const AdminPage: React.FC = () => {
         </header>
 
         {actionError && (
-          <div className="rounded-md bg-rose-50 dark:bg-rose-950/20 p-4 text-rose-700 dark:text-rose-400 text-sm">
+          <div className="rounded-md bg-destructive/10 p-4 text-sm text-destructive">
             <span className="font-bold">Error: </span>
             {actionError}
           </div>
@@ -202,77 +291,132 @@ export const AdminPage: React.FC = () => {
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* User List Panel */}
-          <div className="lg:col-span-2 rounded-xl border border-border bg-card p-6 shadow-sm">
-            <h2 className="text-lg font-bold text-foreground mb-4">User List</h2>
+          <div className="lg:col-span-2 rounded-xl border border-border bg-card shadow-sm overflow-hidden">
+            <div className="border-b border-border p-4 pb-0">
+              <h2 className="text-lg font-bold text-foreground mb-4">User List</h2>
+            </div>
+            <div className="space-y-2 border-b border-border px-4 pb-3">
+              <FilterBar
+                variant="toolbar"
+                size="sm"
+                searchValue={searchTerm}
+                onSearchChange={setSearchTerm}
+                searchPlaceholder="Search by name, email, or role…"
+                showClear={hasActiveFilters}
+                onClear={clearFilters}
+              >
+                <MobileColumnFilters
+                  columns={columns}
+                  filters={table.filters}
+                  onFilterChange={table.setFilter}
+                />
+              </FilterBar>
+
+              <ActiveFilterChips
+                chips={table.activeChips}
+                onRemove={table.clearFilter}
+              />
+            </div>
             {isLoading ? (
-              <div className="flex h-40 items-center justify-center">
+              <div className="flex h-40 items-center justify-center p-6">
                 <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
               </div>
             ) : fetchError ? (
-              <div className="text-rose-500 text-center py-8">
+              <div className="py-8 text-center text-destructive px-6">
                 Failed to retrieve users list. Verify the auth microservice is running.
               </div>
             ) : (
+              <TableListEmpty
+                sourceCount={users.length}
+                filteredCount={table.filteredRows.length}
+                hasActiveFilters={hasActiveFilters}
+                emptyTitle="No users yet"
+                emptyDescription="No users have been created in the auth service."
+                emptyIcon={<Inbox className="h-6 w-6" />}
+                noMatchesTitle="No users found"
+                noMatchesDescription="No users match the current filters."
+                onClearFilters={clearFilters}
+              />
+            )}
+            {!isLoading && !fetchError && table.filteredRows.length > 0 && (
               <div className="overflow-x-auto">
-                <table className="w-full text-left text-sm">
-                  <thead>
-                    <tr className="border-b border-border text-muted-foreground uppercase text-xs font-semibold">
-                      <th className="py-3 px-2">Name</th>
-                      <th className="py-3 px-2">Email</th>
-                      <th className="py-3 px-2">Role</th>
-                      <th className="py-3 px-2">Status</th>
-                      <th className="py-3 px-2">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border">
-                    {users.map((userItem) => (
-                      <tr
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      {columns.map((column) => (
+                        <SortableHeader
+                          key={column.id}
+                          column={column}
+                          sort={table.sort}
+                          onSort={table.cycleSort}
+                          filterValue={table.filters[column.id]}
+                          onFilterChange={table.setFilter}
+                        />
+                      ))}
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {table.rows.map((userItem) => (
+                      <TableRow
                         key={userItem.id}
                         onClick={() => setSelectedUser(userItem)}
-                        className={`hover:bg-zinc-100 dark:hover:bg-zinc-900 cursor-pointer transition-colors ${
+                        className={`cursor-pointer ${
                           selectedUser?.id === userItem.id ? "bg-primary/5" : ""
                         }`}
                       >
-                        <td className="py-3 px-2 font-medium text-foreground">
+                        <TableCell className="font-medium text-foreground">
                           {userItem.first_name} {userItem.last_name}
-                        </td>
-                        <td className="py-3 px-2 text-muted-foreground">{userItem.email}</td>
-                        <td className="py-3 px-2">
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">{userItem.email}</TableCell>
+                        <TableCell>
                           <span className="rounded bg-primary/10 px-2 py-0.5 text-xs font-semibold text-primary">
                             {userItem.role.role_name}
                           </span>
-                        </td>
-                        <td className="py-3 px-2">
+                        </TableCell>
+                        <TableCell>
                           <span
                             className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
                               userItem.is_active
-                                ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/20 dark:text-emerald-400"
-                                : "bg-rose-50 text-rose-700 dark:bg-rose-950/20 dark:text-rose-400"
+                                ? "bg-success-muted text-success"
+                                : "bg-destructive/10 text-destructive"
                             }`}
                           >
                             {userItem.is_active ? "Active" : "Inactive"}
                           </span>
-                        </td>
-                        <td className="py-3 px-2 flex gap-2" onClick={(e) => e.stopPropagation()}>
-                          <button
-                            onClick={() => handleOpenEdit(userItem)}
-                            className="text-xs font-semibold text-primary hover:underline"
-                          >
-                            Edit
-                          </button>
-                          <button
-                            onClick={() => toggleUserStatus(userItem)}
-                            className={`text-xs font-semibold hover:underline ${
-                              userItem.is_active ? "text-rose-500" : "text-emerald-500"
-                            }`}
-                          >
-                            {userItem.is_active ? "Deactivate" : "Activate"}
-                          </button>
-                        </td>
-                      </tr>
+                        </TableCell>
+                        <TableCell onClick={(e) => e.stopPropagation()}>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => handleOpenEdit(userItem)}
+                              className="text-xs font-semibold text-primary hover:underline"
+                            >
+                              Edit
+                            </button>
+                            <button
+                              onClick={() => toggleUserStatus(userItem)}
+                              className={`text-xs font-semibold hover:underline ${
+                                userItem.is_active ? "text-destructive" : "text-success"
+                              }`}
+                            >
+                              {userItem.is_active ? "Deactivate" : "Activate"}
+                            </button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
                     ))}
-                  </tbody>
-                </table>
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+            {!isLoading && !fetchError && table.filteredRows.length > 0 && table.totalPages > 1 && (
+              <div className="border-t border-border p-4">
+                <Pagination
+                  currentPage={table.page}
+                  totalPages={table.totalPages}
+                  onPageChange={table.setPage}
+                  totalItems={table.total}
+                  pageSize={table.pageSize}
+                />
               </div>
             )}
           </div>
@@ -286,7 +430,6 @@ export const AdminPage: React.FC = () => {
                   <h3 className="font-bold text-base text-foreground">
                     {selectedUser.first_name} {selectedUser.last_name}
                   </h3>
-                  <span className="text-xs text-muted-foreground font-mono">{selectedUser.id}</span>
                 </div>
 
                 <div className="border-t border-border pt-3 space-y-2">
@@ -299,16 +442,21 @@ export const AdminPage: React.FC = () => {
                     <span className="font-bold text-primary">{selectedUser.role.role_name}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">Manager ID:</span>
-                    <span className="font-mono text-zinc-400 text-xs truncate max-w-[150px]">
-                      {selectedUser.manager_id || "None"}
+                    <span className="text-muted-foreground">Manager:</span>
+                    <span className="font-semibold text-foreground text-xs">
+                      {selectedUser.manager_id
+                        ? (() => {
+                            const m = users.find((u) => u.id === selectedUser.manager_id);
+                            return m ? `${m.first_name} ${m.last_name}` : "Assigned Manager";
+                          })()
+                        : "None"}
                     </span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Status:</span>
                     <span
                       className={`font-semibold ${
-                        selectedUser.is_active ? "text-emerald-500" : "text-rose-500"
+                        selectedUser.is_active ? "text-success" : "text-destructive"
                       }`}
                     >
                       {selectedUser.is_active ? "Active" : "Inactive"}
@@ -349,7 +497,7 @@ export const AdminPage: React.FC = () => {
                     className="mt-1 w-full rounded border border-input bg-background p-2 text-sm text-foreground focus:ring-1 focus:ring-primary"
                   />
                   {createErrors.first_name && (
-                    <span className="text-xs text-rose-500">{createErrors.first_name.message}</span>
+                    <span className="text-xs text-destructive">{createErrors.first_name.message}</span>
                   )}
                 </div>
 
@@ -361,7 +509,7 @@ export const AdminPage: React.FC = () => {
                     className="mt-1 w-full rounded border border-input bg-background p-2 text-sm text-foreground focus:ring-1 focus:ring-primary"
                   />
                   {createErrors.last_name && (
-                    <span className="text-xs text-rose-500">{createErrors.last_name.message}</span>
+                    <span className="text-xs text-destructive">{createErrors.last_name.message}</span>
                   )}
                 </div>
 
@@ -373,7 +521,7 @@ export const AdminPage: React.FC = () => {
                     className="mt-1 w-full rounded border border-input bg-background p-2 text-sm text-foreground focus:ring-1 focus:ring-primary"
                   />
                   {createErrors.email && (
-                    <span className="text-xs text-rose-500">{createErrors.email.message}</span>
+                    <span className="text-xs text-destructive">{createErrors.email.message}</span>
                   )}
                 </div>
 
@@ -385,7 +533,7 @@ export const AdminPage: React.FC = () => {
                     className="mt-1 w-full rounded border border-input bg-background p-2 text-sm text-foreground focus:ring-1 focus:ring-primary"
                   />
                   {createErrors.password && (
-                    <span className="text-xs text-rose-500">{createErrors.password.message}</span>
+                    <span className="text-xs text-destructive">{createErrors.password.message}</span>
                   )}
                 </div>
 
@@ -416,7 +564,7 @@ export const AdminPage: React.FC = () => {
                       ))}
                     </select>
                     {createErrors.manager_id && (
-                      <span className="text-xs text-rose-500">{createErrors.manager_id.message}</span>
+                      <span className="text-xs text-destructive">{createErrors.manager_id.message}</span>
                     )}
                   </div>
                 )}
@@ -500,7 +648,7 @@ export const AdminPage: React.FC = () => {
                     type="checkbox"
                     id="is_active"
                     {...registerEdit("is_active")}
-                    className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                    className="h-4 w-4 rounded border-input text-primary focus:ring-ring/30"
                   />
                   <label htmlFor="is_active" className="text-sm font-semibold text-foreground">
                     User Active Status

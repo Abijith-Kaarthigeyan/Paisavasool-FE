@@ -1,268 +1,465 @@
-import React from "react"
-import { useParams, Link } from "react-router-dom"
+import React, { useEffect, useRef } from "react"
+import { Link, useParams, useNavigate, useSearchParams } from "react-router-dom"
 import { usePaymentUpload, usePaymentUploadStatus } from "../hooks/usePayments"
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
-import { 
-  ArrowLeft, 
-  FileText, 
-  Calendar, 
-  Clock, 
-  AlertTriangle, 
-  XCircle,
-  RefreshCw
+import { PageHeader } from "@/components/ui/page-header"
+import { PageBreadcrumb } from "@/components/ui/page-breadcrumb"
+import { EmptyState } from "@/components/ui/empty-state"
+import { Button } from "@/components/ui/button"
+import { AiAgentCard } from "@/components/ui/ai-agent-card"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
+import { PAYMENT_STATUS_VARIANT, getStatusVariant } from "@/lib/design-tokens"
+import { cn } from "@/lib/utils"
+import { formatCurrency } from "@/lib/formatCurrency"
+import {
+  FileText,
+  Calendar,
+  AlertTriangle,
+  ChevronLeft,
+  RefreshCw,
+  Upload,
+  ScanSearch,
+  GitMerge,
+  ExternalLink,
 } from "lucide-react"
 
+const PIPELINE_STEPS = [
+  { key: "ingest", label: "Ingest", icon: Upload },
+  { key: "extract", label: "Extract & validate", icon: ScanSearch },
+  { key: "match", label: "Match", icon: GitMerge },
+] as const
+
+const TERMINAL_STATUSES = new Set(["MATCHED", "FAILED", "REVIEW_REQUIRED"])
+
+/** Hide payment UUIDs from duplicate-UTR and similar workflow errors shown to associates. */
+function formatPaymentUploadError(message: string): string {
+  return message.replace(
+    /already exists on payment [0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi,
+    "already exists on previous payment"
+  )
+}
+
+function getStepState(
+  stepKey: (typeof PIPELINE_STEPS)[number]["key"],
+  status: string
+): "complete" | "active" | "pending" | "error" | "warning" {
+  if (status === "FAILED") {
+    if (stepKey === "ingest" || stepKey === "extract") return "complete"
+    if (stepKey === "match") return "error"
+    return "pending"
+  }
+
+  if (status === "MATCHED") return "complete"
+
+  if (status === "REVIEW_REQUIRED") {
+    if (stepKey === "match") return "warning"
+    return "complete"
+  }
+
+  if (status === "PROCESSING") {
+    if (stepKey === "ingest") return "complete"
+    if (stepKey === "extract") return "active"
+    return "pending"
+  }
+
+  // UPLOADED
+  if (stepKey === "ingest") return "active"
+  return "pending"
+}
+
+function getAgentStage(status: string): { stage: string; agentStatus: "running" | "complete" | "error" | "idle"; progress?: number } {
+  switch (status) {
+    case "UPLOADED":
+      return { stage: "Document ingested — awaiting OCR extraction", agentStatus: "running", progress: 33 }
+    case "PROCESSING":
+      return { stage: "AI extraction and metadata validation in progress", agentStatus: "running", progress: 66 }
+    case "MATCHED":
+      return { stage: "Payment matched and auto-approved", agentStatus: "complete", progress: 100 }
+    case "REVIEW_REQUIRED":
+      return {
+        stage: "Match confidence below threshold — routed to human review",
+        agentStatus: "complete",
+        progress: 100,
+      }
+    case "FAILED":
+      return { stage: "Matching pipeline failed", agentStatus: "error" }
+    default:
+      return { stage: "Awaiting processing", agentStatus: "idle" }
+  }
+}
+
 export const PaymentUploadDetailPage: React.FC = () => {
-  const { id } = useParams<{ id: string }>();
+  const { id } = useParams<{ id: string }>()
+  const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const fromSessionId = searchParams.get("fromSession")
 
-  // Fetch the full upload details
-  const { data: upload, isLoading: isUploadLoading, error: uploadError, refetch } = usePaymentUpload(id);
+  const { data: upload, isLoading: isUploadLoading, error: uploadError, refetch } = usePaymentUpload(id)
+  const { data: statusData } = usePaymentUploadStatus(id)
+  const previousStatusRef = useRef<string | undefined>(undefined)
+  const refetchedForTerminalRef = useRef(false)
 
-  // Poll the status until completed
-  const { data: statusData } = usePaymentUploadStatus(id);
+  const activeStatus = statusData?.status || upload?.status || "UPLOADED"
+  const rawErrorMessage = statusData?.error_message || upload?.error_message || null
+  const errorMessage = rawErrorMessage ? formatPaymentUploadError(rawErrorMessage) : null
+  const agentInfo = getAgentStage(activeStatus)
+  const matchResult = upload?.match_result ?? null
 
-  const activeStatus = statusData?.status || upload?.status || "UPLOADED";
-  const errorMessage = statusData?.error_message || upload?.error_message || null;
+  useEffect(() => {
+    const previous = previousStatusRef.current
+    previousStatusRef.current = activeStatus
 
-  const getStatusVariant = (status: string) => {
-    switch (status) {
-      case "MATCHED": return "success";
-      case "PROCESSING": return "info";
-      case "UPLOADED": return "secondary";
-      case "REVIEW_REQUIRED": return "warning";
-      case "FAILED": return "destructive";
-      default: return "outline";
-    }
-  };
-
-  const getStepState = (step: number) => {
-    // Steps: 1: Ingested, 2: Extracted & Validated, 3: Match / Review Queue
-    if (activeStatus === "FAILED") {
-      if (step === 3) return "failed";
-      return "completed";
+    if (!TERMINAL_STATUSES.has(activeStatus)) {
+      refetchedForTerminalRef.current = false
+      return
     }
 
-    if (activeStatus === "MATCHED") {
-      return "completed";
+    const becameTerminal = Boolean(previous && previous !== activeStatus)
+    if ((becameTerminal || !matchResult) && !refetchedForTerminalRef.current) {
+      refetchedForTerminalRef.current = true
+      void refetch()
     }
-
-    if (activeStatus === "REVIEW_REQUIRED") {
-      if (step === 3) return "warning";
-      return "completed";
-    }
-
-    if (activeStatus === "PROCESSING") {
-      if (step === 1) return "completed";
-      if (step === 2) return "active";
-      return "upcoming";
-    }
-
-    // UPLOADED
-    if (step === 1) return "active";
-    return "upcoming";
-  };
+  }, [activeStatus, matchResult, refetch])
 
   if (isUploadLoading) {
     return (
-      <div className="space-y-6 max-w-4xl mx-auto animate-pulse">
-        <Skeleton className="h-8 w-40" />
+      <div className="space-y-6">
+        <Skeleton className="h-8 w-64" />
         <Skeleton className="h-20 w-full" />
         <Skeleton className="h-40 w-full" />
         <Skeleton className="h-60 w-full" />
       </div>
-    );
+    )
   }
 
   if (uploadError || !upload) {
     return (
-      <div className="max-w-md mx-auto text-center py-16 space-y-4">
-        <XCircle className="h-12 w-12 text-rose-500 mx-auto" />
-        <h3 className="text-lg font-bold text-foreground">Payment Record Not Found</h3>
-        <p className="text-sm text-muted-foreground">The requested payment upload details could not be loaded.</p>
-        <Link to="/payment-upload-history" className="inline-flex items-center gap-1.5 text-xs font-bold text-primary hover:underline">
-          <ArrowLeft className="h-4 w-4" /> Back to History
-        </Link>
+      <div className="mx-auto max-w-md py-12">
+        <EmptyState
+          title="Payment record not found"
+          description="The requested payment upload details could not be loaded."
+          action={
+            <Button variant="primary" size="sm" onClick={() => navigate("/payment-upload-history")}>
+              Back to history
+            </Button>
+          }
+        />
       </div>
-    );
+    )
   }
 
   return (
-    <div className="space-y-6 max-w-4xl mx-auto">
-      {/* Header */}
-      <header className="flex flex-col sm:flex-row sm:items-center sm:justify-between border-b border-border pb-5 gap-4">
-        <div className="space-y-1">
+    <div className="space-y-8">
+      <PageBreadcrumb
+        items={
+          fromSessionId
+            ? [
+                { label: "Upload documents", to: "/upload" },
+                { label: "Session", to: `/upload/sessions/${fromSessionId}` },
+                { label: "Upload details" },
+              ]
+            : [
+                { label: "Payment history", to: "/payment-upload-history" },
+                { label: "Upload details" },
+              ]
+        }
+      />
+
+      <PageHeader
+        title="Payment ingestion details"
+        actions={
           <div className="flex items-center gap-2">
-            <Link to="/payment-upload-history" className="text-muted-foreground hover:text-foreground">
-              <ArrowLeft className="h-5 w-5" />
-            </Link>
-            <h1 className="text-2xl font-bold tracking-tight text-foreground m-0">
-              Payment Ingestion Details
-            </h1>
+            {fromSessionId && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => navigate(`/upload/sessions/${fromSessionId}`)}
+              >
+                <ChevronLeft className="h-4 w-4" aria-hidden />
+                Back to session
+              </Button>
+            )}
+            <Button
+              variant="icon"
+              size="sm"
+              onClick={() => refetch()}
+              title="Refresh status"
+              aria-label="Refresh status"
+            >
+              <RefreshCw className="h-4 w-4" />
+            </Button>
+            <Badge
+              variant={getStatusVariant(PAYMENT_STATUS_VARIANT, activeStatus)}
+              shape="pill"
+            >
+              {activeStatus.replace(/_/g, " ")}
+            </Badge>
           </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => refetch()}
-            className="flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-bold text-foreground hover:bg-muted"
-          >
-            <RefreshCw className="h-3 w-3" /> Refresh
-          </button>
-          <Badge variant={getStatusVariant(activeStatus)} className="text-xs uppercase px-3 py-1 font-bold tracking-wider">
-            {activeStatus.replace("_", " ")}
-          </Badge>
-        </div>
-      </header>
+        }
+      />
 
-      {/* Progress Stepper Visualizer */}
-      <Card className="border-border shadow-xs">
-        <CardHeader className="pb-3 border-b border-border mb-4">
-          <CardTitle className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Agent Matching Progress</CardTitle>
+      <Card>
+        <CardHeader className="border-b border-border pb-4">
+          <CardTitle className="text-base font-semibold">Matching pipeline</CardTitle>
+          <CardDescription>Payment matching agent progress through ingestion stages.</CardDescription>
         </CardHeader>
-        <CardContent className="pt-0">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 sm:gap-2">
-            {/* Step 1: Ingested */}
-            <div className="flex items-center space-x-3">
-              <div className="h-8 w-8 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center border border-emerald-500/20 font-bold">
-                ✓
-              </div>
-              <div>
-                <p className="text-xs font-bold text-foreground">Document Ingested</p>
-                <p className="text-[10px] text-muted-foreground mt-0.5">Parsed to core blob storage</p>
-              </div>
-            </div>
+        <CardContent className="space-y-6 pt-4">
+          <ol className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            {PIPELINE_STEPS.map((step, index) => {
+              const state = getStepState(step.key, activeStatus)
+              const Icon = step.icon
+              return (
+                <li key={step.key} className="flex flex-1 items-center gap-2">
+                  <div
+                    className={cn(
+                      "flex h-8 w-8 shrink-0 items-center justify-center rounded-full border text-xs font-medium",
+                      state === "complete" && "border-success/30 bg-success-muted text-success",
+                      state === "active" && "border-primary/30 bg-primary/10 text-primary",
+                      state === "warning" && "border-warning/30 bg-warning-muted text-warning",
+                      state === "error" && "border-destructive/30 bg-destructive/10 text-destructive",
+                      state === "pending" && "border-border bg-muted text-muted-foreground"
+                    )}
+                  >
+                    <Icon className="h-3.5 w-3.5" aria-hidden />
+                  </div>
+                  <div className="min-w-0">
+                    <p
+                      className={cn(
+                        "text-xs font-medium",
+                        state === "active" || state === "warning"
+                          ? "text-foreground"
+                          : "text-muted-foreground"
+                      )}
+                    >
+                      {step.label}
+                    </p>
+                  </div>
+                  {index < PIPELINE_STEPS.length - 1 && (
+                    <div className="hidden h-px flex-1 bg-border sm:block" aria-hidden />
+                  )}
+                </li>
+              )
+            })}
+          </ol>
 
-            <div className="hidden sm:block flex-1 h-0.5 border-t border-dashed border-border" />
-
-            {/* Step 2: Extraction & Validation */}
-            <div className="flex items-center space-x-3">
-              {getStepState(2) === "completed" ? (
-                <div className="h-8 w-8 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center border border-emerald-500/20 font-bold">
-                  ✓
-                </div>
-              ) : getStepState(2) === "active" ? (
-                <div className="h-8 w-8 rounded-full bg-primary/10 text-primary flex items-center justify-center border border-primary/20 font-bold animate-pulse">
-                  <Clock className="h-4 w-4" />
-                </div>
-              ) : (
-                <div className="h-8 w-8 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-400 flex items-center justify-center border border-border font-bold">
-                  2
-                </div>
-              )}
-              <div>
-                <p className="text-xs font-bold text-foreground">AI Extraction & Validation</p>
-                <p className="text-[10px] text-muted-foreground mt-0.5">OCR metadata validation</p>
-              </div>
-            </div>
-
-            <div className="hidden sm:block flex-1 h-0.5 border-t border-dashed border-border" />
-
-            {/* Step 3: Match / Review Queue */}
-            <div className="flex items-center space-x-3">
-              {getStepState(3) === "completed" ? (
-                <div className="h-8 w-8 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center border border-emerald-500/20 font-bold">
-                  ✓
-                </div>
-              ) : getStepState(3) === "warning" ? (
-                <div className="h-8 w-8 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center border border-amber-500/20 font-bold">
-                  !
-                </div>
-              ) : getStepState(3) === "failed" ? (
-                <div className="h-8 w-8 rounded-full bg-rose-500/10 text-rose-600 dark:text-rose-400 flex items-center justify-center border border-rose-500/20 font-bold">
-                  ✕
-                </div>
-              ) : (
-                <div className="h-8 w-8 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-400 flex items-center justify-center border border-border font-bold">
-                  3
-                </div>
-              )}
-              <div>
-                <p className="text-xs font-bold text-foreground">Matching Resolution</p>
-                <p className="text-[10px] text-muted-foreground mt-0.5">
-                  {activeStatus === "MATCHED" && "Matched & Auto Approved"}
-                  {activeStatus === "REVIEW_REQUIRED" && "Uncertainty / Human Queue"}
-                  {activeStatus === "FAILED" && "Matching failed"}
-                  {(activeStatus === "UPLOADED" || activeStatus === "PROCESSING") && "Pending analysis"}
-                </p>
-              </div>
-            </div>
-          </div>
+          {agentInfo.agentStatus !== "idle" && (
+            <AiAgentCard
+              agentName="Payment matching agent"
+              stage={agentInfo.stage}
+              stageLabel="Current stage"
+              progress={agentInfo.progress}
+              status={agentInfo.agentStatus}
+            />
+          )}
         </CardContent>
       </Card>
 
-      {/* Failure Alerts */}
-      {errorMessage && (
-        <Card className="border-rose-500/20 bg-rose-500/5 text-rose-800 dark:text-rose-400">
-          <CardContent className="p-4 flex items-center gap-3">
-            <AlertTriangle className="h-5 w-5 text-rose-500 shrink-0" />
-            <div>
-              <h5 className="text-sm font-semibold">Processing Ambiguity / Ingest Failure</h5>
-              <p className="text-xs text-muted-foreground mt-0.5">{errorMessage}</p>
+      {activeStatus === "MATCHED" && matchResult && (
+        <Card>
+          <CardHeader className="border-b border-border pb-4">
+            <CardTitle className="text-base font-semibold">Match result</CardTitle>
+            <CardDescription>
+              Invoices allocated when this payment was auto-approved.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-5 pt-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 text-sm">
+              <div className="flex flex-col">
+                <span className="text-xs text-muted-foreground">Customer</span>
+                <span className="mt-0.5 font-medium text-foreground">
+                  {matchResult.customer_name}
+                </span>
+              </div>
+              <div className="flex flex-col">
+                <span className="text-xs text-muted-foreground">UTR / reference</span>
+                <span className="mt-0.5 font-medium text-foreground">
+                  {matchResult.payment_reference || "—"}
+                </span>
+              </div>
+              <div className="flex flex-col">
+                <span className="text-xs text-muted-foreground">Payment amount</span>
+                <span className="mt-0.5 font-medium text-foreground">
+                  {formatCurrency(matchResult.payment_amount)}
+                </span>
+              </div>
+              <div className="flex flex-col">
+                <span className="text-xs text-muted-foreground">Payment date</span>
+                <span className="mt-0.5 font-medium text-foreground">
+                  {new Date(matchResult.payment_date).toLocaleDateString()}
+                </span>
+              </div>
+            </div>
+
+            {matchResult.allocations.length > 0 ? (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Invoice</TableHead>
+                    <TableHead>Match type</TableHead>
+                    <TableHead className="text-right">Allocated</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {matchResult.allocations.map((allocation) => (
+                    <TableRow key={allocation.invoice_id}>
+                      <TableCell>
+                        <Link
+                          to={`/invoices/${allocation.invoice_id}`}
+                          className="inline-flex items-center gap-1 font-medium text-primary hover:underline"
+                        >
+                          {allocation.invoice_number}
+                          <ExternalLink className="h-3 w-3" aria-hidden />
+                        </Link>
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {allocation.match_type}
+                      </TableCell>
+                      <TableCell className="text-right font-medium">
+                        {formatCurrency(allocation.allocated_amount)}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            ) : (
+              <EmptyState
+                title="No invoice allocations"
+                description="This payment settled without allocating to open invoices."
+                className="py-6"
+              />
+            )}
+
+            <div className="flex flex-wrap gap-4 border-t border-border pt-3 text-sm">
+              <div>
+                <span className="text-muted-foreground">Total allocated: </span>
+                <span className="font-medium text-foreground">
+                  {formatCurrency(matchResult.allocated_amount)}
+                </span>
+              </div>
+              {matchResult.credit_amount != null && matchResult.credit_amount > 0 && (
+                <div>
+                  <span className="text-muted-foreground">Customer credit: </span>
+                  <span className="font-medium text-foreground">
+                    {formatCurrency(matchResult.credit_amount)}
+                  </span>
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {/* Upload Metadata info */}
-        <div className="space-y-6">
-          <Card className="border-border shadow-xs h-fit">
-            <CardHeader className="pb-3 border-b border-border mb-4">
-              <CardTitle className="text-sm font-bold uppercase tracking-wider text-foreground flex items-center gap-2">
-                <Calendar className="h-4 w-4 text-primary" /> Document Details
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="pt-0 space-y-3.5 text-sm">
-              <div className="flex flex-col">
-                <span className="text-xs text-muted-foreground">File Name</span>
-                <span className="font-semibold text-foreground truncate max-w-full mt-0.5">{upload.file_name}</span>
-              </div>
-              <div className="flex flex-col">
-                <span className="text-xs text-muted-foreground">Uploaded At</span>
-                <span className="font-semibold text-foreground mt-0.5">{new Date(upload.uploaded_at).toLocaleString()}</span>
-              </div>
-              <div className="flex flex-col">
-                <span className="text-xs text-muted-foreground">Ingested By</span>
-                <span className="font-semibold text-foreground text-xs mt-0.5">Finance Associate</span>
-              </div>
-              <div className="flex flex-col border-t border-border pt-3">
-                <span className="text-xs text-muted-foreground">Current Match status</span>
-                <div className="mt-1">
-                  <Badge variant={getStatusVariant(activeStatus)} className="text-[10px] uppercase font-bold tracking-wider py-0.5 px-2">
-                    {activeStatus.replace("_", " ")}
-                  </Badge>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+      {activeStatus === "REVIEW_REQUIRED" && (
+        <Card className="border-warning/20 bg-warning-muted/30">
+          <CardContent className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="space-y-1">
+              <h5 className="text-sm font-semibold text-foreground">
+                Human review required
+              </h5>
+              <p className="text-sm text-muted-foreground">
+                {matchResult
+                  ? `Extracted payment for ${matchResult.customer_name} (${formatCurrency(matchResult.payment_amount)}). Assign invoices in Matching Reviews.`
+                  : "Match confidence was below the auto-approval threshold. Continue in Matching Reviews to allocate this payment."}
+              </p>
+            </div>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={() => navigate("/payment-reviews")}
+            >
+              Open Matching Reviews
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
-        {/* Extracted text container */}
-        <div className="md:col-span-2">
-          <Card className="border-border shadow-xs h-full min-h-[350px]">
-            <CardHeader className="pb-3 border-b border-border mb-4">
-              <CardTitle className="text-sm font-bold uppercase tracking-wider text-foreground flex items-center gap-2">
-                <FileText className="h-4 w-4 text-primary" /> Plain Text Extracted
-              </CardTitle>
-              <CardDescription>Plain text extracted from PDF receipt by internal OCR service.</CardDescription>
-            </CardHeader>
-            <CardContent className="pt-0">
-              {upload.raw_text ? (
-                <pre className="rounded-lg bg-slate-50 dark:bg-zinc-900/50 p-4 font-mono text-xs text-foreground leading-relaxed whitespace-pre-wrap max-h-[400px] overflow-y-auto border border-border">
-                  {upload.raw_text}
-                </pre>
-              ) : (
-                <div className="text-center py-12 text-muted-foreground text-xs italic bg-slate-50/50 dark:bg-zinc-900/40 border rounded-lg">
-                  OCR text processing in progress or text empty...
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </div>
+      {errorMessage && (
+        <Card className="border-destructive/20 bg-destructive/5">
+          <CardContent className="flex items-center gap-3 p-4">
+            <AlertTriangle className="h-5 w-5 shrink-0 text-destructive" aria-hidden />
+            <div>
+              <h5 className="text-sm font-semibold text-foreground">
+                Processing ambiguity / ingest failure
+              </h5>
+              <p className="mt-0.5 text-sm text-muted-foreground">{errorMessage}</p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
+        <Card className="h-fit">
+          <CardHeader className="border-b border-border pb-4">
+            <CardTitle className="flex items-center gap-2 text-base font-semibold">
+              <Calendar className="h-4 w-4 text-primary" aria-hidden />
+              Document details
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3.5 pt-4 text-sm">
+            <div className="flex flex-col">
+              <span className="text-xs text-muted-foreground">File name</span>
+              <span className="mt-0.5 truncate font-medium text-foreground">{upload.file_name}</span>
+            </div>
+            <div className="flex flex-col">
+              <span className="text-xs text-muted-foreground">Uploaded at</span>
+              <span className="mt-0.5 font-medium text-foreground">
+                {new Date(upload.uploaded_at).toLocaleString()}
+              </span>
+            </div>
+            <div className="flex flex-col">
+              <span className="text-xs text-muted-foreground">Ingested by</span>
+              <span className="mt-0.5 text-sm font-medium text-foreground">Finance Associate</span>
+            </div>
+            <div className="flex flex-col border-t border-border pt-3">
+              <span className="text-xs text-muted-foreground">Current match status</span>
+              <div className="mt-1">
+                <Badge
+                  variant={getStatusVariant(PAYMENT_STATUS_VARIANT, activeStatus)}
+                  shape="pill"
+                >
+                  {activeStatus.replace(/_/g, " ")}
+                </Badge>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="min-h-[350px] md:col-span-2">
+          <CardHeader className="border-b border-border pb-4">
+            <CardTitle className="flex items-center gap-2 text-base font-semibold">
+              <FileText className="h-4 w-4 text-primary" aria-hidden />
+              Plain text extracted
+            </CardTitle>
+            <CardDescription>
+              Plain text extracted from PDF receipt by internal OCR service.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="pt-4">
+            {upload.raw_text ? (
+              <pre className="max-h-[400px] overflow-y-auto whitespace-pre-wrap rounded-md border border-border bg-muted/30 p-4 font-mono text-xs leading-relaxed text-foreground">
+                {upload.raw_text}
+              </pre>
+            ) : (
+              <EmptyState
+                title="OCR in progress"
+                description="Text extraction is in progress or the document contained no readable text."
+                className="py-8"
+              />
+            )}
+          </CardContent>
+        </Card>
       </div>
     </div>
-  );
-};
+  )
+}
 
-export default PaymentUploadDetailPage;
+export default PaymentUploadDetailPage
